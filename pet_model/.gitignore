@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# 가상환경 (환경은 environment.yml로 공유)
+venv/
+.venv/
+pet_model/
+
+# 환경변수/비밀값
+.env
+
+# 모델 아티팩트 (용량이 커서 git에 올리지 않음)
+*.pkl
+*.pt
+*.onnx
+models/
+
+# IDE
+.idea/
+.vscode/
