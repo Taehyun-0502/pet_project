@@ -1,4 +1,4 @@
-package com.pet.backend.chat;
+package com.pet.backend.chat.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

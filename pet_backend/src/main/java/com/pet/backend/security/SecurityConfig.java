@@ -49,6 +49,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정
                         .requestMatchers("/api/members/signup", "/api/members/login").permitAll()
+                        // WebSocket 핸드셰이크(HTTP GET). 브라우저가 헤더를 못 붙이므로 여기서는 인증하지 않고,
+                        // 그 다음 STOMP CONNECT 프레임에서 ChatStompInterceptor가 JWT를 검증한다
+                        .requestMatchers("/ws").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler ->
                         handler.authenticationEntryPoint(authenticationEntryPoint))

@@ -1,5 +1,6 @@
-package com.pet.backend.chat;
+package com.pet.backend.chat.dto;
 
+import com.pet.backend.chat.ChatMessage;
 import java.time.Instant;
 
 // 메시지 응답 (docs/api-spec.md 7절). senderName은 pet_member에서 조회해 채운다

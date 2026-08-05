@@ -1,5 +1,10 @@
 package com.pet.backend.chat;
 
+import com.pet.backend.chat.dto.ChatMemberResponse;
+import com.pet.backend.chat.dto.ChatMessageCreateRequest;
+import com.pet.backend.chat.dto.ChatMessageResponse;
+import com.pet.backend.chat.dto.ChatRoomCreateRequest;
+import com.pet.backend.chat.dto.ChatRoomResponse;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.Member;
@@ -12,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +30,8 @@ public class ChatService {
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final MemberRepository memberRepository; // 발신자 이름 조회용
+    // 실시간 통지는 이벤트로 넘긴다 — Service는 WebSocket을 모른다 (수신자는 ChatBroadcaster)
+    private final ApplicationEventPublisher eventPublisher;
 
     // 방 생성 + 생성자의 OWNER 참여를 한 트랜잭션으로 — 참여자 없는 방이 생기지 않게
     @Transactional
@@ -91,7 +99,10 @@ public class ChatService {
                 .orElse("알 수 없음");
         ChatMessage message = ChatMessage.of(roomId, memberId, request.content().trim());
         chatMessageRepository.save(message);
-        return ChatMessageResponse.of(message, senderName);
+        ChatMessageResponse response = ChatMessageResponse.of(message, senderName);
+        // 실제 push는 커밋 후에 일어난다 — 이벤트 발행 자체는 메모리 작업이라 위 구간을 넓히지 않는다
+        eventPublisher.publishEvent(new ChatMessageCreatedEvent(roomId, response));
+        return response;
     }
 
     // afterId 없으면 최근 50개, 있으면 그 이후 전부 (폴링·복구 공용 — docs/api-spec.md 7절)
@@ -170,6 +181,8 @@ public class ChatService {
             throw new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN);
         }
         target.kick();
+        // 이미 구독 중인 강퇴자는 SUBSCRIBE 검사로 막을 수 없다 — 커밋 후 연결을 끊는다
+        eventPublisher.publishEvent(new ChatMemberKickedEvent(roomId, targetMemberId));
     }
 
     // MANAGER 지명·해제 — OWNER만. OWNER로의 변경은 delegate가 담당

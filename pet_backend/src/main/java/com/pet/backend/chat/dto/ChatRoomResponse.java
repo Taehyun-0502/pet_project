@@ -1,5 +1,6 @@
-package com.pet.backend.chat;
+package com.pet.backend.chat.dto;
 
+import com.pet.backend.chat.ChatRoom;
 import java.time.Instant;
 
 // 방 응답 (docs/api-spec.md 7절). participantCount = 참여 중(left_at IS NULL) 인원
