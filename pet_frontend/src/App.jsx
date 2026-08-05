@@ -1,4 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
+import ChatRoomListPage from './chat/ChatRoomListPage'
+import ChatRoomPage from './chat/ChatRoomPage'
 import LoginPage from './member/LoginPage'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
@@ -22,6 +24,22 @@ function App() {
         element={
           <RequireLogin>
             <PetCreatePage />
+          </RequireLogin>
+        }
+      />
+      <Route
+        path="/chat"
+        element={
+          <RequireLogin>
+            <ChatRoomListPage />
+          </RequireLogin>
+        }
+      />
+      <Route
+        path="/chat/rooms/:roomId"
+        element={
+          <RequireLogin>
+            <ChatRoomPage />
           </RequireLogin>
         }
       />

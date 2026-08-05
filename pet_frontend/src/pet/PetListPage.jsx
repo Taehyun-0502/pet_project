@@ -34,9 +34,12 @@ export default function PetListPage() {
         </div>
       </header>
 
-      <Link className="pet-add" to="/pets/new">
-        + 반려동물 등록
-      </Link>
+      <nav className="pet-nav">
+        <Link className="pet-add" to="/pets/new">
+          + 반려동물 등록
+        </Link>
+        <Link to="/chat">오픈채팅 →</Link>
+      </nav>
 
       {error && <p className="submit-error">{error}</p>}
       {pets === null && !error && <p>불러오는 중…</p>}
