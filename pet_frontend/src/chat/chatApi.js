@@ -25,3 +25,35 @@ export function getMessages(roomId, afterId) {
 export function sendMessage(roomId, { content }) {
   return request(`/api/chat/rooms/${roomId}/messages`, { method: 'POST', body: { content } })
 }
+
+// ── 이하 2차: 권한 행사 기능 ──
+
+// 참여자 목록 (참여자만) — [{ memberId, name, role }] , OWNER → MANAGER → MEMBER 순
+export function getRoomMembers(roomId) {
+  return request(`/api/chat/rooms/${roomId}/members`)
+}
+
+// 나가기 — OWNER는 위임 전에는 409 CHAT_OWNER_CANNOT_LEAVE
+export function leaveRoom(roomId) {
+  return request(`/api/chat/rooms/${roomId}/leave`, { method: 'POST' })
+}
+
+// 강퇴 — 강퇴된 회원은 재입장 불가
+export function kickMember(roomId, memberId) {
+  return request(`/api/chat/rooms/${roomId}/members/${memberId}/kick`, { method: 'POST' })
+}
+
+// MANAGER 지명(role='MANAGER')·해제(role='MEMBER') — OWNER만
+export function changeMemberRole(roomId, memberId, role) {
+  return request(`/api/chat/rooms/${roomId}/members/${memberId}/role`, { method: 'PATCH', body: { role } })
+}
+
+// 방장 위임 — 기존 방장은 MEMBER가 된다
+export function delegateOwner(roomId, memberId) {
+  return request(`/api/chat/rooms/${roomId}/delegate`, { method: 'POST', body: { memberId } })
+}
+
+// 방 삭제(소프트) — OWNER만
+export function deleteRoom(roomId) {
+  return request(`/api/chat/rooms/${roomId}`, { method: 'DELETE' })
+}

@@ -16,7 +16,8 @@ import org.hibernate.annotations.CreationTimestamp;
 
 /**
  * 방 참여 관계 + 방 내 권한.
- * 나가기·강퇴는 leftAt 기록(소프트), 재입장은 새 행 — 참여 이력이 보존된다.
+ * 나가기·강퇴는 leftAt + leftReason 기록(소프트) — 참여 이력이 보존된다.
+ * 자진 나가기(LEFT)는 재입장 시 새 행, 강퇴(KICKED) 이력이 있으면 재입장 불가.
  * "참여 중 기준 같은 방 중복 입장 차단"은 DB 부분 UNIQUE 인덱스(ux_chat_room_member_active)가 담당.
  */
 @Entity
@@ -47,6 +48,11 @@ public class ChatRoomMember {
     @Column(name = "left_at")
     private Instant leftAt;
 
+    // 참여 종료 사유 — leftAt과 반드시 함께 기록 (DB CHECK ck_chat_room_member_left)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "left_reason", length = 10)
+    private ChatLeftReason leftReason;
+
     private ChatRoomMember(Long roomId, Long memberId, ChatRole role) {
         this.roomId = roomId;
         this.memberId = memberId;
@@ -63,8 +69,20 @@ public class ChatRoomMember {
         return new ChatRoomMember(roomId, memberId, ChatRole.MEMBER);
     }
 
-    // 나가기·강퇴 (2차 기능이지만 상태 변화 규칙은 엔티티에 정의)
+    // 자진 나가기 — 재입장하면 새 행이 생긴다
     public void leave() {
         this.leftAt = Instant.now();
+        this.leftReason = ChatLeftReason.LEFT;
+    }
+
+    // 강퇴 — 이 이력이 남으면 그 방 재입장 불가
+    public void kick() {
+        this.leftAt = Instant.now();
+        this.leftReason = ChatLeftReason.KICKED;
+    }
+
+    // MANAGER 지명·해제, 방장 위임의 role 전환 — 권한·대상 검증은 Service가 한다
+    public void changeRole(ChatRole role) {
+        this.role = role;
     }
 }

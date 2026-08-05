@@ -58,4 +58,9 @@ public class ChatRoom {
     public boolean isDeleted() {
         return deletedAt != null;
     }
+
+    // 방 삭제(소프트) — OWNER 검증은 Service. 참여 행·메시지는 남기고 조회에서 걸러진다
+    public void delete() {
+        this.deletedAt = Instant.now();
+    }
 }
