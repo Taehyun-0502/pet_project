@@ -2,9 +2,6 @@
 .env
 .env.*
 
-# 마크다운 문서 — 커밋 제외
-*.md
-
 # OS가 만드는 파일
 .DS_Store
 Thumbs.db
