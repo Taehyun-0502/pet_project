@@ -77,11 +77,14 @@ public class ChatService {
     public ChatMessageResponse sendMessage(Long memberId, Long roomId, ChatMessageCreateRequest request) {
         getActiveRoom(roomId);
         requireParticipant(roomId, memberId);
-        ChatMessage message = ChatMessage.of(roomId, memberId, request.content().trim());
-        chatMessageRepository.save(message);
+        // 발신자 이름 조회를 INSERT보다 먼저 — INSERT 후 추가 왕복이 있으면
+        // id 채번과 커밋 사이 구간이 길어져, 그 사이 더 큰 id가 먼저 커밋되면
+        // afterId 폴링이 이 메시지를 건너뛸 수 있다 (docs/troubleshooting.md 3번)
         String senderName = memberRepository.findById(memberId)
                 .map(Member::getName)
                 .orElse("알 수 없음");
+        ChatMessage message = ChatMessage.of(roomId, memberId, request.content().trim());
+        chatMessageRepository.save(message);
         return ChatMessageResponse.of(message, senderName);
     }
 
