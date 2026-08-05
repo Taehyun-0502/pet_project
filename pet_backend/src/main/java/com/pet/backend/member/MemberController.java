@@ -17,13 +17,13 @@ public class MemberController {
 
     private final MemberService memberService;
 
-    @PostMapping("/api/auth/signup")
+    @PostMapping("/api/members/signup")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<MemberResponse> signup(@Valid @RequestBody SignupRequest request) {
         return ApiResponse.ok(memberService.signup(request));
     }
 
-    @PostMapping("/api/auth/login")
+    @PostMapping("/api/members/login")
     public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.ok(memberService.login(request));
     }

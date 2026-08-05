@@ -35,7 +35,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     // 만료된 토큰을 헤더에 단 채 재로그인하는 경우에도 로그인은 성공해야 하므로
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getRequestURI().startsWith("/api/auth/");
+        String uri = request.getRequestURI();
+        return uri.equals("/api/members/signup") || uri.equals("/api/members/login");
     }
 
     @Override
