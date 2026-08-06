@@ -12,8 +12,13 @@ public class SkinDiagnosisService {
 
     private final SkinAiClient skinAiClient;
 
-    // 강아지 피부병 12종 이미지 진단 분석 처리 서비스 메서드
-    public SkinDiagnosisResultDto analyzeSkinImage(MultipartFile file) throws IOException {
+    // 강아지 12종 피부 질환 AI 세부 진단 서비스 처리 메서드
+    public SkinDiagnosisResultDto diagnoseSkinDisease(MultipartFile file) throws IOException {
         return skinAiClient.requestSkinDiagnosis(file);
+    }
+
+    // 강아지 피부 질환 유무 AI 1차 이진 진단 서비스 처리 메서드
+    public SkinDiagnosisResultDto diagnoseBinarySkinDisease(MultipartFile file) throws IOException {
+        return skinAiClient.requestBinarySkinDiagnosis(file);
     }
 }
