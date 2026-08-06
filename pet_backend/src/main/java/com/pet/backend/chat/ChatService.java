@@ -74,7 +74,7 @@ public class ChatService {
         this.objectMapper = objectMapper;
     }
 
-    public ChatResponse chat(ChatRequest request) {
+    public ChatResponse ask(ChatRequest request) {
         List<MessageParam> messages = new ArrayList<>();
         messages.add(MessageParam.builder()
                 .role(MessageParam.Role.USER)

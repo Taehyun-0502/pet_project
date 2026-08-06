@@ -42,7 +42,7 @@ class ChatControllerTest {
         ChatRequest request = new ChatRequest("우리 강아지 요즘 다리를 절뚝여요", 1L);
         Place place = new Place("행복 동물병원", PlaceCategory.HOSPITAL, 37.5, 127.0, "서울 강남구", "http://place.map.kakao.com/1");
         ChatResponse response = new ChatResponse("슬개골 탈구가 의심되니 근처 병원 방문을 권해드려요.", List.of(place));
-        when(chatService.chat(any())).thenReturn(response);
+        when(chatService.ask(any())).thenReturn(response);
 
         mockMvc.perform(post("/api/chat")
                         .contentType(MediaType.APPLICATION_JSON)

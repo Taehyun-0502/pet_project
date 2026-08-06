@@ -14,7 +14,7 @@ public class ChatController {
     private final ChatService chatService;
 
     @PostMapping("/api/chat")
-    public ApiResponse<ChatResponse> chat(@Valid @RequestBody ChatRequest request) {
-        return ApiResponse.ok(chatService.chat(request));
+    public ApiResponse<ChatResponse> ask(@Valid @RequestBody ChatRequest request) {
+        return ApiResponse.ok(chatService.ask(request));
     }
 }
