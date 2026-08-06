@@ -4,6 +4,7 @@ import ChatRoomPage from './chat/ChatRoomPage'
 import LoginPage from './member/LoginPage'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
+import MapPage from './pages/map/MapPage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetDetailPage from './pet/PetDetailPage'
 import PetEditPage from './pet/PetEditPage'
@@ -76,6 +77,17 @@ function App() {
         element={
           <RequireLogin>
             <ShortsUploadPage />
+          </RequireLogin>
+        }
+      />
+      {/* 지도 + AI 장소 추천 (루트 CLAUDE.md 지도 Phase). 주의: 이 라우트는 병합 시
+          두 차례(035375f, 0c5ea7e) 유실된 이력이 있다 — App.jsx 병합 해결 시 diff로
+          /map 존재를 반드시 확인할 것 (QA F-4) */}
+      <Route
+        path="/map"
+        element={
+          <RequireLogin>
+            <MapPage />
           </RequireLogin>
         }
       />
