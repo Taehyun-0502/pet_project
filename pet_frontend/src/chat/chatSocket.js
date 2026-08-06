@@ -2,12 +2,26 @@
 // 전송은 REST(chatApi.sendMessage)를 그대로 쓰고, 이 파일은 수신 전용이다.
 
 import { Client } from '@stomp/stompjs'
-import { getToken } from '../common/apiClient'
+import { getToken, refreshAccessToken } from '../common/apiClient'
 import { BACKEND_URL } from '../config'
 
 // http://host → ws://host/ws (https면 wss)
 function toSocketUrl() {
   return `${BACKEND_URL.replace(/^http/, 'ws')}/ws`
+}
+
+/**
+ * 액세스 토큰이 만료됐거나 곧 만료되는지 — JWT의 exp를 그대로 읽는다(서명 검증은 서버 몫).
+ * 만료 직전이면 만료로 친다: 연결이 서버에 닿는 사이에 넘어가버리면 그대로 거부당한다.
+ */
+function isExpiringSoon(token) {
+  if (!token) return true
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp * 1000 <= Date.now() + 5000
+  } catch {
+    return true // 형식이 깨진 토큰 — 재발급을 시도하는 편이 낫다
+  }
 }
 
 // 서버가 ERROR 프레임의 message에 실어 보내는 ErrorCode → 사용자 안내문
@@ -31,13 +45,31 @@ const ERROR_MESSAGE = {
  * @param onStatus          연결 상태 변화 (true=연결됨)
  */
 export function subscribeRoom(roomId, { onMessage, onMembersChanged, onReady, onFatal, onStatus }) {
+  // 만료 때문에 재발급을 시도한 적이 있는지 — 새 토큰으로도 만료가 나오면 더 시도하지 않는다(무한 재연결 방지)
+  let refreshed = false
+
   const client = new Client({
     brokerURL: toSocketUrl(),
     // 끊기면 5초 뒤 자동 재연결 — 강퇴 시 서버가 끊는 경우도 여기로 들어온다
     reconnectDelay: 5000,
-    // 재연결마다 토큰을 다시 읽는다 (연결 시점에 저장된 값을 그대로 쓰면 재로그인 후에도 옛 토큰을 보낸다)
-    beforeConnect: () => {
-      client.connectHeaders = { Authorization: `Bearer ${getToken()}` }
+    /**
+     * 연결 직전마다 토큰을 다시 읽는다 (저장 시점의 값을 고정해두면 재로그인 후에도 옛 토큰을 보낸다).
+     *
+     * 만료됐으면 **연결하기 전에** 재발급받는다. 채팅방을 오래 열어둔 채 연결이 한 번 끊기면
+     * 재연결은 만료된 토큰으로 CONNECT하게 되는데, 서버가 이를 거부하면 멀쩡히 로그인한 사용자가
+     * 재로그인 화면을 보게 된다 — 거부당한 뒤 수습하는 것보다 아예 만료 토큰을 보내지 않는 편이 확실하다.
+     */
+    beforeConnect: async () => {
+      let token = getToken()
+      if (isExpiringSoon(token)) {
+        try {
+          token = await refreshAccessToken()
+        } catch {
+          // 리프레시 토큰까지 죽은 경우 — 만료된 토큰으로 연결을 시도하고,
+          // 서버가 거부하면 아래 onStompError가 재로그인 안내를 띄운다
+        }
+      }
+      client.connectHeaders = { Authorization: `Bearer ${token}` }
     },
     onConnect: () => {
       // 구독을 먼저 걸고 나서 복구한다 — 순서가 반대면 복구 조회와 구독 시작 사이의 메시지가 유실된다.
@@ -61,9 +93,21 @@ export function subscribeRoom(roomId, { onMessage, onMembersChanged, onReady, on
     },
     onWebSocketClose: () => onStatus(false),
     onStompError: (frame) => {
-      // 서버가 프레임을 거부했다(인증 실패·미참여 등). 재시도해도 결과가 같으므로 연결을 접는다
-      // — 방치하면 5초마다 같은 실패를 영원히 반복한다 (docs/troubleshooting.md 2번과 같은 함정)
       const code = frame.headers?.message ?? 'INTERNAL_ERROR'
+
+      /*
+       * 만료는 beforeConnect가 미리 막지만, 그 사이 토큰이 넘어가는 등으로 새어 나올 수 있다.
+       * 한 번은 자동 재연결에 맡긴다 — beforeConnect가 다시 돌면서 재발급을 시도한다.
+       * (두 번째부터는 아래로 떨어져 재로그인 안내. 무한 재연결 방지)
+       */
+      if (code === 'AUTH_TOKEN_EXPIRED' && !refreshed) {
+        refreshed = true
+        onStatus(false)
+        return
+      }
+
+      // 그 밖의 거부(미참여·권한 없음 등)는 재시도해도 결과가 같으므로 연결을 접는다
+      // — 방치하면 5초마다 같은 실패를 영원히 반복한다 (docs/troubleshooting.md 2번과 같은 함정)
       client.deactivate()
       onStatus(false)
       onFatal({ code, message: ERROR_MESSAGE[code] ?? '실시간 연결에 실패했습니다.' })

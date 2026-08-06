@@ -1,4 +1,4 @@
-package com.pet.backend.member;
+package com.pet.backend.member.dto;
 
 import com.pet.backend.common.MaxBytes;
 import jakarta.validation.constraints.Email;
