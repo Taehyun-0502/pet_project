@@ -41,13 +41,18 @@ public class ChatStompInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor =
                 MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        if (accessor == null) {
+        if (accessor == null || accessor.getCommand() == null) {
+            // 하트비트 등 STOMP 명령이 아닌 프레임
             return message;
         }
-        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
-            authenticate(message, accessor);
-        } else if (StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
-            authorizeSubscribe(message, accessor);
+        switch (accessor.getCommand()) {
+            case CONNECT, STOMP -> authenticate(message, accessor);   // STOMP는 CONNECT의 1.2 표기
+            case SUBSCRIBE -> authorizeSubscribe(message, accessor);
+            case UNSUBSCRIBE, DISCONNECT -> { /* 정리 동작 — 허용 */ }
+            // SEND 포함 나머지 전부 거부 (리뷰 백로그 21번).
+            // SimpleBroker는 클라이언트 SEND를 검증 없이 구독자 전원에게 중계하므로,
+            // "전송은 REST뿐"이라는 설계는 여기서 강제해야 한다 — 발행 prefix 미등록만으로는 막히지 않는다
+            default -> throw reject(message, ErrorCode.FORBIDDEN);
         }
         return message;
     }

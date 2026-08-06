@@ -43,7 +43,12 @@ export function subscribeRoom(roomId, { onMessage, onMembersChanged, onReady, on
       // 구독을 먼저 걸고 나서 복구한다 — 순서가 반대면 복구 조회와 구독 시작 사이의 메시지가 유실된다.
       // 겹쳐서 중복 수신되는 건 id 기준 중복 제거가 걸러준다
       client.subscribe(`/topic/chat/rooms/${roomId}`, (frame) => {
-        const event = JSON.parse(frame.body)
+        let event
+        try {
+          event = JSON.parse(frame.body)
+        } catch {
+          return // 서버 이벤트 봉투가 아닌 본문은 무시 — 콜백 예외로 구독이 죽지 않게
+        }
         if (event.type === 'MESSAGE') {
           onMessage(event.data)
         } else if (event.type === 'MEMBERS_CHANGED') {

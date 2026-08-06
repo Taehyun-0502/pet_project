@@ -217,8 +217,12 @@ public class ChatService {
                     "자기 자신에게는 위임할 수 없습니다.");
         }
         ChatRoomMember target = getActiveMember(roomId, targetMemberId);
-        target.changeRole(ChatRole.OWNER);
+        // 강등을 먼저 DB에 반영(flush)한 뒤 승격한다. 순서가 반대면 한 트랜잭션 안에서 OWNER가 잠깐
+        // 2명이 되어 부분 UNIQUE 인덱스(ux_chat_room_owner)에 걸린다 — 쓰기 순서를 로드 순서에
+        // 맡기지 않고 여기서 못 박는다
         actor.changeRole(ChatRole.MEMBER);
+        chatRoomMemberRepository.saveAndFlush(actor);
+        target.changeRole(ChatRole.OWNER);
         // 두 사람의 role이 한 번에 바뀐다 — 신호는 한 번이면 충분(받는 쪽이 전체를 다시 읽는다)
         eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
     }

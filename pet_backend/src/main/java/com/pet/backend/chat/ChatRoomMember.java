@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -52,6 +53,17 @@ public class ChatRoomMember {
     @Enumerated(EnumType.STRING)
     @Column(name = "left_reason", length = 10)
     private ChatLeftReason leftReason;
+
+    /**
+     * 낙관적 잠금 (리뷰 백로그 22번).
+     * 위임·나가기·강퇴·지명이 같은 행을 동시에 고치면 나중 커밋이 앞 커밋을 통째로 덮어써
+     * "나간 사람이 방장으로 부활"·"활성 OWNER 0명/2명" 같은 상태가 만들어졌다.
+     * 이제 늦게 커밋하는 쪽이 실패하고 409로 응답한다.
+     * 방마다 활성 OWNER 1명 제약은 DB 부분 UNIQUE(ux_chat_room_owner)가 최종 백스톱.
+     */
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     private ChatRoomMember(Long roomId, Long memberId, ChatRole role) {
         this.roomId = roomId;
