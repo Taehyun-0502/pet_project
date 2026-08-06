@@ -1,0 +1,283 @@
+/* PetMap 공용 컴포넌트 스타일.
+   임시 스타일 — design-agent가 카테고리 마커 색 토큰(루트 CLAUDE.md 마지막 항목)을
+   확정하면 CATEGORY_META(PetMap.jsx)와 함께 교체 대상.
+   카카오 로고/저작권 표기는 지도 좌하단에 SDK가 직접 그리므로, 오버레이 UI는
+   전부 좌상단/우상단/우하단에 배치해 로고를 가리지 않는다(좌하단 비움). */
+
+.pet-map {
+  position: relative;
+  /* .pet-map__canvas와 별개로 이 컴포넌트 전체를 하나의 독립 스태킹 컨텍스트로
+     만든다. 이게 없으면 내부 오버레이(z-index:2인 토글/줌/내 위치 버튼)의
+     z-index가 이 박스 밖(예: MapPage의 답변 카드·배너)까지 그대로 새어나가
+     비교되어, 화면 배치에 따라 의도치 않게 서로를 가리는 경우가 생길 수 있다.
+     z-index를 주면 이 박스 전체가 부모 안에서 한 덩어리로 페인트되어, 형제
+     요소(예: MapPage의 오버레이들)와는 항상 DOM 순서대로만 비교된다. */
+  z-index: 0;
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--code-bg);
+}
+
+.pet-map--full {
+  height: 100%;
+  min-height: 480px;
+}
+
+.pet-map--mini {
+  height: 220px;
+}
+
+.pet-map__canvas {
+  width: 100%;
+  height: 100%;
+  /* 버그 수정(카테고리 토글 칩 미노출): 카카오 SDK가 이 컨테이너 내부에
+     자체 z-index를 가진 레이어(이벤트/타일/오버레이 pane 등)를 여러 개
+     생성한다. 이 요소가 static이면 그 z-index들이 형제 오버레이 UI
+     (.pet-map__toggles 등, z-index:auto)와 같은 스태킹 컨텍스트에서 직접
+     비교되어, 카카오 내부 레이어가 우리 UI 위로 올라와 시각적으로 가려질 수
+     있었다. position+z-index로 캔버스 자체를 독립 스태킹 컨텍스트로 만들어
+     내부 레이어의 z-index를 이 안에 가둔다. */
+  position: relative;
+  z-index: 0;
+}
+
+.pet-map__notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 24px;
+  color: var(--text);
+}
+
+.pet-map__notice-hint {
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.pet-map__toggles {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 24px);
+}
+
+.pet-map__toggle-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: opacity 0.15s ease;
+  opacity: 0.55;
+}
+
+.pet-map__toggle-chip--on {
+  opacity: 1;
+  border-color: var(--chip-color, var(--accent));
+  color: var(--text-h);
+}
+
+.pet-map__toggle-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pet-map__toggle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--chip-color, var(--accent));
+  flex: none;
+}
+
+/* 줌 컨트롤 — 우상단(토글 칩은 좌상단이라 겹치지 않음) */
+.pet-map__zoom-control {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.pet-map__zoom-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-h);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pet-map__zoom-btn + .pet-map__zoom-btn {
+  border-top: 1px solid var(--border);
+}
+
+.pet-map__zoom-btn:hover {
+  background: var(--accent-bg);
+}
+
+.pet-map__zoom-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.pet-map__zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pet-map__locate-btn {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  bottom: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.pet-map__locate-btn:hover {
+  background: var(--accent-bg);
+}
+
+.pet-map__locate-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 장소 상세 모달 — position:fixed로 뷰포트 전체를 덮는다(mini 모드에서도 동일).
+   PetMap의 상위 요소들이 transform/filter 등으로 새 containing block을 만들지
+   않는 한(사용처 확인 완료) 뷰포트 기준으로 항상 중앙에 뜬다. */
+.pet-map__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.pet-map__modal-panel {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  padding: 20px;
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.pet-map__modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pet-map__modal-close:hover {
+  background: var(--accent-bg);
+}
+
+.pet-map__modal-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.pet-map__modal-badge-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.pet-map__modal-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--chip-color, var(--accent));
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pet-map__modal-category-detail {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.pet-map__modal-title {
+  margin: 0 24px 8px 0;
+  color: var(--text-h);
+  font-size: 17px;
+  line-height: 1.4;
+}
+
+.pet-map__modal-address {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 전화번호 — tel: 링크, 모바일에서 탭하면 바로 발신 */
+.pet-map__modal-phone {
+  display: inline-block;
+  margin: 0 0 12px;
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pet-map__modal-phone:hover {
+  text-decoration: underline;
+}
+
+.pet-map__modal-link {
+  display: block;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+}
