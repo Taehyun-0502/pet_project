@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 지도 단독 메뉴용 장소 조회. 챗봇(ChatController)과 달리 사용자가 직접 좌표를 지정해
+ * 지도 단독 메뉴용 장소 조회. 챗봇(AiSearchController)과 달리 사용자가 직접 좌표를 지정해
  * 카테고리별(병원/카페/호텔) 장소를 한 번에 조회한다 — 검색/캐시 로직은 PlaceService를 그대로 재사용.
  */
 @RestController

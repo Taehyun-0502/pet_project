@@ -1,4 +1,4 @@
-package com.pet.backend.chat;
+package com.pet.backend.aisearch;
 
 import com.pet.backend.common.ApiResponse;
 import jakarta.validation.Valid;
@@ -9,12 +9,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-public class ChatController {
+public class AiSearchController {
 
-    private final ChatService chatService;
+    private final AiSearchService aiSearchService;
 
-    @PostMapping("/api/chat")
-    public ApiResponse<ChatResponse> ask(@Valid @RequestBody ChatRequest request) {
-        return ApiResponse.ok(chatService.ask(request));
+    @PostMapping("/api/ai-search")
+    public ApiResponse<AiSearchResponse> ask(@Valid @RequestBody AiSearchRequest request) {
+        return ApiResponse.ok(aiSearchService.ask(request));
     }
 }

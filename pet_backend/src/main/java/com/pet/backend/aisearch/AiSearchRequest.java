@@ -1,9 +1,9 @@
-package com.pet.backend.chat;
+package com.pet.backend.aisearch;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
-public record ChatRequest(
+public record AiSearchRequest(
 
         @NotBlank(message = "메시지는 필수입니다.")
         String message,
@@ -17,7 +17,7 @@ public record ChatRequest(
         Double lat,
         Double lng
 ) {
-    public ChatRequest(String message, Long petId) {
+    public AiSearchRequest(String message, Long petId) {
         this(message, petId, null, null);
     }
 }

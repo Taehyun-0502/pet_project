@@ -6,7 +6,7 @@ package com.pet.backend.place;
  *
  * phone·categoryDetail은 장소 상세 팝업 강화(2026-08-06 확정)를 위해 추가 —
  * 카카오 응답에 값이 없으면 빈 문자열로 채운다(널 대신 — 프론트에서 별도 null 처리 불필요).
- * 챗봇 응답(ChatResponse.places)과 지도 API(GET /api/places) 양쪽이 이 record를 공유하므로
+ * 챗봇 응답(AiSearchResponse.places)과 지도 API(GET /api/places) 양쪽이 이 record를 공유하므로
  * 두 경로 모두 자동으로 반영된다.
  */
 public record Place(

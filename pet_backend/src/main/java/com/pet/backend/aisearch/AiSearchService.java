@@ -1,4 +1,4 @@
-package com.pet.backend.chat;
+package com.pet.backend.aisearch;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
@@ -38,7 +38,7 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-public class ChatService {
+public class AiSearchService {
 
     private static final long MAX_TOKENS = 1024L;
     private static final int MAX_TOOL_ITERATIONS = 5;
@@ -65,7 +65,7 @@ public class ChatService {
     private final DiseasePredictionClient diseasePredictionClient;
     private final ObjectMapper objectMapper;
 
-    public ChatService(
+    public AiSearchService(
             @Value("${anthropic.api-key}") String apiKey,
             @Value("${anthropic.model}") String model,
             PlaceService placeService,
@@ -78,7 +78,7 @@ public class ChatService {
         this.objectMapper = objectMapper;
     }
 
-    public ChatResponse ask(ChatRequest request) {
+    public AiSearchResponse ask(AiSearchRequest request) {
         List<MessageParam> messages = new ArrayList<>();
         messages.add(MessageParam.builder()
                 .role(MessageParam.Role.USER)
@@ -130,13 +130,13 @@ public class ChatService {
                     .build());
         }
 
-        return new ChatResponse(finalText, collectedPlaces);
+        return new AiSearchResponse(finalText, collectedPlaces);
     }
 
     // 좌표가 둘 다 있을 때만 위치 컨텍스트를 주입한다 — 하나만 온 경우는 무시하고 기존 동작
     // (메시지의 지역명 사용, 없으면 위치 되묻기)을 그대로 유지한다. 좌표는 저장하지 않고
     // 이 요청의 시스템 프롬프트를 구성하는 데만 쓰인다.
-    private String buildSystemPrompt(ChatRequest request) {
+    private String buildSystemPrompt(AiSearchRequest request) {
         if (request.lat() == null || request.lng() == null) {
             return SYSTEM_PROMPT;
         }
