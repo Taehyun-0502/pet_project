@@ -28,6 +28,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), message));
     }
 
+    /**
+     * 낙관적 잠금 충돌 — 같은 행을 동시에 고치다 늦은 쪽이 진 경우 (리뷰 백로그 22번).
+     * 서버 오류가 아니라 "다시 시도하면 되는" 상태이므로 500이 아닌 409로 응답한다.
+     */
+    @ExceptionHandler(org.springframework.orm.ObjectOptimisticLockingFailureException.class)
+    ResponseEntity<ApiResponse<Void>> handleOptimisticLock(Exception e) {
+        log.warn("동시 수정 충돌", e);
+        return ResponseEntity.status(ErrorCode.CONCURRENT_UPDATE.getStatus())
+                .body(ApiResponse.fail(ErrorCode.CONCURRENT_UPDATE.name(),
+                        ErrorCode.CONCURRENT_UPDATE.getDefaultMessage()));
+    }
+
     // 깨진 JSON, 타입 불일치 등 본문 자체를 읽지 못한 경우 — 클라이언트 잘못이므로 400
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     ResponseEntity<ApiResponse<Void>> handleUnreadable(Exception e) {

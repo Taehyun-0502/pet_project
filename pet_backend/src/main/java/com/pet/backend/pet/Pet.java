@@ -69,6 +69,16 @@ public class Pet {
         return new Pet(memberId, name, breed, birthDate);
     }
 
+    /**
+     * 수정 — 부분 수정이 아니라 전체 교체다(docs/api-spec.md 2절).
+     * breed·birthDate에 null이 오면 그대로 null이 되어, 값을 지우는 수단이기도 하다.
+     */
+    public void update(String name, String breed, LocalDate birthDate) {
+        this.name = name;
+        this.breed = breed;
+        this.birthDate = birthDate;
+    }
+
     public boolean isDeleted() {
         return deletedAt != null;
     }
