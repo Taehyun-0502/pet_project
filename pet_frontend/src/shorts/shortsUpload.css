@@ -1,0 +1,116 @@
+/* 업로드 화면에서 피드(ShortsFeed)와 달라지는 부분만. 폼 기본 스타일은 member.css를 쓴다 */
+
+/* 미리보기는 피드와 같은 9:16 + cover — 올리기 전에 잘림을 확인할 수 있게 */
+.su-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.su-preview video {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  background: #000;
+  border-radius: 12px;
+}
+
+.su-meta {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* 잘림 안내는 "막는 오류"가 아니라 "알고 올려라"는 주의라서
+   member.css의 .field-error(빨강)도 .notice(초록)도 쓰지 않고 별도 색을 쓴다 */
+.su-crop-warn {
+  max-width: 320px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(200, 130, 0, 0.35);
+  border-radius: 8px;
+  background: rgba(230, 160, 0, 0.1);
+  color: #b06f00;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .su-crop-warn {
+    color: #e8b04b;
+  }
+}
+
+/* ───── 주제 선택 (추천 알고리즘의 분류 재료) ─────
+   고정 목록 13종을 칩으로 보여주고 켜짐/꺼짐만 색으로 구분한다.
+   색은 index.css의 CSS 변수를 쓴다 — 다크 모드에서 값만 바뀌므로 따로 대응하지 않아도 된다 */
+
+.su-tags {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: left;
+}
+
+.su-tags legend {
+  padding: 0 6px;
+  font-size: 14px;
+  color: var(--text-h);
+}
+
+.su-tags-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.su-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* .auth-form button 이 모든 버튼에 padding:12px/font-size:16px 를 주므로
+   칩 크기를 되찾으려면 .auth-form 을 붙여 우선순위를 올려야 한다 */
+.auth-form .su-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+}
+
+.auth-form .su-tag:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* 켜진 주제 — 다시 누르면 빠지므로 × 를 함께 보여준다 */
+.auth-form .su-tag-on {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* 캡션에서 자동으로 켰다는 안내. 오류가 아니라 알림이라 .field-error(빨강)를 쓰지 않는다 */
+.su-tags-notice {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--accent);
+}

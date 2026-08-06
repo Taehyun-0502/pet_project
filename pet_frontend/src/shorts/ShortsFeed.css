@@ -1,0 +1,189 @@
+/* ShortsFeed.css — 숏츠(릴스) 1단계 스타일
+   모바일 퍼스트 + 9:16 세로 화면.
+   화면 크기와 무관하게 피드는 항상 9:16 — 뷰포트에 들어가는 가장 큰 9:16 박스를
+   가운데 놓는다. 폰에서는 거의 화면 전체, 데스크톱에서는 폰 모양 프레임이 된다.
+   미디어쿼리로 분기하지 않고 min() 계산 하나로 처리하므로 중간 크기에서도 비율이 안 깨진다 */
+
+/* index.css의 #root는 1126px 고정폭 + 좌우 테두리 + 가운데 정렬 + min-height:100svh.
+   숏츠에서는 그 제약을 풀고, 높이를 100dvh로 고정해 바깥 페이지가 따로 스크롤되지 않게 한다 */
+#root:has(.sf-feed) {
+  width: 100%;
+  max-width: none;
+  border-inline: none;
+  text-align: initial;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+/* 9:16 세로 박스 + 스크롤 컨테이너를 겸한다.
+   폭은 높이의 9/16, 높이는 폭의 16/9로 서로 제한해 어느 쪽에도 넘치지 않는다 */
+.sf-feed {
+  width: min(100vw, calc(100dvh * 9 / 16));
+  height: min(100dvh, calc(100vw * 16 / 9));
+  margin: auto;                       /* #root가 flex라 가로·세로 모두 가운데 */
+  flex: none;                         /* flex 컨테이너가 높이를 줄이지 못하게 */
+  overflow-y: scroll;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;     /* ← 피드 끝에서 페이지가 당겨지지 않게 */
+  scroll-snap-type: y mandatory;      /* ← 세로로 한 개씩 스냅되는 핵심 */
+  background: #000;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif;
+  scrollbar-width: none;
+  -webkit-tap-highlight-color: transparent;  /* 탭할 때 파란 하이라이트 제거 */
+  user-select: none;
+}
+.sf-feed::-webkit-scrollbar { display: none; }
+
+/* 업로드 화면으로 가는 버튼. 카드마다(그리고 빈 목록 화면에도) 하나씩 있어
+   지금 보이는 화면에 항상 떠 있는 것처럼 동작한다 — 프레임 래퍼 없이 오버레이 층(z-index 4)에 둔다 */
+.sf-upload {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  z-index: 4;
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px;                 /* 최소 터치 영역 */
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 50%;
+  background: rgba(0,0,0,.35);
+  color: #fff;
+  font-size: 24px; line-height: 1;
+  text-decoration: none;
+}
+
+/* 로딩 / 에러 / 빈 목록 안내 — 카드 없이 메시지만 가운데 */
+.sf-feed-message { position: relative; display: flex; align-items: center; justify-content: center; }
+.sf-feed-message p { padding: 0 24px; font-size: 15px; line-height: 1.5; text-align: center; color: rgba(255,255,255,.75); }
+
+.sf-card {
+  position: relative;
+  height: 100%;                       /* ← 한 화면 = 한 영상 (9:16) */
+  scroll-snap-align: start;           /* ← 카드 시작점에 정렬 */
+  scroll-snap-stop: always;           /* ← 한 번에 한 개만 넘어가게 강제 */
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.sf-card video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+.sf-fallback { position: absolute; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; }
+.sf-scrim {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background:
+    linear-gradient(to top, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 35%),
+    linear-gradient(to bottom, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 20%);
+}
+
+/* bottom에 safe-area를 더해 홈 인디케이터(아이폰 하단 바)에 가리지 않게 한다.
+   viewport-fit=cover가 아니면 env()는 0으로 계산되어 기존과 동일하게 동작 */
+.sf-info { position: absolute; left: 16px; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); right: 84px; z-index: 4; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.sf-user { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.sf-avatar { width: 38px; height: 38px; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 19px; background: #333; }
+.sf-name { font-weight: 700; font-size: 15px; }
+.sf-caption { font-size: 14px; line-height: 1.45; }
+
+.sf-actions { position: absolute; right: 12px; bottom: calc(30px + env(safe-area-inset-bottom, 0px)); z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+/* min-width/height 44px — 손가락으로 누를 수 있는 최소 터치 영역 */
+.sf-actions button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 0; background: none; border: none; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.sf-actions svg { width: 33px; height: 33px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
+.sf-actions button.sf-liked svg { fill: #ff2d55; stroke: #ff2d55; }
+
+.sf-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 5; background: rgba(255,255,255,.2); }
+.sf-progress > i { display: block; height: 100%; width: 0%; background: #fff; }
+
+/* 좋아요 실패 등 동작 오류. 영상 위에는 표시할 자리가 없어 액션 버튼 아래에 짧게 띄운다 */
+.sf-action-error {
+  position: absolute; right: 12px; bottom: 8px; left: 12px; z-index: 5;
+  margin: 0; padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(180,20,20,.85);
+  color: #fff; font-size: 12px; text-align: center;
+}
+
+/* ───────── 댓글 시트 ───────── */
+/* 카드(9:16) 안에서 아래쪽 65%를 덮는다. 카드가 position:relative라 프레임을 넘지 않는다 */
+.cs-sheet {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  z-index: 7;
+  height: 65%;
+  display: flex; flex-direction: column;
+  background: #16171d;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 24px rgba(0,0,0,.5);
+  color: #f3f4f6;
+  overflow: hidden;
+}
+
+.cs-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #2e303a;
+  font-size: 14px;
+}
+.cs-head button {
+  background: none; border: none; color: #9ca3af;
+  font-size: 18px; line-height: 1; cursor: pointer;
+  min-width: 32px; min-height: 32px;
+}
+
+/* 시트 안에서만 스크롤되게 — contain이 없으면 끝에서 피드가 함께 넘어간다 */
+.cs-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 8px 0; }
+
+.cs-list { list-style: none; margin: 0; padding: 0; }
+.cs-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 14px; }
+/* 대댓글은 들여쓰기로만 구분한다 (2단이라 더 깊은 단계가 없다) */
+.cs-reply { padding-left: 38px; }
+.cs-reply .cs-content { color: #d1d5db; }
+
+.cs-body { flex: 1; min-width: 0; }
+.cs-name { font-size: 13px; font-weight: 700; color: #f3f4f6; }
+.cs-time { margin-left: 6px; font-size: 11px; color: #9ca3af; }
+.cs-content { margin: 2px 0 0; font-size: 14px; line-height: 1.45; word-break: break-word; }
+.cs-reply-btn {
+  margin-top: 4px; padding: 0;
+  background: none; border: none; color: #9ca3af;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+
+.cs-like {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 34px; padding: 2px 0;
+  background: none; border: none; color: #9ca3af;
+  font-size: 11px; cursor: pointer;
+}
+.cs-like svg { width: 17px; height: 17px; }
+.cs-like.cs-liked { color: #ff2d55; }
+
+.cs-empty, .cs-error { margin: 16px 14px; font-size: 13px; text-align: center; color: #9ca3af; }
+.cs-error { color: #ff8080; }
+
+.cs-form { border-top: 1px solid #2e303a; padding: 10px 12px; }
+.cs-replying {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px; font-size: 12px; color: #9ca3af;
+}
+.cs-replying button { background: none; border: none; color: #c084fc; font-size: 12px; cursor: pointer; }
+
+.cs-input-row { display: flex; gap: 8px; }
+.cs-input-row input {
+  flex: 1; min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid #2e303a; border-radius: 18px;
+  background: #1f2028; color: #f3f4f6;
+  font-size: 14px;
+}
+.cs-input-row button {
+  padding: 0 14px;
+  border: none; border-radius: 18px;
+  background: #c084fc; color: #16171d;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.cs-input-row button:disabled { background: #3a3b45; color: #6b7280; cursor: default; }
+
+/* 피드보다 화면이 큰 경우(데스크톱)에만 경계가 보이도록 얇은 테두리.
+   폰에서는 피드가 화면을 꽉 채워 테두리가 사실상 보이지 않는다 */
+@media (min-width: 600px) {
+  /* border가 아니라 box-shadow — 레이아웃 폭을 늘리지 않아 9:16이 정확히 유지된다 */
+  .sf-feed { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+}
