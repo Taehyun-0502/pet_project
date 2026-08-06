@@ -7,7 +7,6 @@ __pycache__/
 # 가상환경 (환경은 environment.yml로 공유)
 venv/
 .venv/
-pet_model/
 
 # 환경변수/비밀값
 .env

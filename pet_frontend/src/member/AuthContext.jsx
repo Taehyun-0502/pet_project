@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { clearToken, getToken, saveToken } from '../common/apiClient'
-import { getMyInfo, login as loginApi } from './memberApi'
+import { getMyInfo, login as loginApi, logout as logoutApi } from './memberApi'
 
 // 로그인 상태의 중앙 관리소.
 // 어느 화면이든 useAuth()로 { user, restoring, login, logout }을 꺼내 쓴다
@@ -30,7 +30,17 @@ export function AuthProvider({ children }) {
     setUser(data.user)
   }
 
-  const logout = () => {
+  /**
+   * 로그아웃 — 서버의 리프레시 토큰까지 폐기해야 다른 곳에서 재발급으로 세션이 이어지지 않는다.
+   * 서버 호출이 실패하더라도 이 기기에서는 로그아웃된 것으로 처리한다
+   * (남은 리프레시 토큰은 14일 뒤 만료되고, 사용자를 로그인 화면에 붙잡아 둘 이유가 없다).
+   */
+  const logout = async () => {
+    try {
+      await logoutApi()
+    } catch {
+      // 네트워크 오류 등 — 아래 정리는 그대로 진행한다
+    }
     clearToken()
     setUser(null)
   }
