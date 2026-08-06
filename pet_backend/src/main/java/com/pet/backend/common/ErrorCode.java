@@ -32,6 +32,13 @@ public enum ErrorCode {
     DEVICE_ALREADY_MAPPED(HttpStatus.CONFLICT, "해당 반려동물에 이미 디바이스가 매핑되어 있습니다."),
     CHAT_OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "방장은 위임 후에만 나갈 수 있습니다."),
     CONCURRENT_UPDATE(HttpStatus.CONFLICT, "다른 요청이 먼저 처리되었습니다. 새로고침 후 다시 시도해 주세요."),
+
+    // ───── 숏츠(릴스) 파트 ─────
+    // 다른 파트와 줄이 섞이지 않게 한 덩어리로 모아둔다 (동시 수정 시 머지 충돌 최소화)
+    SHORTS_NOT_FOUND(HttpStatus.NOT_FOUND, "숏츠를 찾을 수 없습니다."),
+    SHORTS_COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."),
+    SHORTS_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "영상 업로드에 실패했습니다."),
+
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
     private final HttpStatus status;
