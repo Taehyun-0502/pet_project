@@ -40,7 +40,7 @@ class ChatControllerTest {
     @Test
     void 정상_요청이면_챗봇_응답과_추천_장소_목록을_반환한다() throws Exception {
         ChatRequest request = new ChatRequest("우리 강아지 요즘 다리를 절뚝여요", 1L);
-        Place place = new Place("행복 동물병원", PlaceCategory.HOSPITAL, 37.5, 127.0, "서울 강남구", "http://place.map.kakao.com/1");
+        Place place = new Place("행복 동물병원", PlaceCategory.HOSPITAL, 37.5, 127.0, "서울 강남구", "http://place.map.kakao.com/1", "02-1234-5678", "반려동물 > 동물병원");
         ChatResponse response = new ChatResponse("슬개골 탈구가 의심되니 근처 병원 방문을 권해드려요.", List.of(place));
         when(chatService.ask(any())).thenReturn(response);
 
@@ -52,6 +52,21 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$.data.message").value("슬개골 탈구가 의심되니 근처 병원 방문을 권해드려요."))
                 .andExpect(jsonPath("$.data.places[0].name").value("행복 동물병원"))
                 .andExpect(jsonPath("$.data.places[0].category").value("HOSPITAL"));
+    }
+
+    @Test
+    void 현재_위치_좌표가_포함되어도_200으로_수용된다() throws Exception {
+        ChatRequest request = new ChatRequest("근처 동물병원 찾아줘", 1L, 37.5665, 126.9780);
+        Place place = new Place("행복 동물병원", PlaceCategory.HOSPITAL, 37.5, 127.0, "서울 강남구", "http://place.map.kakao.com/1", "02-1234-5678", "반려동물 > 동물병원");
+        ChatResponse response = new ChatResponse("근처 동물병원을 찾아드렸어요.", List.of(place));
+        when(chatService.ask(any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/chat")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.message").value("근처 동물병원을 찾아드렸어요."));
     }
 
     @Test

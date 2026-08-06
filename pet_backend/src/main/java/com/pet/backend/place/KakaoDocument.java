@@ -15,5 +15,6 @@ public record KakaoDocument(
         @JsonProperty("road_address_name") String roadAddressName,
         String x,
         String y,
-        @JsonProperty("place_url") String placeUrl
+        @JsonProperty("place_url") String placeUrl,
+        String phone
 ) {}

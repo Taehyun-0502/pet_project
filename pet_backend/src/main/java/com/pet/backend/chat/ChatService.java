@@ -21,6 +21,7 @@ import com.pet.backend.prediction.DiseasePrediction;
 import com.pet.backend.prediction.DiseasePredictionClient;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -55,6 +56,9 @@ public class ChatService {
             질병예측 결과를 근거로 병원 방문이 필요하다고 판단되면 search_places로 근처 동물병원을 함께 추천한다.
             """;
 
+    private static final String LOCATION_PROMPT_TEMPLATE =
+            "\n사용자 현재 위치: (%s, %s). '근처'/'주변' 요청 시 이 좌표로 search_places를 호출하라.";
+
     private final AnthropicClient client;
     private final String model;
     private final PlaceService placeService;
@@ -81,6 +85,7 @@ public class ChatService {
                 .content(request.message())
                 .build());
 
+        String systemPrompt = buildSystemPrompt(request);
         List<Place> collectedPlaces = new ArrayList<>();
         String finalText = "";
 
@@ -88,7 +93,7 @@ public class ChatService {
             MessageCreateParams params = MessageCreateParams.builder()
                     .model(model)
                     .maxTokens(MAX_TOKENS)
-                    .system(SYSTEM_PROMPT)
+                    .system(systemPrompt)
                     .addTool(getDiseasePredictionTool())
                     .addTool(searchPlacesTool())
                     .messages(messages)
@@ -126,6 +131,17 @@ public class ChatService {
         }
 
         return new ChatResponse(finalText, collectedPlaces);
+    }
+
+    // 좌표가 둘 다 있을 때만 위치 컨텍스트를 주입한다 — 하나만 온 경우는 무시하고 기존 동작
+    // (메시지의 지역명 사용, 없으면 위치 되묻기)을 그대로 유지한다. 좌표는 저장하지 않고
+    // 이 요청의 시스템 프롬프트를 구성하는 데만 쓰인다.
+    private String buildSystemPrompt(ChatRequest request) {
+        if (request.lat() == null || request.lng() == null) {
+            return SYSTEM_PROMPT;
+        }
+        String location = String.format(Locale.ROOT, LOCATION_PROMPT_TEMPLATE, request.lat(), request.lng());
+        return SYSTEM_PROMPT + location;
     }
 
     private ContentBlockParam executeTool(ToolUseBlock toolUse, Long petId, List<Place> collectedPlaces) {
