@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,12 +32,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
 
-    // 공개 경로(가입·로그인)는 토큰 검사 자체를 건너뛴다 —
-    // 만료된 토큰을 헤더에 단 채 재로그인하는 경우에도 로그인은 성공해야 하므로
+    /**
+     * 공개 경로는 토큰 검사 자체를 건너뛴다 — 만료된 토큰을 헤더에 단 채 호출해도 성공해야 하기 때문.
+     *
+     * **refresh가 특히 중요하다**: 액세스 토큰이 만료돼서 재발급을 요청하는 것이 정상 동선인데,
+     * 여기서 걸러내지 않으면 필터가 먼저 401(AUTH_TOKEN_EXPIRED)을 내보내 재발급 자체가 막힌다.
+     */
+    private static final Set<String> PERMITTED_URIS = Set.of(
+            "/api/members/signup",
+            "/api/members/login",
+            "/api/members/refresh",
+            "/api/members/logout");
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String uri = request.getRequestURI();
-        return uri.equals("/api/members/signup") || uri.equals("/api/members/login");
+        return PERMITTED_URIS.contains(request.getRequestURI());
     }
 
     @Override

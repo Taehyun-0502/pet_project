@@ -47,8 +47,16 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정
-                        .requestMatchers("/api/members/signup", "/api/members/login").permitAll()
+                        // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정.
+                        // refresh·logout은 Authorization 헤더가 아니라 쿠키로 인증하므로 여기서는 공개다
+                        // (액세스 토큰이 만료된 상태에서 호출되는 것이 정상 동선)
+                        .requestMatchers("/api/members/signup", "/api/members/login",
+                                "/api/members/refresh", "/api/members/logout",
+                                "/api/v1/skin/**").permitAll()
+                        // WebSocket 핸드셰이크(HTTP GET). 브라우저가 헤더를 못 붙이므로 여기서는 인증하지 않고,
+
+                        // 그 다음 STOMP CONNECT 프레임에서 ChatStompInterceptor가 JWT를 검증한다
+                        .requestMatchers("/ws").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler ->
                         handler.authenticationEntryPoint(authenticationEntryPoint))
@@ -67,8 +75,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // 5174는 5173이 점유 중일 때 Vite가 쓰는 보조 포트 — 로컬 개발 편의로 함께 허용.
+        // LAN 오리진(사설 IP)은 의도적으로 넣지 않는다 — 평문 HTTP + 사설 IP에서는 Secure 쿠키가
+        // 저장되지 않아 리프레시가 조용히 죽는다(리뷰 33·46번). LAN 시연이 꼭 필요하면
+        // ① 여기와 **ChatWebSocketConfig의 setAllowedOrigins 양쪽에** 오리진을 추가하고
+        //   (WebSocket 오리진 검사는 이 CORS 설정과 별개다 — 한쪽만 고쳐 어긋난 전례가 있다, 리뷰 65번)
+        // ② .env에 COOKIE_SECURE=false를 넣고
+        // ③ 접속 주소를 localhost와 섞지 말아야 한다(섞으면 SameSite=Strict가 전송을 막는다)
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174"));
+        // PATCH: 채팅 MANAGER 지명 API가 사용 (빠지면 프리플라이트에서 차단됨)
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

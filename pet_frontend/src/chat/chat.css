@@ -1,0 +1,157 @@
+/* 오픈채팅 도메인 화면 공용 스타일 */
+
+.chat-page {
+  max-width: 560px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.chat-create {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chat-create input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.chat-room-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chat-room-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-room-list .count {
+  color: #888;
+  font-size: 14px;
+}
+
+/* 채팅방 화면 (2덩어리에서 사용) */
+.chat-messages {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.chat-messages li {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #f1f1f1;
+  align-self: flex-start;
+  max-width: 80%;
+}
+
+.chat-messages li.mine {
+  background: #d7e9ff;
+  align-self: flex-end;
+}
+
+.chat-messages .sender {
+  display: block;
+  font-size: 12px;
+  color: #777;
+  margin-bottom: 2px;
+}
+
+.chat-send {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-send input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* 실시간 연결 상태 안내 — 오류가 아니라 진행 중 표시라 눈에 덜 띄게 */
+.chat-status {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #888;
+}
+
+/* 2차: 방 관리 버튼 줄 + 참여자 패널 */
+.chat-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chat-toolbar button.danger,
+.member-actions button.danger {
+  color: #c0392b;
+  border-color: #c0392b;
+}
+
+.chat-members {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.chat-members li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+.chat-members li + li {
+  border-top: 1px solid #eee;
+}
+
+.role-badge {
+  font-style: normal;
+  font-size: 12px;
+  color: #2b6cb0;
+  margin-left: 6px;
+}
+
+.member-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.member-actions button {
+  font-size: 12px;
+}

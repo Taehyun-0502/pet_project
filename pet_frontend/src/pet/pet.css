@@ -21,9 +21,14 @@
   font-size: 14px;
 }
 
+.pet-nav {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
 .pet-add {
   display: inline-block;
-  margin-bottom: 16px;
 }
 
 .pet-list {
@@ -36,16 +41,64 @@
 }
 
 .pet-list li {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+/* 항목 전체가 링크 — 클릭 영역을 li 전체로 넓힌다 */
+.pet-list li a {
   display: flex;
   align-items: baseline;
   gap: 12px;
   padding: 12px 14px;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+}
+
+.pet-list li a:hover {
+  text-decoration: underline;
+}
+
+.muted {
+  color: #888;
+  font-size: 14px;
+}
+
+/* 상세 화면 */
+.pet-detail {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px 16px;
+  margin: 0 0 20px;
+  padding: 16px;
   border: 1px solid #ccc;
   border-radius: 8px;
   text-align: left;
 }
 
-.pet-list li .muted {
+.pet-detail dt {
   color: #888;
   font-size: 14px;
+}
+
+.pet-detail dd {
+  margin: 0;
+}
+
+.pet-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pet-actions button.danger {
+  color: #c0392b;
+  border-color: #c0392b;
+}
+
+/* 수정 화면의 안내 문구 — 오류가 아니라 설명이라 눈에 덜 띄게 */
+.notice {
+  margin: 0;
+  font-size: 13px;
+  color: #888;
 }
