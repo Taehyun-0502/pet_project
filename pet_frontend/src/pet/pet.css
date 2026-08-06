@@ -1,0 +1,51 @@
+/* 반려동물 도메인 화면 공용 스타일 */
+
+.pet-page {
+  max-width: 560px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+.pet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pet-header .who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.pet-add {
+  display: inline-block;
+  margin-bottom: 16px;
+}
+
+.pet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pet-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.pet-list li .muted {
+  color: #888;
+  font-size: 14px;
+}
