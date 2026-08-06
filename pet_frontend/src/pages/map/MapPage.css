@@ -14,7 +14,7 @@
    PetMap(z-index:0)보다 DOM상 앞에 있으므로 z-index로 위에 올린다.
    모바일 퍼스트(360px 기준): 검색바 전폭 한 줄 + 칩 가로 스크롤 한 줄(세로 스택).
    데스크톱(768px+)은 아래 미디어쿼리에서 한 줄 가로 배치로 확장. */
-.map-page__search {
+.map-page__overlay-header {
   position: absolute;
   z-index: 2;
   top: 12px;
@@ -26,7 +26,7 @@
   gap: 8px;
 }
 
-.map-page__search-bar {
+.map-page__search-row {
   min-width: 0;
 }
 
@@ -48,13 +48,13 @@
 }
 
 @media (min-width: 768px) {
-  .map-page__search {
+  .map-page__overlay-header {
     flex-direction: row;
     align-items: center;
     gap: 12px;
   }
 
-  .map-page__search-bar {
+  .map-page__search-row {
     flex: 1 1 280px;
     min-width: 240px;
   }
