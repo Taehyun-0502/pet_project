@@ -5,6 +5,8 @@ import LoginPage from './member/LoginPage'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import PetCreatePage from './pet/PetCreatePage'
+import PetDetailPage from './pet/PetDetailPage'
+import PetEditPage from './pet/PetEditPage'
 import PetListPage from './pet/PetListPage'
 import SkinDiagnosisPage from './skin/SkinDiagnosisPage'
 
@@ -28,6 +30,22 @@ function App() {
         element={
           <RequireLogin>
             <PetCreatePage />
+          </RequireLogin>
+        }
+      />
+      <Route
+        path="/pets/:petId"
+        element={
+          <RequireLogin>
+            <PetDetailPage />
+          </RequireLogin>
+        }
+      />
+      <Route
+        path="/pets/:petId/edit"
+        element={
+          <RequireLogin>
+            <PetEditPage />
           </RequireLogin>
         }
       />

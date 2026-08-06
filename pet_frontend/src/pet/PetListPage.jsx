@@ -49,9 +49,12 @@ export default function PetListPage() {
         <ul className="pet-list">
           {pets.map((pet) => (
             <li key={pet.id}>
-              <strong>{pet.name}</strong>
-              <span className="muted">{pet.breed ?? '품종 미입력'}</span>
-              <span className="muted">{pet.birthDate ?? '생년월일 미입력'}</span>
+              {/* 항목 전체를 링크로 — li에 onClick을 걸면 키보드로 접근할 수 없다 */}
+              <Link to={`/pets/${pet.id}`}>
+                <strong>{pet.name}</strong>
+                <span className="muted">{pet.breed ?? '품종 미입력'}</span>
+                <span className="muted">{pet.birthDate ?? '생년월일 미입력'}</span>
+              </Link>
             </li>
           ))}
         </ul>
