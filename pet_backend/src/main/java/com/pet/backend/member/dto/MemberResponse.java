@@ -1,4 +1,7 @@
-package com.pet.backend.member;
+package com.pet.backend.member.dto;
+
+import com.pet.backend.member.Member;
+import com.pet.backend.member.Role;
 
 // 회원 응답 (docs/api-spec.md 1절). password 등 내부 정보는 필드 자체를 두지 않는다
 public record MemberResponse(Long id, String email, String name, Role role) {

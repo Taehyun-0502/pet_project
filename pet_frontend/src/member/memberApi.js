@@ -16,3 +16,10 @@ export function login({ email, password }) {
 export function getMyInfo() {
   return request('/api/members/me')
 }
+
+// 서버에 저장된 리프레시 토큰을 폐기하고 쿠키를 지운다. 쿠키가 없어도 성공(멱등)
+export function logout() {
+  return request('/api/members/logout', { method: 'POST' })
+}
+
+// 액세스 토큰 재발급은 apiClient가 401을 만나면 자동으로 처리한다 — 화면에서 직접 부를 일이 없다

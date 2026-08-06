@@ -17,8 +17,9 @@ export default function PetListPage() {
       .catch((err) => setError(err.message))
   }, [])
 
-  const onLogout = () => {
-    logout()
+  // 서버 폐기까지 끝난 뒤 이동한다 — 먼저 나가면 쿠키가 남은 채 화면만 바뀔 수 있다
+  const onLogout = async () => {
+    await logout()
     navigate('/login', { replace: true })
   }
 
