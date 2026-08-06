@@ -30,9 +30,13 @@ public class ChatWebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // SockJS 폴백 없음 — 최신 브라우저의 native WebSocket만 대상
-        // 오리진은 WebSocket 자체 검사라 HTTP CORS 설정(SecurityConfig)과 별개로 지정해야 한다
+        //
+        // 오리진은 WebSocket 자체 검사라 HTTP CORS 설정(SecurityConfig)과 **별개로** 지정해야 한다.
+        // 그래서 오리진을 바꿀 때는 반드시 두 곳을 함께 고쳐야 한다 — 실제로 46번 수정에서
+        // SecurityConfig만 고치고 여기를 빠뜨려 LAN 오리진이 남았었다(리뷰 65번).
+        // LAN 오리진을 넣지 않는 이유는 SecurityConfig의 CORS 주석 참조.
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173", "http://localhost:5174","http://192.168.0.9:5173");
+                .setAllowedOrigins("http://localhost:5173", "http://localhost:5174");
     }
 
     @Override
