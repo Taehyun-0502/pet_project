@@ -1,10 +1,10 @@
 // 지도 단독 메뉴 페이지 — 루트 CLAUDE.md "Phase: 지도 + AI 장소 추천" ①.
-// 검색바가 곧 AI 챗봇 입력창이다(플로팅 버튼 없음). 제출하면 POST /api/chat을 호출해
+// 검색바가 곧 AI 챗봇 입력창이다(플로팅 버튼 없음). 제출하면 POST /api/ai-search를 호출해
 // 답변 카드와 장소 마커(PetMap)를 함께 보여준다.
 //
 // 진입 시 초기 마커 노출(기획 원안): 검색 전에도 주변 장소가 보이도록, 마운트 시
 // GET /api/places로 주변을 조회해 마커를 채운다. AI 검색 결과가 도착하면 마커를
-// 검색 결과로 교체하고, 답변 카드를 닫으면 다시 주변 전체 마커로 복귀한다.
+// 검색 결과로 교체하고, 답변 시트를 닫으면 다시 주변 전체 마커로 복귀한다.
 //
 // 현위치 동작(사용자 결정으로 확정, 최초안에서 변경됨):
 // - 마운트 시 requestLocation()을 1회 호출해 위치 권한 팝업을 띄우되, 응답을 최대 3초만
@@ -32,16 +32,23 @@
 // 않는다 — 전자는 PetMap이 현위치로 이미 자체 panTo하므로 범위 맞춤과 겹칠 필요가
 // 없고, 후자는 이번 요구사항의 핵심(축척 유지)이다.
 //
-// 검색바·토글 한 줄 배치(2026-08-06 확정): 카테고리 토글 칩의 상태·로직은 여전히
-// PetMap 내부에 있고(공통 구현 원칙 유지), toggleSlot prop으로 "그릴 위치"만 검색바
-// 옆 DOM 노드로 포털한다 — 토글을 MapPage로 옮겨 다시 구현하지 않는다. 검색바는
-// SearchBar의 size="compact" 변형(공용 컴포넌트의 선택 prop, 기본 크기는 불변)을
-// 써서 토글 칩과 높이를 맞춘다.
+// 검색바·토글 배치(2026-08-06 확정, 모바일 퍼스트 리디자인으로 세부 변경): 카테고리
+// 토글 칩의 상태·로직은 여전히 PetMap 내부에 있고(공통 구현 원칙 유지), toggleSlot
+// prop으로 "그릴 위치"만 검색바 아래 DOM 노드로 포털한다 — 토글을 MapPage로 옮겨
+// 다시 구현하지 않는다. 검색바는 SearchBar의 size="compact" 변형(공용 컴포넌트의
+// 선택 prop, 기본 크기는 불변)을 써서 칩과 높이를 맞춘다.
 //
-// "검색 결과 없음" 토스트(2026-08-06 확정): 주변 조회(초기 진입/내 위치 재조회/
-// 재검색 버튼 — loadNearbyPlaces를 거치는 경로 전부)가 0건을 반환하면 화면 하단
-// 중앙에 짧게(2.5초) 토스트를 띄운다. AI 검색은 답변 카드 자체가 결과 유무를
-// 보여주므로 대상이 아니다(loadNearbyPlaces를 거치지 않음).
+// 모바일 퍼스트 리디자인(2026-08-06 확정, 최소 폭 360px 기준):
+// ① 검색바는 지도 위 상단 전폭 오버레이(우측 줌 컨트롤 자리만 비움), 카테고리 토글
+//    칩은 그 아래 별도 줄에서 가로 스크롤(줄바꿈 없음) — 두 줄 다 toggleSlot이 속한
+//    같은 헤더 오버레이 안에 있다.
+// ② AI 답변은 중앙 모달이 아니라 하단 바텀시트로 표시(PetMap의 마커 상세 시트와
+//    시각적으로 통일). 닫기(X)를 누르면 기존과 동일하게 answer=null → 주변 마커로 복귀.
+// ③ 컨트롤 터치 크기 확대는 PetMap 쪽(줌 36px+, 내 위치 44px 원형) — 이 파일은 관여 없음.
+// ④ 주변 조회 0건 안내는 하단 토스트에서 "화면 중앙 팝업, 3초 후 자동 소멸, 배경 차단
+//    없음"으로 교체(사용자 결정) — 초기 진입/내 위치 재조회/재검색 버튼 등
+//    loadNearbyPlaces를 거치는 모든 경로에 공통 적용. AI 검색은 답변 시트 자체가
+//    결과 유무를 보여주므로 대상이 아니다(loadNearbyPlaces를 거치지 않음).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PetMap from '../../components/PetMap'
@@ -75,7 +82,7 @@ function MapPage() {
   const { location, status, requestLocation } = useGeolocation()
 
   // nearbyPlaces: 진입 시(또는 "내 위치로 이동" 재시도 시) 조회한 "주변 전체" 마커
-  // searchPlaces: AI 검색 응답으로 받은 마커 — 답변 카드가 떠 있는 동안만 노출
+  // searchPlaces: AI 검색 응답으로 받은 마커 — 답변 시트가 떠 있는 동안만 노출
   const [nearbyPlaces, setNearbyPlaces] = useState([])
   const [searchPlaces, setSearchPlaces] = useState([])
   const [answer, setAnswer] = useState(null)
@@ -91,27 +98,28 @@ function MapPage() {
   // setBounds/setCenter를 수행한다. 초기 진입·AI 검색 성공 때만 올린다(아래 참고).
   const [fitBoundsKey, setFitBoundsKey] = useState(0)
 
-  // 검색바와 카테고리 토글 칩을 같은 줄에 배치하기 위한 포털 대상 DOM 노드.
+  // 검색바 아래 카테고리 토글 칩을 배치하기 위한 포털 대상 DOM 노드.
   // 토글의 상태/로직은 PetMap 내부에 그대로 있고, 그릴 위치만 이 노드로 옮긴다.
   const [toggleSlotNode, setToggleSlotNode] = useState(null)
 
-  // 화면 하단 토스트("검색 결과 없음" 등) — 짧게 보였다 자동으로 사라진다.
-  const [toast, setToast] = useState(null)
-  const toastTimerRef = useRef(null)
+  // 화면 중앙 팝업("검색 결과 없음" 등) — 짧게 보였다 자동으로 사라진다.
+  // 2026-08-06 모바일 퍼스트 리디자인으로 하단 토스트 → 중앙 팝업(배경 차단 없음)으로 교체.
+  const [emptyResultNotice, setEmptyResultNotice] = useState(null)
+  const emptyResultTimerRef = useRef(null)
 
-  const showToast = useCallback((message) => {
-    setToast(message)
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
-    toastTimerRef.current = setTimeout(() => {
-      setToast(null)
-      toastTimerRef.current = null
-    }, 2500)
+  const showEmptyResultNotice = useCallback((message) => {
+    setEmptyResultNotice(message)
+    if (emptyResultTimerRef.current) clearTimeout(emptyResultTimerRef.current)
+    emptyResultTimerRef.current = setTimeout(() => {
+      setEmptyResultNotice(null)
+      emptyResultTimerRef.current = null
+    }, 3000)
   }, [])
 
-  // 언마운트 시 대기 중인 토스트 타이머 정리
+  // 언마운트 시 대기 중인 팝업 타이머 정리
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+      if (emptyResultTimerRef.current) clearTimeout(emptyResultTimerRef.current)
     }
   }, [])
 
@@ -122,7 +130,7 @@ function MapPage() {
 
   // fit=true일 때만 이 조회 결과로 지도 범위를 다시 맞춘다(fitBoundsKey 증가).
   // 재검색(fit 생략 → false)은 마커만 갈아끼우고 현재 축척·중심을 그대로 둔다.
-  // 결과가 0건이면 토스트로 알린다 — 초기 진입/내 위치 재조회/재검색 버튼 등
+  // 결과가 0건이면 중앙 팝업으로 알린다 — 초기 진입/내 위치 재조회/재검색 버튼 등
   // 이 함수를 거치는 모든 경로에 공통 적용(단일 지점이라 호출부마다 중복 안 함).
   const loadNearbyPlaces = useCallback(async (lat, lng, { fit = false } = {}) => {
     const requestId = ++nearbyRequestIdRef.current
@@ -135,7 +143,7 @@ function MapPage() {
       setNearbyPlaces(places)
       if (fit) setFitBoundsKey((key) => key + 1)
       if (places.length === 0) {
-        showToast('이 지역에 표시할 장소가 없습니다.')
+        showEmptyResultNotice('이 지역에 표시할 장소가 없습니다.')
       }
     } catch (err) {
       if (nearbyRequestIdRef.current !== requestId) return
@@ -143,7 +151,7 @@ function MapPage() {
       // 단, 지도 자체(빈 마커 상태)는 계속 보여준다.
       setError(err.message || '주변 장소를 불러오지 못했습니다.')
     }
-  }, [showToast])
+  }, [showEmptyResultNotice])
 
   // PetMap이 "사용자가 지도를 직접 움직였다"고 알려줄 때(드래그/줌 등, 자체 프로그래밍적
   // 이동은 PetMap 내부에서 이미 걸러짐) 호출된다. 마지막 조회 중심에서 충분히
@@ -157,7 +165,7 @@ function MapPage() {
   const handleResearchClick = async () => {
     if (!researchCenter) return
     setResearchLoading(true)
-    // AI 답변 카드가 떠 있으면 닫고 주변 마커 모드로 전환한다.
+    // AI 답변 시트가 떠 있으면 닫고 주변 마커 모드로 전환한다.
     if (answer) setAnswer(null)
     await loadNearbyPlaces(researchCenter.lat, researchCenter.lng)
     setResearchLoading(false)
@@ -218,8 +226,8 @@ function MapPage() {
     })
   }, [requestLocation, loadNearbyPlaces])
 
-  // 답변 카드가 떠 있으면 검색 결과 마커를, 아니면 주변 전체 마커를 보여준다 —
-  // 답변 카드를 닫아 answer가 null이 되면 자동으로 주변 마커로 복귀한다.
+  // 답변 시트가 떠 있으면 검색 결과 마커를, 아니면 주변 전체 마커를 보여준다 —
+  // 답변 시트를 닫아 answer가 null이 되면 자동으로 주변 마커로 복귀한다.
   const displayedPlaces = useMemo(
     () => (answer ? searchPlaces : nearbyPlaces),
     [answer, searchPlaces, nearbyPlaces],
@@ -254,15 +262,47 @@ function MapPage() {
     }
   }
 
+  // AI 답변 바텀시트 접근성(PetMap의 마커 상세 시트와 동일한 원칙 — 가벼운 버전):
+  // 열릴 때 시트로 포커스 이동 + ESC로 닫기 + 배경 스크롤 잠금, 닫힐 때 이전
+  // 포커스로 복귀. 이 시트는 닫기 버튼 하나뿐이라 Tab 트랩(순환)은 생략했다 —
+  // 포커스 가능한 요소가 1개뿐이면 트랩이 사실상 아무 효과가 없다.
+  const answerSheetRef = useRef(null)
+  const answerPreviousFocusRef = useRef(null)
+
+  useEffect(() => {
+    if (!answer) return
+
+    answerPreviousFocusRef.current = document.activeElement
+    answerSheetRef.current?.focus()
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setAnswer(null)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      answerPreviousFocusRef.current?.focus?.()
+    }
+  }, [answer])
+
+  const handleAnswerBackdropClick = (event) => {
+    if (event.target === event.currentTarget) setAnswer(null)
+  }
+
   return (
     <div className="map-page">
       <div className="map-page__map-wrap">
-        {/* 검색바를 지도 위 오버레이로 띄우고, 토글 칩과 같은 가로 라인에 배치
-            (2026-08-06 사용자 결정 — 기준점은 토글 쪽: 검색바가 지도 위로 내려온다).
+        {/* 지도 위 오버레이 헤더 — 검색바(상단, 전폭) + 카테고리 토글 칩(그 아래,
+            가로 스크롤 한 줄). 우측은 PetMap의 줌 컨트롤(우상단)을 피해 여백을 둔다.
             칩의 상태/로직은 PetMap 내부에 있고, toggleSlot 포털로 "그릴 위치"만
-            이 줄로 옮긴다. 좁은 화면에서는 flex-wrap으로 칩이 아랫줄로 내려간다. */}
-        <div className="map-page__search">
-          <div className="map-page__search-bar">
+            이 자리로 옮긴다(모바일 퍼스트 리디자인 — flex-wrap 대신 가로 스크롤). */}
+        <div className="map-page__overlay-header">
+          <div className="map-page__search-row">
             <SearchBar
               size="compact"
               placeholder="AI에게 질문하기 (예: 근처 24시 동물병원 찾아줘)"
@@ -308,22 +348,32 @@ function MapPage() {
         )}
 
         {!loading && !error && answer && (
-          <div className="map-page__answer-card">
-            <button
-              type="button"
-              className="map-page__answer-close"
-              onClick={() => setAnswer(null)}
-              aria-label="답변 닫기"
+          <div className="map-page__sheet-backdrop" onMouseDown={handleAnswerBackdropClick}>
+            <div
+              ref={answerSheetRef}
+              className="map-page__sheet"
+              role="dialog"
+              aria-label="AI 답변"
+              tabIndex={-1}
+              onMouseDown={(event) => event.stopPropagation()}
             >
-              ×
-            </button>
-            <p className="map-page__answer-text">{answer}</p>
+              <span className="map-page__sheet-handle" aria-hidden="true" />
+              <button
+                type="button"
+                className="map-page__sheet-close"
+                onClick={() => setAnswer(null)}
+                aria-label="답변 닫기"
+              >
+                ×
+              </button>
+              <p className="map-page__sheet-text">{answer}</p>
+            </div>
           </div>
         )}
 
-        {toast && (
-          <div className="map-page__toast" role="status" aria-live="polite">
-            {toast}
+        {emptyResultNotice && (
+          <div className="map-page__empty-result-popup" role="status" aria-live="polite">
+            {emptyResultNotice}
           </div>
         )}
       </div>

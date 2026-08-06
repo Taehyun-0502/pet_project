@@ -9,30 +9,59 @@
   box-sizing: border-box;
 }
 
-/* 검색바 + 카테고리 토글 칩 한 줄 배치 — 칩(map-page__toggle-slot 안으로 포털됨)은
-   고정 폭, 검색바가 남은 폭을 차지한다. 좁은 화면에서는 칩이 아랫줄로 wrap. */
-/* 지도 위 오버레이로 띄운다 (2026-08-06 — 기준점은 토글 쪽: 검색바가 지도 위로).
-   우측은 줌 컨트롤(우상단 32px + 여백)을 피해 56px 비워둔다.
-   PetMap(z-index:0)보다 DOM상 앞에 있으므로 z-index로 위에 올린다. */
+/* 검색바 + 카테고리 토글 칩 — 지도 위 오버레이 (2026-08-06 — 기준점은 토글 쪽:
+   검색바가 지도 위로). 우측은 줌 컨트롤(우상단 36px + 여백)을 피해 60px 비워둔다.
+   PetMap(z-index:0)보다 DOM상 앞에 있으므로 z-index로 위에 올린다.
+   모바일 퍼스트(360px 기준): 검색바 전폭 한 줄 + 칩 가로 스크롤 한 줄(세로 스택).
+   데스크톱(768px+)은 아래 미디어쿼리에서 한 줄 가로 배치로 확장. */
 .map-page__search {
   position: absolute;
   z-index: 2;
   top: 12px;
   left: 12px;
-  right: 56px;
+  right: 60px;
   display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
 }
 
 .map-page__search-bar {
-  flex: 1 1 280px;
-  min-width: 240px;
+  min-width: 0;
 }
 
+/* 칩 줄 — 한 줄 가로 스크롤 (줄바꿈 없음), 스크롤바는 숨김 */
 .map-page__toggle-slot {
-  flex: none;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.map-page__toggle-slot::-webkit-scrollbar {
+  display: none;
+}
+
+/* 슬롯 안으로 포털된 칩 목록은 줄바꿈 대신 가로로 이어지게 강제 */
+.map-page__toggle-slot .pet-map__toggle-list {
+  flex-wrap: nowrap;
+  width: max-content;
+}
+
+@media (min-width: 768px) {
+  .map-page__search {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .map-page__search-bar {
+    flex: 1 1 280px;
+    min-width: 240px;
+  }
+
+  .map-page__toggle-slot {
+    overflow: visible;
+  }
 }
 
 .map-page__map-wrap {
@@ -48,7 +77,8 @@
 .map-page__research-btn {
   position: absolute;
   z-index: 1;
-  top: 52px;
+  /* 모바일 base: 검색바(32px)+칩(30px)+간격을 지나 ~94px부터. 데스크톱은 아래 미디어쿼리 */
+  top: 94px;
   left: 50%;
   transform: translateX(-50%);
   padding: 8px 16px;
@@ -83,13 +113,20 @@
    먼저 렌더링) 깨지므로 유지할 것 — QA N-1. */
 .map-page__banner {
   position: absolute;
-  top: 52px;
+  top: 94px;
   left: 12px;
   right: 12px;
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 14px;
   box-shadow: var(--shadow);
+}
+
+@media (min-width: 768px) {
+  .map-page__research-btn,
+  .map-page__banner {
+    top: 52px;
+  }
 }
 
 .map-page__banner--loading {
@@ -104,65 +141,99 @@
   border: 1px solid var(--border);
 }
 
-.map-page__answer-card {
-  position: absolute;
-  top: 52px;
-  left: 12px;
-  right: 12px;
-  max-width: 480px;
-  padding: 14px 36px 14px 16px;
-  border-radius: 10px;
+/* AI 답변 바텀시트 (2026-08-06 모바일 퍼스트 — 우측 카드에서 전환).
+   PetMap의 장소 상세 시트(.pet-map__sheet-*)와 같은 시각 언어를 쓴다. */
+.map-page__sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.map-page__sheet {
+  position: relative;
+  width: 100%;
+  max-height: 45vh;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+  border-radius: 16px 16px 0 0;
   background: var(--bg);
   border: 1px solid var(--border);
+  border-bottom: none;
   box-shadow: var(--shadow);
 }
 
-.map-page__answer-text {
-  margin: 0;
-  color: var(--text-h);
+.map-page__sheet-handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 4px auto 12px;
+}
+
+.map-page__sheet-text {
+  margin: 0 28px 0 0;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.6;
+  color: var(--text-h);
   white-space: pre-wrap;
 }
 
-.map-page__answer-close {
+.map-page__sheet-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 50%;
   background: transparent;
   color: var(--text);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
 }
 
-.map-page__answer-close:hover {
+.map-page__sheet-close:hover {
   background: var(--accent-bg);
 }
 
-.map-page__answer-close:focus-visible {
+.map-page__sheet-close:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-/* "검색 결과 없음" 등 짧은 안내 토스트 — 화면(지도 영역) 하단 중앙, 2.5초 후 자동 소멸 */
-.map-page__toast {
+@media (min-width: 768px) {
+  .map-page__sheet {
+    max-width: 520px;
+  }
+}
+
+/* "검색 결과 없음" 센터 팝업 (2026-08-06 사용자 결정 — 토스트에서 변경).
+   3초 후 자동 소멸, 배경 차단 없음(pointer-events: none — 팝업이 떠 있어도 지도 조작 가능) */
+.map-page__empty-result-popup {
   position: absolute;
-  z-index: 4;
-  bottom: 16px;
+  z-index: 3;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100% - 32px);
-  padding: 10px 18px;
-  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  max-width: calc(100% - 48px);
+  padding: 12px 20px;
+  border-radius: 10px;
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text-h);
-  font-size: 13px;
+  font-size: 14px;
   text-align: center;
   box-shadow: var(--shadow);
+  pointer-events: none;
 }
+
+
+
+
+

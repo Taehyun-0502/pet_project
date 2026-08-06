@@ -11,26 +11,32 @@
  * 안내 문구를 표시한다 (키 미발급 상태의 팀원도 다른 화면 작업을 막지
  * 않도록 하기 위함).
  *
- * 마커 클릭 시 카카오맵으로 이동시키지 않고, 이 컴포넌트 내부 공통 모달
- * 팝업(이름/카테고리 배지·상세/주소/전화, 보조 링크로 "카카오맵에서 자세히
- * 보기")을 띄운다(2026-08-06 확정). 모달은 `position: fixed`로 뷰포트 전체를
- * 덮으므로 mini 모드(작은 컨테이너)에서도 동일하게 화면 전체 오버레이로 뜬다
- * — PetMap의 조상 요소들이 transform/filter 등으로 새 containing block을
- * 만들지 않는 한(현재 MapPage 등 사용처에 없음) 정상 동작한다.
- * 접근성: 열릴 때 패널로 포커스 이동 + Tab 트랩 + ESC로 닫기, 닫힐 때 이전
- * 포커스로 복귀, 열려 있는 동안 배경 스크롤 잠금. `places`가 교체되거나
- * 카테고리 토글로 선택된 장소가 가려지면 낡은(stale) 모달을 자동으로 닫는다.
+ * 마커 클릭 시 카카오맵으로 이동시키지 않고, 이 컴포넌트 내부 공통
+ * **하단 바텀시트**(2026-08-06 모바일 퍼스트 리디자인 — 기존 중앙 모달 폐기)로
+ * 이름/카테고리 배지·상세/주소와 [전화 걸기]/[카카오맵에서 보기] 액션 버튼을
+ * 보여준다. `phone`이 없으면 전화 버튼 자체를 숨긴다. 시트는 화면 하단에
+ * 고정되고 지도 위쪽은 계속 보인다(전체 화면을 가리는 배경 없음, 얕은 스크림만).
+ * `position: fixed`라 mini 모드(작은 컨테이너)에서도 화면 전체 기준 바텀시트로
+ * 뜬다 — PetMap의 조상 요소들이 transform/filter 등으로 새 containing block을
+ * 만들지 않는 한(현재 MapPage 등 사용처에 없음) 정상 동작한다. 데스크톱
+ * (`min-width: 768px`)에서는 시트 너비가 520px로 제한되고 가로 중앙 정렬된다.
+ * 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4/N-5): 열릴 때 시트로
+ * 포커스 이동 + Tab 트랩 + ESC로 닫기, 닫힐 때 이전 포커스로 복귀, 열려 있는
+ * 동안 배경 스크롤 잠금. `places`가 교체되거나 카테고리 토글로 선택된 장소가
+ * 가려지면 낡은(stale) 시트를 자동으로 닫는다.
  *
- * 줌(+/−) 버튼은 카카오 기본 컨트롤 대신 커스텀 UI로 제공한다
- * (2026-08-06 확정 — 기본 컨트롤 비활성화 방침 유지).
+ * 줌(+/−)·"내 위치로 이동" 버튼은 카카오 기본 컨트롤 대신 커스텀 UI로 제공하며
+ * (2026-08-06 확정 — 기본 컨트롤 비활성화 방침 유지), 터치 타깃을 넉넉히 잡는다
+ * (줌 36px, 내 위치 44px 원형 아이콘 버튼 — 2026-08-06 모바일 퍼스트 리디자인).
  * 축척 표시는 좌하단 카카오 로고와 겹쳐 삭제됨 (2026-08-06 사용자 결정).
  *
  * `currentLocation`이 주어지면 파란 점 스타일의 현위치 마커를 표시하고,
- * "내 위치로 이동" 버튼으로 지도를 그 위치로 이동시킨다. 좌표가 아직
- * 없는 상태에서 버튼을 누르면 `onLocateClick` 콜백을 호출해 상위
- * 컴포넌트가 위치 획득(Geolocation 권한 요청)을 트리거하도록 위임한다 —
- * 이 컴포넌트는 브라우저 위치 권한을 직접 요청하지 않는다(재사용성·권한
- * 트리거 중복 방지를 위해 상위에 위임. 예: src/hooks/useGeolocation.js).
+ * 우하단 원형 "내 위치로 이동" 아이콘 버튼(`aria-label`로 텍스트 의미 유지)으로
+ * 지도를 그 위치로 이동시킨다. 좌표가 아직 없는 상태에서 버튼을 누르면
+ * `onLocateClick` 콜백을 호출해 상위 컴포넌트가 위치 획득(Geolocation 권한
+ * 요청)을 트리거하도록 위임한다 — 이 컴포넌트는 브라우저 위치 권한을 직접
+ * 요청하지 않는다(재사용성·권한 트리거 중복 방지를 위해 상위에 위임. 예:
+ * src/hooks/useGeolocation.js).
  *
  * `onMapMoved`가 주어지면, 사용자가 드래그/스크롤 줌 등으로 지도를 직접
  * 움직였을 때(카카오 `idle` 이벤트) 현재 중심 좌표를 전달한다. 이 컴포넌트
@@ -85,9 +91,9 @@
  * - places?: Array<{ name: string, category: 'HOSPITAL'|'CAFE'|'HOTEL',
  *     lat: number, lng: number, address?: string, placeUrl?: string,
  *     phone?: string, categoryDetail?: string }>
- *     백엔드 `POST /api/chat`·`GET /api/places` 응답의 `places[]`와 동일한
+ *     백엔드 `POST /api/ai-search`·`GET /api/places` 응답의 `places[]`와 동일한
  *     형태(멤버 4 스키마). `phone`/`categoryDetail`은 선택 필드 — 없거나
- *     빈 값이면 상세 모달에서 해당 줄을 표시하지 않는다(하위 호환).
+ *     빈 값이면 상세 시트에서 해당 줄/버튼을 표시하지 않는다(하위 호환).
  * - size?: 'full' | 'mini' — 컨테이너 높이 프리셋. 기본 'full'.
  * - currentLocation?: { lat: number, lng: number } | null — 있으면 현위치
  *     마커를 표시한다.
@@ -156,8 +162,8 @@ function PetMap({
   const placeMarkersRef = useRef([]);
   const currentMarkerRef = useRef(null);
   const pendingPanRef = useRef(false);
-  const modalPanelRef = useRef(null);
-  const previousFocusRef = useRef(null); // 모달 열기 전 포커스였던 요소 — 닫을 때 복귀시킨다
+  const sheetPanelRef = useRef(null);
+  const previousFocusRef = useRef(null); // 시트 열기 전 포커스였던 요소 — 닫을 때 복귀시킨다
   // fitBoundsKey가 마지막으로 범위를 맞췄을 때의 값. fitBoundsKey 자체를 아예
   // 넘기지 않은 경우(undefined)는 아래 이펙트에서 이 값과 무관하게 항상 맞춘다.
   const lastFitKeyRef = useRef(undefined);
@@ -173,7 +179,7 @@ function PetMap({
     CAFE: true,
     HOTEL: true,
   });
-  const [selectedPlace, setSelectedPlace] = useState(null); // 장소 상세 모달 — 클릭된 place 또는 null
+  const [selectedPlace, setSelectedPlace] = useState(null); // 장소 상세 시트 — 클릭된 place 또는 null
 
   useEffect(() => {
     onMapMovedRef.current = onMapMoved;
@@ -280,7 +286,7 @@ function PetMap({
         title: place.name,
       });
       marker.setMap(map);
-      // 마커 클릭 → 카카오 InfoWindow 대신 컴포넌트 내부 공통 모달을 연다(2026-08-06 확정).
+      // 마커 클릭 → 카카오 InfoWindow 대신 컴포넌트 내부 공통 하단 시트를 연다(2026-08-06 확정).
       kakao.maps.event.addListener(marker, 'click', () => {
         setSelectedPlace(place);
       });
@@ -351,13 +357,14 @@ function PetMap({
     }
   }, [currentLocation, sdkStatus]);
 
-  // 장소 상세 모달 접근성: 열릴 때 패널로 포커스 이동 + Tab 트랩(패널 안에서만 순환) +
-  // ESC로 닫기 + 배경 스크롤 잠금, 닫힐 때 열기 전 포커스였던 요소로 복귀.
+  // 장소 상세 시트 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4): 열릴 때 패널로
+  // 포커스 이동 + Tab 트랩(패널 안에서만 순환) + ESC로 닫기 + 배경 스크롤 잠금,
+  // 닫힐 때 열기 전 포커스였던 요소로 복귀.
   useEffect(() => {
     if (!selectedPlace) return;
 
     previousFocusRef.current = document.activeElement;
-    modalPanelRef.current?.focus();
+    sheetPanelRef.current?.focus();
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -369,7 +376,7 @@ function PetMap({
       }
       if (event.key !== 'Tab') return;
 
-      const panel = modalPanelRef.current;
+      const panel = sheetPanelRef.current;
       if (!panel) return;
       const focusable = panel.querySelectorAll(
         'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -398,7 +405,7 @@ function PetMap({
   }, [selectedPlace]);
 
   // places가 교체되거나(새 조회/AI 검색 결과 전환) 카테고리 토글로 선택된 장소가
-  // 화면에서 사라지면 모달이 낡은(stale) 장소를 계속 띄우고 있지 않도록 닫는다.
+  // 화면에서 사라지면 시트가 낡은(stale) 장소를 계속 띄우고 있지 않도록 닫는다(QA N-5).
   useEffect(() => {
     if (!selectedPlace) return;
     const stillVisible = places.includes(selectedPlace) && visibleCategories[selectedPlace.category];
@@ -506,24 +513,46 @@ function PetMap({
         </button>
       </div>
 
-      <button type="button" className="pet-map__locate-btn" onClick={handleLocateClick}>
-        내 위치로 이동
+      <button
+        type="button"
+        className="pet-map__locate-btn"
+        onClick={handleLocateClick}
+        aria-label="내 위치로 이동"
+      >
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="3" fill="currentColor" />
+          <path
+            d="M12 2v3M12 19v3M2 12h3M19 12h3"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
       </button>
 
       {selectedPlace && (
-        <div className="pet-map__modal-backdrop" onMouseDown={handleBackdropClick}>
+        <div className="pet-map__sheet-backdrop" onMouseDown={handleBackdropClick}>
           <div
-            ref={modalPanelRef}
-            className="pet-map__modal-panel"
+            ref={sheetPanelRef}
+            className="pet-map__sheet"
             role="dialog"
             aria-modal="true"
             aria-label={`${selectedPlace.name} 상세 정보`}
             tabIndex={-1}
             onMouseDown={(event) => event.stopPropagation()}
           >
+            <span className="pet-map__sheet-handle" aria-hidden="true" />
+
             <button
               type="button"
-              className="pet-map__modal-close"
+              className="pet-map__sheet-close"
               onClick={() => setSelectedPlace(null)}
               aria-label="닫기"
             >
@@ -531,42 +560,48 @@ function PetMap({
             </button>
 
             {(selectedMeta || selectedPlace.categoryDetail) && (
-              <div className="pet-map__modal-badge-row">
+              <div className="pet-map__sheet-badge-row">
                 {selectedMeta && (
                   <span
-                    className="pet-map__modal-badge"
+                    className="pet-map__sheet-badge"
                     style={{ '--chip-color': selectedMeta.color }}
                   >
                     {selectedMeta.label}
                   </span>
                 )}
                 {selectedPlace.categoryDetail && (
-                  <span className="pet-map__modal-category-detail">{selectedPlace.categoryDetail}</span>
+                  <span className="pet-map__sheet-category-detail">{selectedPlace.categoryDetail}</span>
                 )}
               </div>
             )}
 
-            <h3 className="pet-map__modal-title">{selectedPlace.name}</h3>
+            <h3 className="pet-map__sheet-title">{selectedPlace.name}</h3>
 
             {selectedPlace.address && (
-              <p className="pet-map__modal-address">{selectedPlace.address}</p>
+              <p className="pet-map__sheet-address">{selectedPlace.address}</p>
             )}
 
-            {selectedPlace.phone && (
-              <a className="pet-map__modal-phone" href={`tel:${selectedPlace.phone}`}>
-                전화 걸기 · {selectedPlace.phone}
-              </a>
-            )}
-
-            {selectedPlace.placeUrl && (
-              <a
-                className="pet-map__modal-link"
-                href={selectedPlace.placeUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                카카오맵에서 자세히 보기
-              </a>
+            {(selectedPlace.phone || selectedPlace.placeUrl) && (
+              <div className="pet-map__sheet-actions">
+                {selectedPlace.phone && (
+                  <a
+                    className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
+                    href={`tel:${selectedPlace.phone}`}
+                  >
+                    전화 걸기
+                  </a>
+                )}
+                {selectedPlace.placeUrl && (
+                  <a
+                    className="pet-map__sheet-action-btn"
+                    href={selectedPlace.placeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    카카오맵에서 보기
+                  </a>
+                )}
+              </div>
             )}
           </div>
         </div>
