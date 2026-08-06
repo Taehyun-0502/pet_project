@@ -76,6 +76,8 @@ public class ChatService {
         if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
             try {
                 chatRoomMemberRepository.save(ChatRoomMember.join(roomId, memberId));
+                // 실제로 새로 참여했을 때만 알린다 (이미 참여 중인 멱등 호출은 바뀐 게 없다)
+                eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
             } catch (DataIntegrityViolationException e) {
                 // 동시 입장 경쟁 — 다른 요청이 먼저 참여시킴. 멱등 정책상 성공으로 취급
             }
@@ -163,6 +165,7 @@ public class ChatService {
             throw new BusinessException(ErrorCode.CHAT_OWNER_CANNOT_LEAVE);
         }
         me.leave();
+        eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
     }
 
     // 강퇴 — 강퇴된 회원은 이 방에 재입장할 수 없다
@@ -183,6 +186,7 @@ public class ChatService {
         target.kick();
         // 이미 구독 중인 강퇴자는 SUBSCRIBE 검사로 막을 수 없다 — 커밋 후 연결을 끊는다
         eventPublisher.publishEvent(new ChatMemberKickedEvent(roomId, targetMemberId));
+        eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
     }
 
     // MANAGER 지명·해제 — OWNER만. OWNER로의 변경은 delegate가 담당
@@ -199,6 +203,8 @@ public class ChatService {
                     "자기 자신의 역할은 변경할 수 없습니다.");
         }
         getActiveMember(roomId, targetMemberId).changeRole(newRole);
+        // 지명된 본인의 화면에 권한 버튼이 바로 나타나야 한다
+        eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
     }
 
     // 방장 위임 — 대상이 OWNER가 되고 기존 방장은 MEMBER로. 한 트랜잭션이라 방마다 OWNER는 항상 1명
@@ -213,6 +219,8 @@ public class ChatService {
         ChatRoomMember target = getActiveMember(roomId, targetMemberId);
         target.changeRole(ChatRole.OWNER);
         actor.changeRole(ChatRole.MEMBER);
+        // 두 사람의 role이 한 번에 바뀐다 — 신호는 한 번이면 충분(받는 쪽이 전체를 다시 읽는다)
+        eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
     }
 
     // 방 삭제(소프트) — 참여 행·메시지는 그대로 두고, 모든 조회가 삭제된 방을 걸러낸다

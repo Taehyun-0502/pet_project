@@ -71,7 +71,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         // 5174는 5173이 점유 중일 때 Vite가 쓰는 보조 포트 — 로컬 개발 편의로 함께 허용
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174"));
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174","http://192.168.0.9:5173"));
         // PATCH: 채팅 MANAGER 지명 API가 사용 (빠지면 프리플라이트에서 차단됨)
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));

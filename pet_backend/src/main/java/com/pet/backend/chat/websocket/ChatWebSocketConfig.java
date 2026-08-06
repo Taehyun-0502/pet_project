@@ -32,7 +32,7 @@ public class ChatWebSocketConfig implements WebSocketMessageBrokerConfigurer {
         // SockJS 폴백 없음 — 최신 브라우저의 native WebSocket만 대상
         // 오리진은 WebSocket 자체 검사라 HTTP CORS 설정(SecurityConfig)과 별개로 지정해야 한다
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173", "http://localhost:5174");
+                .setAllowedOrigins("http://localhost:5173", "http://localhost:5174","http://192.168.0.9:5173");
     }
 
     @Override

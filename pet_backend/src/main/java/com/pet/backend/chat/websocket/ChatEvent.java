@@ -11,4 +11,10 @@ public record ChatEvent<T>(String type, T data) {
     public static ChatEvent<ChatMessageResponse> message(ChatMessageResponse message) {
         return new ChatEvent<>("MESSAGE", message);
     }
+
+    // 참여자 구성이 바뀌었다는 신호만 — 받은 쪽이 GET /members로 다시 읽는다.
+    // 변경 내용을 실어 보내면 이벤트 유실·순서 역전 때 목록이 서버와 어긋난 채 남는다
+    public static ChatEvent<Void> membersChanged() {
+        return new ChatEvent<>("MEMBERS_CHANGED", null);
+    }
 }

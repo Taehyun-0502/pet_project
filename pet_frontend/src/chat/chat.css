@@ -99,6 +99,13 @@
   border-radius: 6px;
 }
 
+/* 실시간 연결 상태 안내 — 오류가 아니라 진행 중 표시라 눈에 덜 띄게 */
+.chat-status {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #888;
+}
+
 /* 2차: 방 관리 버튼 줄 + 참여자 패널 */
 .chat-toolbar {
   display: flex;

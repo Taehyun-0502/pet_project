@@ -1,6 +1,7 @@
 package com.pet.backend.chat.websocket;
 
 import com.pet.backend.chat.ChatMemberKickedEvent;
+import com.pet.backend.chat.ChatMembersChangedEvent;
 import com.pet.backend.chat.ChatMessageCreatedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -36,5 +37,16 @@ public class ChatBroadcaster {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMemberKicked(ChatMemberKickedEvent event) {
         sessionRegistry.disconnectMember(event.memberId());
+    }
+
+    /**
+     * 참여자 구성 변경 신호.
+     * fallbackExecution = true 인 이유: 입장(join)은 의도적으로 트랜잭션 없이 동작하는데
+     * (ChatService.join 주석 참조) 기본 설정이면 트랜잭션이 없는 호출에서 리스너가 조용히 건너뛰어진다.
+     * 이 옵션을 켜면 트랜잭션이 있으면 커밋 후, 없으면 즉시 실행된다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void onMembersChanged(ChatMembersChangedEvent event) {
+        messagingTemplate.convertAndSend(roomTopic(event.roomId()), ChatEvent.membersChanged());
     }
 }
