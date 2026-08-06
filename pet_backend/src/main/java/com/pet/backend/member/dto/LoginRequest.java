@@ -1,4 +1,4 @@
-package com.pet.backend.member;
+package com.pet.backend.member.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
