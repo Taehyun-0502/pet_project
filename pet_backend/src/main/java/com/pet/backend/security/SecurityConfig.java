@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -57,6 +58,11 @@ public class SecurityConfig {
 
                         // 그 다음 STOMP CONNECT 프레임에서 ChatStompInterceptor가 JWT를 검증한다
                         .requestMatchers("/ws").permitAll()
+                        // 숏츠 피드와 댓글 목록은 로그인 없이 볼 수 있다.
+                        // GET만 열어 업로드·좋아요·댓글 작성·이벤트 기록(POST)은 인증 대상으로 남긴다
+                        // (shorts_guide_1.md 7절 — 보기는 공개, 쓰기는 로그인 필요)
+                        .requestMatchers(HttpMethod.GET, "/api/shorts").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/shorts/*/comments").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler ->
                         handler.authenticationEntryPoint(authenticationEntryPoint))
