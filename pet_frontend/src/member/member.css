@@ -1,0 +1,71 @@
+/* 회원 도메인 화면(가입·로그인) 공용 스타일 */
+
+.auth-page {
+  max-width: 400px;
+  margin: 60px auto;
+  padding: 0 16px;
+}
+
+.auth-page h1 {
+  margin-bottom: 24px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.auth-form input {
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.auth-form input[aria-invalid='true'] {
+  border-color: #d33;
+}
+
+.field-error {
+  color: #d33;
+  font-size: 13px;
+  margin: 0;
+}
+
+.submit-error {
+  color: #d33;
+  font-size: 14px;
+  margin: 0;
+}
+
+.notice {
+  color: #2a7;
+  font-size: 14px;
+}
+
+.auth-form button {
+  padding: 12px;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.auth-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.auth-switch {
+  margin-top: 16px;
+  font-size: 14px;
+}
