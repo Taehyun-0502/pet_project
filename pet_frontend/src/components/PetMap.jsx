@@ -102,6 +102,10 @@
  * - onMapMoved?: ({ lat: number, lng: number }) => void — 사용자가 지도를
  *     직접 움직였을 때(드래그/줌 등) 호출된다. 이 컴포넌트의 자체 프로그래밍적
  *     이동은 걸러지므로 호출되지 않는다.
+ * - onCenterChanged?: ({ lat: number, lng: number }) => void — 지도 중심이
+ *     바뀔 때마다(이동 주체 무관 — 프로그래밍적 이동 포함) + 최초 생성 직후에
+ *     현재 중심을 알린다. AI 검색이 "현재 보고 있는 지도" 기준으로 동작하기
+ *     위한 좌표원 (2026-08-06 사용자 결정).
  * - fitBoundsKey?: number | string — 값이 바뀔 때만 마커 범위로 지도를 다시
  *     맞춘다. 생략하면 매번(기존 동작) 맞춘다.
  * - toggleSlot?: HTMLElement | null — 주어지면 카테고리 토글 칩을 지도 위
@@ -152,6 +156,7 @@ function PetMap({
   currentLocation = null,
   onLocateClick,
   onMapMoved,
+  onCenterChanged,
   fitBoundsKey,
   toggleSlot = null,
 }) {
@@ -172,6 +177,10 @@ function PetMap({
   const programmaticMoveRef = useRef(false);
   // onMapMoved가 매 렌더 새 함수로 와도 idle 리스너(마운트 시 1회 등록)가 항상 최신을 참조하도록.
   const onMapMovedRef = useRef(onMapMoved);
+  // onCenterChanged도 동일한 이유로 ref 경유. onMapMoved와 달리 프로그래밍적 이동을
+  // 거르지 않고 "현재 지도 중심"을 항상 알려준다 — AI 검색이 보고 있는 지도 기준으로
+  // 동작하기 위한 좌표원 (2026-08-06 사용자 결정).
+  const onCenterChangedRef = useRef(onCenterChanged);
 
   const [sdkStatus, setSdkStatus] = useState(KAKAO_JS_KEY ? 'loading' : 'missing-key');
   const [visibleCategories, setVisibleCategories] = useState({
@@ -183,7 +192,8 @@ function PetMap({
 
   useEffect(() => {
     onMapMovedRef.current = onMapMoved;
-  }, [onMapMoved]);
+    onCenterChangedRef.current = onCenterChanged;
+  }, [onMapMoved, onCenterChanged]);
 
   const categoryCounts = useMemo(() => {
     const counts = { HOSPITAL: 0, CAFE: 0, HOTEL: 0 };
@@ -220,13 +230,20 @@ function PetMap({
         // programmaticMoveRef가 true면(이 컴포넌트 자신이 방금 움직인 경우) 이번
         // idle 1회만 소비하고 onMapMoved는 호출하지 않는다 — 그 외에는 사용자가
         // 직접 움직인 것으로 보고 현재 중심 좌표를 알려준다.
+        // 최초 생성 직후에도 중심을 한 번 알린다 — 사용자가 지도를 안 움직여도
+        // AI 검색이 "지금 보이는 지도" 좌표를 쓸 수 있게.
+        onCenterChangedRef.current?.({ ...DEFAULT_CENTER });
+
         kakao.maps.event.addListener(map, 'idle', () => {
+          const center = map.getCenter();
+          const coords = { lat: center.getLat(), lng: center.getLng() };
+          // onCenterChanged는 이동 주체와 무관하게 항상 최신 중심을 보고한다.
+          onCenterChangedRef.current?.(coords);
           if (programmaticMoveRef.current) {
             programmaticMoveRef.current = false;
             return;
           }
-          const center = map.getCenter();
-          onMapMovedRef.current?.({ lat: center.getLat(), lng: center.getLng() });
+          onMapMovedRef.current?.(coords);
         });
 
         markerImagesRef.current = {
@@ -476,6 +493,8 @@ function PetMap({
           className={`pet-map__toggle-chip${visibleCategories[category] ? ' pet-map__toggle-chip--on' : ''}`}
           style={{ '--chip-color': meta.color }}
           aria-pressed={visibleCategories[category]}
+          // 현재 표시 중인 목록에 해당 카테고리 장소가 없으면 비활성 (2026-08-06 사용자 결정)
+          disabled={categoryCounts[category] === 0}
           onClick={() => toggleCategory(category)}
         >
           <span className="pet-map__toggle-dot" />

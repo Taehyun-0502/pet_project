@@ -57,7 +57,7 @@ public class AiSearchService {
             """;
 
     private static final String LOCATION_PROMPT_TEMPLATE =
-            "\n사용자 현재 위치: (%s, %s). '근처'/'주변' 요청 시 이 좌표로 search_places를 호출하라.";
+            "\n검색 기준 위치(사용자가 현재 보고 있는 지도의 중심): (%s, %s). '근처'/'주변'/'이 지역' 요청 시 이 좌표로 search_places를 호출하라.";
 
     private final AnthropicClient client;
     private final String model;

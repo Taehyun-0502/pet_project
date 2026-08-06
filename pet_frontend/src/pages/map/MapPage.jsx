@@ -79,7 +79,7 @@ function distanceMeters(a, b) {
 }
 
 function MapPage() {
-  const { location, status, requestLocation } = useGeolocation()
+  const { location, requestLocation } = useGeolocation()
 
   // nearbyPlaces: 진입 시(또는 "내 위치로 이동" 재시도 시) 조회한 "주변 전체" 마커
   // searchPlaces: AI 검색 응답으로 받은 마커 — 답변 시트가 떠 있는 동안만 노출
@@ -121,6 +121,13 @@ function MapPage() {
     return () => {
       if (emptyResultTimerRef.current) clearTimeout(emptyResultTimerRef.current)
     }
+  }, [])
+
+  // 현재 보고 있는 지도 중심 — PetMap의 onCenterChanged가 이동 주체와 무관하게 항상
+  // 최신으로 채운다. AI 검색의 기준 좌표로 사용 (2026-08-06 사용자 결정).
+  const mapCenterRef = useRef(null)
+  const handleCenterChanged = useCallback((center) => {
+    mapCenterRef.current = center
   }, [])
 
   // 응답 순서가 뒤바뀌어 오래된 주변 조회 결과가 최신 결과를 덮어쓰지 않도록 요청 ID로 판별
@@ -189,7 +196,7 @@ function MapPage() {
       if (cancelled || settled) return
       settled = true
       timedOut = true
-      loadNearbyPlaces(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng)
+      loadNearbyPlaces(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng, { fit: true })
     }, 3000)
 
     requestLocation().then((loc) => {
@@ -198,16 +205,18 @@ function MapPage() {
 
       if (timedOut) {
         // 이미 기본 좌표로 초기 조회를 한 상태 — 위치가 뒤늦게 "허용"으로 확정된 경우에만
-        // 그 좌표로 재조회한다. loadNearbyPlaces 내부의 requestId 가드가 두 응답 중
-        // 오래된 쪽을 자동으로 폐기하므로 순서가 뒤바뀌어도 최신 결과만 반영된다.
-        if (loc) loadNearbyPlaces(loc.lat, loc.lng)
+        // 그 좌표로 재조회하고 지도도 내 위치 기준으로 옮긴다(fit). loadNearbyPlaces
+        // 내부의 requestId 가드가 두 응답 중 오래된 쪽을 자동으로 폐기한다.
+        if (loc) loadNearbyPlaces(loc.lat, loc.lng, { fit: true })
         return
       }
 
       if (settled) return // 안전장치 — 이론상 도달하지 않음
       settled = true
+      // 허용이면 내 위치 기준, 거부/미지원이면 서울시청 기준으로 초기 뷰를 잡는다
+      // (2026-08-06 사용자 확정: "허용하지 않았을 때만 서울시청").
       const center = loc ?? DEFAULT_CENTER
-      loadNearbyPlaces(center.lat, center.lng)
+      loadNearbyPlaces(center.lat, center.lng, { fit: true })
     })
 
     return () => {
@@ -237,21 +246,16 @@ function MapPage() {
     setLoading(true)
     setError(null)
 
-    // 마운트 시 이미 위치 요청이 1회 트리거되어 있다. 여기서는 그 결과를 활용한다:
-    // - granted: location을 그대로 사용
-    // - loading: 응답을 기다리지 않고 검색을 우선 진행(좌표 없이) — 검색이 위치 확정보다 우선
-    // - denied/unsupported: 재요청하지 않고 좌표 없이 진행 (QA M-2)
-    // - idle: (마운트 이펙트가 아직 시작되지 않은 예외적 타이밍) 이번 한 번만 직접 요청
-    let currentLocation = location
-    if (!currentLocation && status === 'idle') {
-      currentLocation = await requestLocation()
-    }
+    // 검색 기준 좌표 = 현재 보고 있는 지도 중심 (2026-08-06 사용자 결정 — 위치 권한
+    // 좌표가 아니라 지도 화면 기준). PetMap의 onCenterChanged가 항상 최신 중심을
+    // 채워주며, 지도(SDK)가 아직 준비 전인 예외적 타이밍에만 위치 권한 좌표로 폴백.
+    const searchCenter = mapCenterRef.current ?? location
 
     try {
       const data = await askChat({
         message: query,
-        lat: currentLocation?.lat,
-        lng: currentLocation?.lng,
+        lat: searchCenter?.lat,
+        lng: searchCenter?.lng,
       })
       setAnswer(data.message)
       setSearchPlaces(data.places ?? [])
@@ -322,6 +326,7 @@ function MapPage() {
           currentLocation={location}
           onLocateClick={handleLocateClick}
           onMapMoved={handleMapMoved}
+          onCenterChanged={handleCenterChanged}
           fitBoundsKey={fitBoundsKey}
           toggleSlot={toggleSlotNode}
         />

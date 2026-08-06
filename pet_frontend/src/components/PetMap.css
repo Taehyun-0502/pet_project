@@ -106,6 +106,13 @@
   outline-offset: 2px;
 }
 
+/* 해당 카테고리 장소가 0건일 때 — 누를 수 없음을 시각적으로 표시 */
+.pet-map__toggle-chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+
 .pet-map__toggle-dot {
   width: 10px;
   height: 10px;
