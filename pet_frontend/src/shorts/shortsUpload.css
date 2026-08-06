@@ -1,0 +1,44 @@
+/* 업로드 화면에서 피드(ShortsFeed)와 달라지는 부분만. 폼 기본 스타일은 member.css를 쓴다 */
+
+/* 미리보기는 피드와 같은 9:16 + cover — 올리기 전에 잘림을 확인할 수 있게 */
+.su-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.su-preview video {
+  width: 100%;
+  max-width: 220px;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  background: #000;
+  border-radius: 12px;
+}
+
+.su-meta {
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* 잘림 안내는 "막는 오류"가 아니라 "알고 올려라"는 주의라서
+   member.css의 .field-error(빨강)도 .notice(초록)도 쓰지 않고 별도 색을 쓴다 */
+.su-crop-warn {
+  max-width: 320px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(200, 130, 0, 0.35);
+  border-radius: 8px;
+  background: rgba(230, 160, 0, 0.1);
+  color: #b06f00;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .su-crop-warn {
+    color: #e8b04b;
+  }
+}
