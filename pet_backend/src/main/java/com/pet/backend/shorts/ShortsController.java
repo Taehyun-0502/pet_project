@@ -2,6 +2,7 @@ package com.pet.backend.shorts;
 
 import com.pet.backend.common.ApiResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -27,13 +28,20 @@ public class ShortsController {
     /**
      * 피드 조회. 공개 경로이므로 로그인하지 않은 요청도 들어온다 —
      * 그 경우 memberId는 null이고 응답의 likedByMe는 모두 false가 된다.
+     *
+     * <p>정렬은 품질점수순이다(B단계). 다음 페이지는 커서가 아니라
+     * <b>지금까지 받은 id를 제외</b>하는 방식으로 요청한다 — 점수 순서는 id 순서와 무관해서
+     * 커서가 성립하지 않는다(숏츠_추천알고리즘_구현가이드.md 9절).
+     *
+     * @param excludeIds 제외할 id. {@code ?excludeIds=3,4,5} 또는 {@code ?excludeIds=3&excludeIds=4}
+     *                   둘 다 받는다. 생략하면 첫 페이지
      */
     @GetMapping("/api/shorts")
     public ApiResponse<ShortsFeedResponse> getFeed(
             @AuthenticationPrincipal Long memberId,
-            @RequestParam(required = false) Long cursor,
+            @RequestParam(required = false) List<Long> excludeIds,
             @RequestParam(required = false) Integer limit) {
-        return ApiResponse.ok(shortsService.getFeed(memberId, cursor, limit));
+        return ApiResponse.ok(shortsService.getFeed(memberId, excludeIds, limit));
     }
 
     // 영상 좋아요 토글 (이미 눌렀으면 취소)

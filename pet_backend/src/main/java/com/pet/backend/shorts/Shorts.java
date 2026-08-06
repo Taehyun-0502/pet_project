@@ -7,10 +7,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 숏츠 영상 한 개의 메타데이터.
@@ -47,6 +50,22 @@ public class Shorts {
     @Column(columnDefinition = "text")
     private String caption;
 
+    /**
+     * 분류 태그 (예: {@code {강아지,불독,미용}}). 추천 알고리즘이 "이 사람이 어떤 태그를 좋아하나"를
+     * 집계하는 유일한 재료다 (숏츠_추천알고리즘_구현가이드.md 4-b절).
+     *
+     * <p>단일 category 컬럼이나 콤마 문자열이 아니라 PostgreSQL {@code text[]}로 확정했다 —
+     * 가이드 5절의 점수 쿼리가 {@code unnest(s.tags)}로 태그를 펼쳐 한 번에 집계하고
+     * {@code tag = any(s.tags)}로 매칭하기 때문이다. 콤마 문자열이면 매번 문자열을 쪼개야 한다.
+     * GIN 인덱스({@code idx_shorts_tags})가 이 컬럼에 걸려 있다.
+     *
+     * <p>기존 영상은 전부 NULL이다(컬럼을 나중에 추가). NULL이어도 조회는 정상이고
+     * 태그 부스트만 받지 못한다 — 가이드 2절이 말하는 콜드 스타트 상태다.
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]")
+    private List<String> tags;
+
     @Column(name = "duration_sec", nullable = false)
     private Integer durationSec;
 
@@ -69,11 +88,14 @@ public class Shorts {
     private Instant deletedAt;
 
     private Shorts(Long memberId, String videoUrl, String thumbnailUrl,
-                   String caption, Integer durationSec) {
+                   String caption, List<String> tags, Integer durationSec) {
         this.memberId = memberId;
         this.videoUrl = videoUrl;
         this.thumbnailUrl = thumbnailUrl;
         this.caption = caption;
+        // 빈 배열은 NULL로 통일 — 태그를 고르지 않은 것과 빈 목록을 보낸 것을 구분할 이유가 없고,
+        // 가이드 5절의 any(s.tags)는 두 경우 모두 매칭되지 않으므로 동작도 같다
+        this.tags = (tags == null || tags.isEmpty()) ? null : List.copyOf(tags);
         this.durationSec = durationSec;
         // DB에 default 0이 있지만 JPA는 INSERT문에 이 컬럼들을 포함시키므로
         // 여기서 0을 넣지 않으면 NULL이 들어가 not-null 제약에 걸린다
@@ -84,8 +106,8 @@ public class Shorts {
 
     // 업로드. memberId는 요청 바디가 아니라 반드시 토큰에서 꺼낸 값이어야 한다 (소유자 격리)
     public static Shorts upload(Long memberId, String videoUrl, String thumbnailUrl,
-                                String caption, Integer durationSec) {
-        return new Shorts(memberId, videoUrl, thumbnailUrl, caption, durationSec);
+                                String caption, List<String> tags, Integer durationSec) {
+        return new Shorts(memberId, videoUrl, thumbnailUrl, caption, tags, durationSec);
     }
 
     public boolean isDeleted() {

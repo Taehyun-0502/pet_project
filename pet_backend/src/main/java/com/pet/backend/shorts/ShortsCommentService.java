@@ -25,6 +25,7 @@ public class ShortsCommentService {
     private final ShortsCommentLikeRepository commentLikeRepository;
     private final ShortsRepository shortsRepository;
     private final MemberRepository memberRepository;
+    private final ShortsEventService eventService;
 
     /**
      * 한 영상의 댓글 목록. 로그인 없이도 볼 수 있다.
@@ -101,6 +102,9 @@ public class ShortsCommentService {
         commentRepository.save(comment);
         // 피드에 보여줄 댓글 수 캐시 갱신 (대댓글도 하나로 센다)
         shortsRepository.increaseCommentCount(shortId);
+        // 추천 알고리즘용 행동 이력 (가이드 2절 ③). 댓글은 가중치 4.0으로 좋아요보다 강한 신호다.
+        // 대댓글도 같은 영상에 대한 관심이므로 구분하지 않고 기록한다
+        eventService.recordInteraction(memberId, shortId, ShortsEventType.COMMENT);
 
         // 방금 쓴 댓글이므로 좋아요는 없고 답글도 없다
         return new ShortsCommentResponse(comment.getId(), member.getName(), comment.getContent(),

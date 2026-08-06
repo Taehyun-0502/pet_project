@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createShorts, uploadVideoFile } from './shortsApi'
 import '../member/member.css'
@@ -8,9 +8,65 @@ import './shortsUpload.css'
 const MIN_SEC = 5
 const MAX_SEC = 30
 const MAX_CAPTION = 500
+// 주제 개수 상한은 서버(ShortsCreateRequest)와 같은 값 — 최종 차단은 서버가 한다
+const MAX_TOPICS = 5
+
+/*
+ * 영상 주제 — 고정 목록 13종 (숏츠_태그_설계.md 2절).
+ * 서버의 ShortsTopic enum과 같은 목록이며, 고치면 양쪽을 함께 고쳐야 한다.
+ *
+ * 자유 입력을 두지 않는 이유: 개인화 선호도는 태그 문자열이 정확히 같을 때만 합산되므로
+ * ('귀여움'/'귀여워'/'큐트'가 서로 다른 태그가 된다) 목록을 닫아야 데이터가 모인다.
+ * 나중에 LLM이 주제를 제안할 때도 이 목록 안에서만 고르게 강제한다(설계 6절).
+ */
+const TOPICS = [
+  '일상/브이로그', '산책/야외/여행', '놀이', '먹방/간식', '미용',
+  '훈련/교육', '건강/의료', '정보/리뷰',
+  '귀여움', '개그/밈', '챌린지/트렌드', '감동/성장',
+  '입양/구조',
+]
+
+/*
+ * 캡션 키워드 → 주제 제안 사전 (설계 3절). 프론트에서 돌린다.
+ *
+ * ⚠️ 감성/포맷 주제(귀여움·개그/밈·챌린지/트렌드·감동/성장)는 키워드로 잘 안 잡힌다.
+ * 구체적 명사가 아니라 분위기·형식이라 그렇다. 이런 건 제안이 약해도 사용자가 직접 켜면 되고,
+ * 정확도가 필요하면 나중에 LLM이 잘 잡는다(설계 6절).
+ */
+const TOPIC_KEYWORDS = {
+  // 설계 3절 사전에서 '같이'를 뺐다 — "친구랑 같이 밥"처럼 반려동물과 무관한 문장에도 걸린다
+  '일상/브이로그': ['일상', '브이로그', 'vlog', '하루', '데일리', '집콕'],
+  '산책/야외/여행': ['산책', '공원', '야외', '바깥', '여행', '나들이', '캠핑', '바다', '드라이브'],
+  '놀이': ['놀이', '장난감', '공놀이', '노는', '터그', '물어와', '장난'],
+  '먹방/간식': ['먹방', '간식', '밥', '사료', '급식', '수제간식', '먹었', '맛있'],
+  '미용': ['미용', '목욕', '커트', '그루밍', '빗질', '발톱', '샴푸', '스타일'],
+  '훈련/교육': ['훈련', '교육', '배변', '앉아', '기다려', '명령어', '사회화', '트레이닝', '짖'],
+  /*
+   * 설계 3절 사전의 '약'을 '투약'·'약 먹'으로 좁혔다. 한 글자 '약'은 '약속'·'예약'·'약간'에
+   * 모두 걸려 오탐이 가장 많았다(실측). 나머지 10개 키워드가 충분히 넓어 손실은 거의 없다.
+   */
+  '건강/의료': ['병원', '수의사', '접종', '건강', '아파', '아픈', '치료', '투약', '약 먹', '검진', '수술', '증상'],
+  '정보/리뷰': ['정보', '리뷰', '추천', '추천템', '언박싱', '후기', '꿀팁', '비교', '용품', '제품'],
+  '귀여움': ['귀여', '귀엽', '심쿵', '애교', '사랑스', '치명적', '최애', '큐트'],
+  '개그/밈': ['개그', '밈', '웃긴', '웃음', '짤', '웃겨', '실수', '웃픈', '드립'],
+  '챌린지/트렌드': ['챌린지', '트렌드', '유행', '따라하기', 'challenge', '챌'],
+  '감동/성장': ['감동', '성장', '무지개다리', '첫날', '한달', '크는', '자라', '뭉클', '추억', '사연'],
+  '입양/구조': ['입양', '구조', '보호소', '유기', '임보', '임시보호', '후원'],
+}
+
+// 캡션을 스캔해 걸리는 주제를 모은다. 대소문자는 무시한다('vlog'/'VLOG')
+function matchTopics(caption) {
+  const text = caption.toLowerCase()
+  return TOPICS.filter((topic) =>
+    TOPIC_KEYWORDS[topic].some((keyword) => text.includes(keyword.toLowerCase()))
+  )
+}
+
+// 캡션을 치는 중에는 제안을 미룬다 — 글자마다 칩이 튀면 방해가 된다 (설계 6절 주의 2)
+const SUGGEST_DELAY_MS = 500
 // 용량 상한은 가이드 7절의 미정 항목이라 우선 50MB로 둔다 (정해지면 서버 검증도 함께 추가)
 const MAX_BYTES = 50 * 1024 * 1024
-// mp4 전용 확정 (가이드 7절). shortsApi.uploadVideoToStorage도 이 값에 맞춰 고정돼 있다
+// mp4 전용 확정 (가이드 7절). 서버(ShortsService.uploadVideo)도 같은 값으로 최종 검사한다
 const VIDEO_MIME = 'video/mp4'
 
 // 피드 프레임 비율. 영상은 여기에 object-fit:cover로 들어가므로 남는 쪽이 잘려나간다
@@ -61,15 +117,53 @@ export default function ShortsUploadPage() {
   const [size, setSize] = useState(null) // { width, height }
   const [previewUrl, setPreviewUrl] = useState('')
   const [caption, setCaption] = useState('')
+  const [topics, setTopics] = useState([])
+  const [topicError, setTopicError] = useState('')
+  const [topicNotice, setTopicNotice] = useState('')
   const [fileError, setFileError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [step, setStep] = useState('') // 진행 상황 안내 ('' = 대기)
+
+  /*
+   * 한 번이라도 제안했거나 사용자가 직접 누른 주제. 다시 제안하지 않기 위해 기억한다.
+   *
+   * 이게 없으면 이런 일이 벌어진다 — 캡션에 '산책'이 있어 칩이 켜지고, 사용자가 그걸 뺀 뒤
+   * 캡션을 한 글자 더 치면 매칭이 다시 돌아 칩이 되살아난다. 사용자와 싸우는 UI가 된다.
+   * 제안은 어디까지나 제안이고 최종 결정권은 사용자에게 있다(설계 4절).
+   */
+  const proposedRef = useRef(new Set())
 
   // 미리보기용 blob URL은 다 쓰면 반드시 해제한다 (놔두면 메모리에 남는다)
   useEffect(() => {
     if (!previewUrl) return
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
+
+  /*
+   * 캡션 → 주제 자동 제안 (설계 4절 2번 단계).
+   *
+   * 나중에 이 블록만 FastAPI LLM 호출로 바꾸면 된다 — 흐름(입력 → 제안 → 사용자 확인 → 제출)은
+   * 그대로다(설계 6절). 그때는 실패해도 업로드를 막지 않도록 조용히 넘기고,
+   * 여기 키워드 매칭을 폴백으로 남겨두면 된다.
+   */
+  useEffect(() => {
+    if (!caption.trim()) return
+    const timer = setTimeout(() => {
+      const matched = matchTopics(caption)
+      const fresh = matched.filter((topic) => !proposedRef.current.has(topic))
+      matched.forEach((topic) => proposedRef.current.add(topic))
+      if (fresh.length === 0) return
+
+      setTopics((prev) => {
+        const room = MAX_TOPICS - prev.length
+        if (room <= 0) return prev
+        const added = fresh.filter((topic) => !prev.includes(topic)).slice(0, room)
+        return added.length === 0 ? prev : [...prev, ...added]
+      })
+      setTopicNotice('캡션을 보고 주제를 켜뒀습니다. 맞지 않으면 눌러서 빼세요.')
+    }, SUGGEST_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [caption])
 
   const resetSelection = () => {
     setFile(null)
@@ -127,6 +221,24 @@ export default function ShortsUploadPage() {
     setPreviewUrl(URL.createObjectURL(selected))
   }
 
+  // 칩을 누르면 켜고/끈다. 서버도 같은 상한을 보지만 바로 이유를 보여주려고 여기서 먼저 막는다
+  const toggleTopic = (topic) => {
+    setTopicNotice('')
+    setTopicError('')
+    // 직접 만진 주제는 다시 제안하지 않는다 (빼자마자 되살아나는 것을 막는다)
+    proposedRef.current.add(topic)
+
+    if (topics.includes(topic)) {
+      setTopics(topics.filter((t) => t !== topic))
+      return
+    }
+    if (topics.length >= MAX_TOPICS) {
+      setTopicError(`주제는 ${MAX_TOPICS}개까지 고를 수 있습니다.`)
+      return
+    }
+    setTopics([...topics, topic])
+  }
+
   const onSubmit = async (e) => {
     e.preventDefault()
     setSubmitError('')
@@ -146,6 +258,8 @@ export default function ShortsUploadPage() {
         videoUrl,
         thumbnailUrl: null, // 썸네일 생성은 나중 단계
         caption: caption.trim() || null,
+        // 고른 주제가 없으면 null — 서버도 빈 배열을 NULL로 통일한다
+        topics: topics.length > 0 ? topics : null,
         durationSec: Math.round(duration),
       })
 
@@ -207,6 +321,44 @@ export default function ShortsUploadPage() {
             placeholder="예: 산책 나온 우리 강아지 🐾"
           />
         </label>
+
+        {/* label로 감싸지 않는다 — 선택 대상이 13개라 label 하나가 가리킬 대상이 없다.
+            대신 fieldset/legend로 묶어 스크린리더에도 하나의 묶음으로 읽히게 한다 */}
+        <fieldset className="su-tags">
+          <legend>
+            주제 (선택 · {topics.length}/{MAX_TOPICS})
+          </legend>
+          <p className="su-tags-hint">
+            이 주제를 좋아하는 사람의 피드에 더 자주 보입니다. 없어도 올릴 수 있습니다.
+            <br />
+            설명을 쓰면 어울리는 주제를 자동으로 켜드립니다.
+          </p>
+
+          {/* 켜진 것과 꺼진 것을 한 목록에 두고 색으로 구분한다 — 목록이 13개로 고정이라
+              선택 여부로 칩이 자리를 옮기면 누르려던 칩이 이동해 오히려 헷갈린다 */}
+          <ul className="su-tag-list">
+            {TOPICS.map((topic) => {
+              const on = topics.includes(topic)
+              return (
+                <li key={topic}>
+                  <button
+                    type="button"
+                    className={on ? 'su-tag su-tag-on' : 'su-tag'}
+                    onClick={() => toggleTopic(topic)}
+                    disabled={submitting}
+                    aria-pressed={on}
+                  >
+                    {topic}
+                    {on && <span aria-hidden="true">×</span>}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+
+          {topicNotice && <p className="su-tags-notice">{topicNotice}</p>}
+          {topicError && <p className="field-error">{topicError}</p>}
+        </fieldset>
 
         {submitError && <p className="submit-error">{submitError}</p>}
         <button type="submit" disabled={submitting || !file}>
