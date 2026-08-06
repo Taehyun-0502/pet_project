@@ -88,3 +88,27 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* size="compact" — 지도 페이지 등 다른 같은 줄 요소(카테고리 토글 칩,
+   padding 6px 12px / font-size 13px ≈ 높이 ~31px)와 시각적으로 한 줄로
+   읽히도록 높이를 줄인 변형. 기본 크기(size 미지정)는 이 규칙의 영향을
+   받지 않으므로 리스트 페이지 등 기존 사용처는 그대로 유지된다. */
+.search-bar--compact {
+  padding: 4px 6px;
+  gap: 6px;
+}
+
+.search-bar--compact .search-bar__ai-toggle {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+
+.search-bar--compact .search-bar__input {
+  font-size: 13px;
+}
+
+.search-bar--compact .search-bar__submit {
+  padding: 4px 10px;
+  font-size: 12px;
+}

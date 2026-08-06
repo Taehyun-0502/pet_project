@@ -92,6 +92,15 @@
  * - onAiToggle?: (enabled: boolean) => void — 토글 상태가 바뀔 때마다 호출.
  *     `aiEnabled`와 함께 주면 controlled 모드로 전환된다.
  * - debounceMs?: number — 필터 모드 디바운스 시간(ms). 기본 250.
+ * - size?: 'default' | 'compact' — 'compact'는 지도 페이지처럼 다른 같은 줄
+ *     요소(카테고리 토글 칩 등)와 높이를 맞춰야 할 때 쓰는 축소 변형이다.
+ *     기본값('default')은 기존 크기 그대로라 다른 사용처(리스트 페이지 등)는
+ *     영향받지 않는다.
+ *
+ * 사용 예시 — 지도 페이지에서 토글 칩과 같은 줄에 배치(compact):
+ * ```jsx
+ * <SearchBar size="compact" aiEnabled={true} onAiToggle={() => {}} onAiSearch={...} />
+ * ```
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -104,6 +113,7 @@ function SearchBar({
   aiEnabled,
   onAiToggle,
   debounceMs = 250,
+  size = 'default',
 }) {
   const [query, setQuery] = useState('');
   const isAiControlled = aiEnabled !== undefined && onAiToggle !== undefined;
@@ -177,7 +187,11 @@ function SearchBar({
   };
 
   return (
-    <form className="search-bar" onSubmit={handleSubmit} role="search">
+    <form
+      className={`search-bar${size === 'compact' ? ' search-bar--compact' : ''}`}
+      onSubmit={handleSubmit}
+      role="search"
+    >
       <button
         type="button"
         className={`search-bar__ai-toggle${aiOn ? ' search-bar__ai-toggle--on' : ''}`}

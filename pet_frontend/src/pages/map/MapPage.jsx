@@ -34,7 +34,14 @@
 //
 // 검색바·토글 한 줄 배치(2026-08-06 확정): 카테고리 토글 칩의 상태·로직은 여전히
 // PetMap 내부에 있고(공통 구현 원칙 유지), toggleSlot prop으로 "그릴 위치"만 검색바
-// 옆 DOM 노드로 포털한다 — 토글을 MapPage로 옮겨 다시 구현하지 않는다.
+// 옆 DOM 노드로 포털한다 — 토글을 MapPage로 옮겨 다시 구현하지 않는다. 검색바는
+// SearchBar의 size="compact" 변형(공용 컴포넌트의 선택 prop, 기본 크기는 불변)을
+// 써서 토글 칩과 높이를 맞춘다.
+//
+// "검색 결과 없음" 토스트(2026-08-06 확정): 주변 조회(초기 진입/내 위치 재조회/
+// 재검색 버튼 — loadNearbyPlaces를 거치는 경로 전부)가 0건을 반환하면 화면 하단
+// 중앙에 짧게(2.5초) 토스트를 띄운다. AI 검색은 답변 카드 자체가 결과 유무를
+// 보여주므로 대상이 아니다(loadNearbyPlaces를 거치지 않음).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PetMap from '../../components/PetMap'
@@ -88,6 +95,26 @@ function MapPage() {
   // 토글의 상태/로직은 PetMap 내부에 그대로 있고, 그릴 위치만 이 노드로 옮긴다.
   const [toggleSlotNode, setToggleSlotNode] = useState(null)
 
+  // 화면 하단 토스트("검색 결과 없음" 등) — 짧게 보였다 자동으로 사라진다.
+  const [toast, setToast] = useState(null)
+  const toastTimerRef = useRef(null)
+
+  const showToast = useCallback((message) => {
+    setToast(message)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null)
+      toastTimerRef.current = null
+    }, 2500)
+  }, [])
+
+  // 언마운트 시 대기 중인 토스트 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
+
   // 응답 순서가 뒤바뀌어 오래된 주변 조회 결과가 최신 결과를 덮어쓰지 않도록 요청 ID로 판별
   const nearbyRequestIdRef = useRef(0)
   // 마지막으로 "주변 조회"를 실제로 수행한 중심 — 재검색 버튼의 거리 기준점
@@ -95,6 +122,8 @@ function MapPage() {
 
   // fit=true일 때만 이 조회 결과로 지도 범위를 다시 맞춘다(fitBoundsKey 증가).
   // 재검색(fit 생략 → false)은 마커만 갈아끼우고 현재 축척·중심을 그대로 둔다.
+  // 결과가 0건이면 토스트로 알린다 — 초기 진입/내 위치 재조회/재검색 버튼 등
+  // 이 함수를 거치는 모든 경로에 공통 적용(단일 지점이라 호출부마다 중복 안 함).
   const loadNearbyPlaces = useCallback(async (lat, lng, { fit = false } = {}) => {
     const requestId = ++nearbyRequestIdRef.current
     lastQueryCenterRef.current = { lat, lng }
@@ -102,15 +131,19 @@ function MapPage() {
     try {
       const data = await getNearbyPlaces(lat, lng)
       if (nearbyRequestIdRef.current !== requestId) return // 중간에 새 요청이 시작됨 — 폐기
-      setNearbyPlaces(data.places ?? [])
+      const places = data.places ?? []
+      setNearbyPlaces(places)
       if (fit) setFitBoundsKey((key) => key + 1)
+      if (places.length === 0) {
+        showToast('이 지역에 표시할 장소가 없습니다.')
+      }
     } catch (err) {
       if (nearbyRequestIdRef.current !== requestId) return
       // 초기 조회 실패를 조용히 무시하지 않고 기존 에러 배너를 재사용한다.
       // 단, 지도 자체(빈 마커 상태)는 계속 보여준다.
       setError(err.message || '주변 장소를 불러오지 못했습니다.')
     }
-  }, [])
+  }, [showToast])
 
   // PetMap이 "사용자가 지도를 직접 움직였다"고 알려줄 때(드래그/줌 등, 자체 프로그래밍적
   // 이동은 PetMap 내부에서 이미 걸러짐) 호출된다. 마지막 조회 중심에서 충분히
@@ -223,24 +256,26 @@ function MapPage() {
 
   return (
     <div className="map-page">
-      {/* 검색바와 카테고리 토글 칩을 같은 가로 라인에 배치 (2026-08-06 사용자 결정).
-          칩의 상태/로직은 PetMap 내부에 있고, toggleSlot 포털로 "그릴 위치"만 이 줄로 옮긴다.
-          좁은 화면에서는 flex-wrap으로 칩이 자연스럽게 아랫줄로 내려간다. */}
-      <div className="map-page__search">
-        <div className="map-page__search-bar">
-          <SearchBar
-            placeholder="AI에게 질문하기 (예: 근처 24시 동물병원 찾아줘)"
-            aiEnabled={true}
-            // 지도 메뉴는 AI 검색 전용 화면이므로 controlled로 토글을 항상 on 고정한다
-            // (off로 되돌리는 상태 갱신을 하지 않음 — SearchBar M-3 controlled 패턴).
-            onAiToggle={() => {}}
-            onAiSearch={handleAiSearch}
-          />
-        </div>
-        <div className="map-page__toggle-slot" ref={setToggleSlotNode} />
-      </div>
-
       <div className="map-page__map-wrap">
+        {/* 검색바를 지도 위 오버레이로 띄우고, 토글 칩과 같은 가로 라인에 배치
+            (2026-08-06 사용자 결정 — 기준점은 토글 쪽: 검색바가 지도 위로 내려온다).
+            칩의 상태/로직은 PetMap 내부에 있고, toggleSlot 포털로 "그릴 위치"만
+            이 줄로 옮긴다. 좁은 화면에서는 flex-wrap으로 칩이 아랫줄로 내려간다. */}
+        <div className="map-page__search">
+          <div className="map-page__search-bar">
+            <SearchBar
+              size="compact"
+              placeholder="AI에게 질문하기 (예: 근처 24시 동물병원 찾아줘)"
+              aiEnabled={true}
+              // 지도 메뉴는 AI 검색 전용 화면이므로 controlled로 토글을 항상 on 고정한다
+              // (off로 되돌리는 상태 갱신을 하지 않음 — SearchBar M-3 controlled 패턴).
+              onAiToggle={() => {}}
+              onAiSearch={handleAiSearch}
+            />
+          </div>
+          <div className="map-page__toggle-slot" ref={setToggleSlotNode} />
+        </div>
+
         <PetMap
           size="full"
           places={displayedPlaces}
@@ -283,6 +318,12 @@ function MapPage() {
               ×
             </button>
             <p className="map-page__answer-text">{answer}</p>
+          </div>
+        )}
+
+        {toast && (
+          <div className="map-page__toast" role="status" aria-live="polite">
+            {toast}
           </div>
         )}
       </div>

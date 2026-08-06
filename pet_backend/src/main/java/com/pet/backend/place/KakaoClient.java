@@ -20,7 +20,7 @@ import org.springframework.web.client.RestClientException;
 class KakaoClient {
 
     private static final String KAKAO_LOCAL_BASE_URL = "https://dapi.kakao.com";
-    private static final int SEARCH_RADIUS_METERS = 20_000;
+    private static final int SEARCH_RADIUS_METERS = 5_000; // "이 지역" 재검색이 의미 있도록 5km (20km는 도시 전체가 잡혀 지역 구분이 안 됨)
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
 

@@ -11,8 +11,15 @@
 
 /* 검색바 + 카테고리 토글 칩 한 줄 배치 — 칩(map-page__toggle-slot 안으로 포털됨)은
    고정 폭, 검색바가 남은 폭을 차지한다. 좁은 화면에서는 칩이 아랫줄로 wrap. */
+/* 지도 위 오버레이로 띄운다 (2026-08-06 — 기준점은 토글 쪽: 검색바가 지도 위로).
+   우측은 줌 컨트롤(우상단 32px + 여백)을 피해 56px 비워둔다.
+   PetMap(z-index:0)보다 DOM상 앞에 있으므로 z-index로 위에 올린다. */
 .map-page__search {
-  flex: none;
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  right: 56px;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -20,8 +27,8 @@
 }
 
 .map-page__search-bar {
-  flex: 1 1 320px;
-  min-width: 260px;
+  flex: 1 1 280px;
+  min-width: 240px;
 }
 
 .map-page__toggle-slot {
@@ -34,12 +41,14 @@
   min-height: 0;
 }
 
-/* "이 지역에서 재검색" 버튼 — 상단 중앙. PetMap 내부 토글(좌상단)·줌 컨트롤(우상단)과는
-   수평 위치가 달라 겹치지 않고, top이 답변 카드/배너(top:60px)보다 위라 그것들과도 안 겹친다. */
+/* "이 지역에서 재검색" 버튼 — 상단 중앙, 검색바 오버레이(top:12 + compact 높이
+   ~32px = 44 하단 + 8px 여백) 바로 아래. banner/answer-card와 같은 top을 써서
+   검색바 줄 바로 아래 한 줄로 정렬 — 둘 다 뜨는 드문 경우엔 이 버튼의
+   z-index:1이 더 위(양수 z-index는 auto보다 항상 위)라 가려지지 않는다. */
 .map-page__research-btn {
   position: absolute;
   z-index: 1;
-  top: 12px;
+  top: 52px;
   left: 50%;
   transform: translateX(-50%);
   padding: 8px 16px;
@@ -74,7 +83,7 @@
    먼저 렌더링) 깨지므로 유지할 것 — QA N-1. */
 .map-page__banner {
   position: absolute;
-  top: 60px;
+  top: 52px;
   left: 12px;
   right: 12px;
   padding: 10px 14px;
@@ -97,7 +106,7 @@
 
 .map-page__answer-card {
   position: absolute;
-  top: 60px;
+  top: 52px;
   left: 12px;
   right: 12px;
   max-width: 480px;
@@ -138,4 +147,22 @@
 .map-page__answer-close:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* "검색 결과 없음" 등 짧은 안내 토스트 — 화면(지도 영역) 하단 중앙, 2.5초 후 자동 소멸 */
+.map-page__toast {
+  position: absolute;
+  z-index: 4;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text-h);
+  font-size: 13px;
+  text-align: center;
+  box-shadow: var(--shadow);
 }
