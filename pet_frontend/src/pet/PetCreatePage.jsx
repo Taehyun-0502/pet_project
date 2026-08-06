@@ -1,25 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { registerPet } from './petApi'
+import { today, toPetRequest, validatePetForm } from './petForm'
 import '../member/member.css'
 import './pet.css'
-
-// 오늘 날짜(YYYY-MM-DD) — 생년월일 미래 입력 방지용
-function today() {
-  const now = new Date()
-  const offset = now.getTimezoneOffset() * 60000
-  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
-}
-
-// 서버(PetCreateRequest)와 같은 규칙으로 1차 검증 — 최종 차단은 서버가 한다
-function validate(form) {
-  const errors = {}
-  if (!form.name.trim()) errors.name = '이름은 필수입니다.'
-  else if (form.name.trim().length > 50) errors.name = '이름은 50자 이하여야 합니다.'
-  if (form.breed.trim().length > 50) errors.breed = '품종은 50자 이하여야 합니다.'
-  if (form.birthDate && form.birthDate > today()) errors.birthDate = '생년월일은 미래 날짜일 수 없습니다.'
-  return errors
-}
 
 export default function PetCreatePage() {
   const navigate = useNavigate()
@@ -33,17 +17,13 @@ export default function PetCreatePage() {
   const onSubmit = async (e) => {
     e.preventDefault()
     setSubmitError('')
-    const nextErrors = validate(form)
+    const nextErrors = validatePetForm(form)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
     setSubmitting(true)
     try {
-      await registerPet({
-        name: form.name.trim(),
-        breed: form.breed.trim() || null,     // 빈 입력은 null로 — 서버 normalizeBreed와 같은 원칙
-        birthDate: form.birthDate || null,
-      })
+      await registerPet(toPetRequest(form))
       navigate('/', { replace: true })        // 목록이 다시 마운트되며 새 데이터를 불러온다
     } catch (err) {
       setSubmitError(err.message)
