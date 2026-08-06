@@ -1,4 +1,4 @@
-They go and it's pretty back in the trigger front is goodimport { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createRoom, getRooms, joinRoom } from './chatApi'
 import './chat.css'
