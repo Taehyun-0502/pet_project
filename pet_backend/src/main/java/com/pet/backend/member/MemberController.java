@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MemberController {
 
     private final MemberService memberService;
+    private final RefreshTokenCookie refreshTokenCookie;
 
     @PostMapping("/api/members/signup")
     @ResponseStatus(HttpStatus.CREATED)
@@ -37,7 +38,7 @@ public class MemberController {
         LoginResult result = memberService.login(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
-                        RefreshTokenCookie.create(result.refreshToken()).toString())
+                        refreshTokenCookie.create(result.refreshToken()).toString())
                 .body(ApiResponse.ok(result.response()));
     }
 
@@ -51,7 +52,7 @@ public class MemberController {
         RefreshResult result = memberService.refresh(refreshToken);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
-                        RefreshTokenCookie.create(result.refreshToken()).toString())
+                        refreshTokenCookie.create(result.refreshToken()).toString())
                 .body(ApiResponse.ok(result.response()));
     }
 
@@ -61,7 +62,7 @@ public class MemberController {
             @CookieValue(name = "refreshToken", required = false) String refreshToken) {
         memberService.logout(refreshToken);
         return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, RefreshTokenCookie.expire().toString())
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.expire().toString())
                 .body(ApiResponse.ok());
     }
 

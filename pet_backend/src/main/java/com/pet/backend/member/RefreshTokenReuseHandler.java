@@ -24,7 +24,8 @@ class RefreshTokenReuseHandler {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     void revokeAllOf(Long memberId) {
-        int revoked = refreshTokenRepository.revokeAllByMemberId(memberId, Instant.now());
+        int revoked = refreshTokenRepository.revokeAllByMemberId(
+                memberId, Instant.now(), RevokedReason.REUSE_DETECTED);
         // 정상 사용에서는 나오지 않는 경로다 — 흔적을 남겨 사후에 확인할 수 있게 한다
         log.warn("리프레시 토큰 재사용 감지 — memberId={}, 폐기한 활성 토큰 {}개", memberId, revoked);
     }

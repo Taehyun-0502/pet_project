@@ -25,6 +25,16 @@ public class RefreshTokenService {
     // 명세 고정값(Set-Cookie의 Max-Age=1209600과 같은 값). 환경마다 다를 값이 아니라 .env로 빼지 않았다
     public static final Duration TOKEN_TTL = Duration.ofDays(14);
 
+    /**
+     * 회전 직후 같은 토큰이 다시 와도 침해로 보지 않는 유예 (리뷰 백로그 32번).
+     *
+     * 없으면 정상 사용이 침해로 오인된다 — 재발급 응답이 브라우저에 닿기 전에 새로고침하면
+     * 서버는 회전을 커밋했는데 쿠키는 옛 토큰으로 남아, 다음 재발급이 **반드시** 재사용으로 판정된다.
+     * 탭 두 개가 동시에 재발급할 때도 같다(프론트의 single-flight는 탭 하나 안에서만 유효).
+     * 응답 유실·탭 경합은 수 초 안에 끝나므로 30초면 넉넉하고, 그만큼만 감지가 느슨해진다.
+     */
+    private static final Duration ROTATION_GRACE = Duration.ofSeconds(30);
+
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final RefreshTokenRepository refreshTokenRepository;
@@ -52,8 +62,8 @@ public class RefreshTokenService {
      */
     @Transactional
     public Rotated rotate(String rawToken) {
-        RefreshToken token = findActiveOrThrow(rawToken);
-        token.revoke();
+        RefreshToken token = findUsableOrThrow(rawToken);
+        token.revoke(RevokedReason.ROTATED);
         Long memberId = token.getMemberId();
         return new Rotated(memberId, issue(memberId));
     }
@@ -66,10 +76,10 @@ public class RefreshTokenService {
         }
         refreshTokenRepository.findByTokenHash(hash(rawToken))
                 .filter(token -> !token.isRevoked())
-                .ifPresent(RefreshToken::revoke);
+                .ifPresent(token -> token.revoke(RevokedReason.LOGOUT));
     }
 
-    private RefreshToken findActiveOrThrow(String rawToken) {
+    private RefreshToken findUsableOrThrow(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
         }
@@ -77,15 +87,18 @@ public class RefreshTokenService {
         RefreshToken token = refreshTokenRepository.findByTokenHash(hash(rawToken))
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN));
 
-        if (token.isRevoked()) {
-            // 정상 플로우에서는 나올 수 없는 요청 — 유출로 보고 그 회원 세션을 전부 끊는다.
+        if (token.isExpired()) {
+            throw new BusinessException(ErrorCode.AUTH_REFRESH_EXPIRED);
+        }
+        if (token.isRevoked() && !token.isWithinRotationGrace(ROTATION_GRACE)) {
+            // 유예를 넘긴 폐기 토큰 제출 — 정상 플로우에서는 나올 수 없다. 유출로 보고 세션을 전부 끊는다.
             // 아래 예외가 이 요청의 트랜잭션을 롤백시키므로 폐기는 별도 트랜잭션에서 커밋해야 한다
             reuseHandler.revokeAllOf(token.getMemberId());
             throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
         }
-        if (token.isExpired()) {
-            throw new BusinessException(ErrorCode.AUTH_REFRESH_EXPIRED);
-        }
+        // 유예 안의 회전된 토큰은 그대로 진행한다 — 호출자가 다시 revoke하고 새 토큰을 발급한다.
+        // 그 사이 발급됐던 토큰도 살아 있게 되지만(고아, 백로그 37번), 정상 사용자를
+        // 전 기기 로그아웃시키는 것보다 낫다는 판단
         return token;
     }
 

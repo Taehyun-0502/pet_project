@@ -2,10 +2,13 @@ package com.pet.backend.member;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -49,6 +52,12 @@ public class RefreshToken {
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
+    // 폐기 사유 — revokedAt과 반드시 함께 기록 (DB CHECK ck_refresh_tokens_revoked).
+    // 재사용 판정이 이 값에 따라 갈린다 (RevokedReason 주석 참조)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "revoked_reason", length = 20)
+    private RevokedReason revokedReason;
+
     private RefreshToken(Long memberId, String tokenHash, Instant expiresAt) {
         this.memberId = memberId;
         this.tokenHash = tokenHash;
@@ -59,12 +68,23 @@ public class RefreshToken {
         return new RefreshToken(memberId, tokenHash, expiresAt);
     }
 
-    public void revoke() {
+    public void revoke(RevokedReason reason) {
         this.revokedAt = Instant.now();
+        this.revokedReason = reason;
     }
 
     public boolean isRevoked() {
         return revokedAt != null;
+    }
+
+    /**
+     * 회전으로 폐기된 뒤 아직 유예 안에 있는가 — 즉 "정상적인 중복 제출"로 볼 수 있는가.
+     * 로그아웃·재사용 감지로 끊긴 토큰은 아무리 최근이어도 false다.
+     */
+    public boolean isWithinRotationGrace(Duration grace) {
+        return revokedReason == RevokedReason.ROTATED
+                && revokedAt != null
+                && revokedAt.isAfter(Instant.now().minus(grace));
     }
 
     public boolean isExpired() {
