@@ -5,6 +5,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -49,6 +50,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정
                         .requestMatchers("/api/members/signup", "/api/members/login").permitAll()
+                        // 숏츠 피드와 댓글 목록은 로그인 없이 볼 수 있다.
+                        // GET만 열어 업로드·좋아요·댓글 작성(POST)은 인증 대상으로 남긴다
+                        // (shorts_guide_1.md 7절 — 보기는 공개, 쓰기는 로그인 필요)
+                        .requestMatchers(HttpMethod.GET, "/api/shorts").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/shorts/*/comments").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler ->
                         handler.authenticationEntryPoint(authenticationEntryPoint))
