@@ -6,11 +6,14 @@ import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetListPage from './pet/PetListPage'
+import SkinDiagnosisPage from './skin/SkinDiagnosisPage'
 
 // 경로 → 페이지 연결. 보호가 필요한 화면은 RequireLogin으로 감싼다
 function App() {
   return (
     <Routes>
+      {/* 강아지 피부병 12종 AI 진단 페이지 라우트 (URL مستقیم 접근 가능) */}
+      <Route path="/skin/diagnosis" element={<SkinDiagnosisPage />} />
       <Route
         path="/"
         element={
@@ -19,6 +22,7 @@ function App() {
           </RequireLogin>
         }
       />
+
       <Route
         path="/pets/new"
         element={
