@@ -9,7 +9,22 @@
   box-sizing: border-box;
 }
 
+/* 검색바 + 카테고리 토글 칩 한 줄 배치 — 칩(map-page__toggle-slot 안으로 포털됨)은
+   고정 폭, 검색바가 남은 폭을 차지한다. 좁은 화면에서는 칩이 아랫줄로 wrap. */
 .map-page__search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.map-page__search-bar {
+  flex: 1 1 320px;
+  min-width: 260px;
+}
+
+.map-page__toggle-slot {
   flex: none;
 }
 

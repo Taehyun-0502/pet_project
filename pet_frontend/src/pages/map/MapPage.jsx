@@ -24,6 +24,17 @@
 // 대신 PetMap의 onMapMoved로 "사용자가 직접 지도를 움직였다"는 신호만 받아, 마지막
 // 조회 중심과의 거리가 RESEARCH_THRESHOLD_METERS 이상이면 버튼을 띄우고, 클릭했을
 // 때만 그 중심으로 getNearbyPlaces를 재조회한다.
+//
+// 재검색 시 축척·중심 유지(2026-08-06 확정): 재검색은 지금 보고 있는 화면(축척·중심)
+// 그대로 마커만 갱신한다 — 범위 자동 맞춤(PetMap의 fitBoundsKey)은 ① 최초 진입
+// (초기 주변 조회, 3초 race의 즉시/지연 분기 모두 포함) ② AI 검색 결과 표시 때만
+// 수행한다. "내 위치로 이동" 재조회와 재검색 버튼 재조회는 fitBoundsKey를 올리지
+// 않는다 — 전자는 PetMap이 현위치로 이미 자체 panTo하므로 범위 맞춤과 겹칠 필요가
+// 없고, 후자는 이번 요구사항의 핵심(축척 유지)이다.
+//
+// 검색바·토글 한 줄 배치(2026-08-06 확정): 카테고리 토글 칩의 상태·로직은 여전히
+// PetMap 내부에 있고(공통 구현 원칙 유지), toggleSlot prop으로 "그릴 위치"만 검색바
+// 옆 DOM 노드로 포털한다 — 토글을 MapPage로 옮겨 다시 구현하지 않는다.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PetMap from '../../components/PetMap'
@@ -69,12 +80,22 @@ function MapPage() {
   const [researchCenter, setResearchCenter] = useState(null)
   const [researchLoading, setResearchLoading] = useState(false)
 
+  // PetMap에 "지금 범위를 다시 맞춰라"고 알리는 키 — 값이 바뀔 때만 PetMap이
+  // setBounds/setCenter를 수행한다. 초기 진입·AI 검색 성공 때만 올린다(아래 참고).
+  const [fitBoundsKey, setFitBoundsKey] = useState(0)
+
+  // 검색바와 카테고리 토글 칩을 같은 줄에 배치하기 위한 포털 대상 DOM 노드.
+  // 토글의 상태/로직은 PetMap 내부에 그대로 있고, 그릴 위치만 이 노드로 옮긴다.
+  const [toggleSlotNode, setToggleSlotNode] = useState(null)
+
   // 응답 순서가 뒤바뀌어 오래된 주변 조회 결과가 최신 결과를 덮어쓰지 않도록 요청 ID로 판별
   const nearbyRequestIdRef = useRef(0)
   // 마지막으로 "주변 조회"를 실제로 수행한 중심 — 재검색 버튼의 거리 기준점
   const lastQueryCenterRef = useRef(null)
 
-  const loadNearbyPlaces = useCallback(async (lat, lng) => {
+  // fit=true일 때만 이 조회 결과로 지도 범위를 다시 맞춘다(fitBoundsKey 증가).
+  // 재검색(fit 생략 → false)은 마커만 갈아끼우고 현재 축척·중심을 그대로 둔다.
+  const loadNearbyPlaces = useCallback(async (lat, lng, { fit = false } = {}) => {
     const requestId = ++nearbyRequestIdRef.current
     lastQueryCenterRef.current = { lat, lng }
     setResearchCenter(null) // 방금 이 위치로 조회를 시작했으니 재검색 버튼은 일단 숨긴다
@@ -82,6 +103,7 @@ function MapPage() {
       const data = await getNearbyPlaces(lat, lng)
       if (nearbyRequestIdRef.current !== requestId) return // 중간에 새 요청이 시작됨 — 폐기
       setNearbyPlaces(data.places ?? [])
+      if (fit) setFitBoundsKey((key) => key + 1)
     } catch (err) {
       if (nearbyRequestIdRef.current !== requestId) return
       // 초기 조회 실패를 조용히 무시하지 않고 기존 에러 배너를 재사용한다.
@@ -201,15 +223,21 @@ function MapPage() {
 
   return (
     <div className="map-page">
+      {/* 검색바와 카테고리 토글 칩을 같은 가로 라인에 배치 (2026-08-06 사용자 결정).
+          칩의 상태/로직은 PetMap 내부에 있고, toggleSlot 포털로 "그릴 위치"만 이 줄로 옮긴다.
+          좁은 화면에서는 flex-wrap으로 칩이 자연스럽게 아랫줄로 내려간다. */}
       <div className="map-page__search">
-        <SearchBar
-          placeholder="AI에게 질문하기 (예: 근처 24시 동물병원 찾아줘)"
-          aiEnabled={true}
-          // 지도 메뉴는 AI 검색 전용 화면이므로 controlled로 토글을 항상 on 고정한다
-          // (off로 되돌리는 상태 갱신을 하지 않음 — SearchBar M-3 controlled 패턴).
-          onAiToggle={() => {}}
-          onAiSearch={handleAiSearch}
-        />
+        <div className="map-page__search-bar">
+          <SearchBar
+            placeholder="AI에게 질문하기 (예: 근처 24시 동물병원 찾아줘)"
+            aiEnabled={true}
+            // 지도 메뉴는 AI 검색 전용 화면이므로 controlled로 토글을 항상 on 고정한다
+            // (off로 되돌리는 상태 갱신을 하지 않음 — SearchBar M-3 controlled 패턴).
+            onAiToggle={() => {}}
+            onAiSearch={handleAiSearch}
+          />
+        </div>
+        <div className="map-page__toggle-slot" ref={setToggleSlotNode} />
       </div>
 
       <div className="map-page__map-wrap">
@@ -219,6 +247,8 @@ function MapPage() {
           currentLocation={location}
           onLocateClick={handleLocateClick}
           onMapMoved={handleMapMoved}
+          fitBoundsKey={fitBoundsKey}
+          toggleSlot={toggleSlotNode}
         />
 
         {researchCenter && (

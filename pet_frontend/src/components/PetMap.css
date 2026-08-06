@@ -60,14 +60,21 @@
   opacity: 0.8;
 }
 
-.pet-map__toggles {
+/* 토글 칩 목록 — 기본 스타일(항상 적용). 위치는 아래 --floating 수식자로만 결정된다.
+   toggleSlot으로 포털될 때는 이 클래스만 적용되어, 사용처의 flex 행 안에서
+   보통의 in-flow 요소로 자연스럽게 배치된다(예: 검색바 옆). */
+.pet-map__toggle-list {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* toggleSlot이 없을 때(기본값) — 기존처럼 지도 좌상단에 떠 있는 오버레이 */
+.pet-map__toggle-list--floating {
   position: absolute;
   z-index: 2;
   top: 12px;
   left: 12px;
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
   max-width: calc(100% - 24px);
 }
 

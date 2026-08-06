@@ -40,9 +40,30 @@
  * "이 지역에서 재검색" 버튼처럼 사용처가 원할 때만 쓰는 선택 기능이라,
  * 넘기지 않아도(mini 모드 등) 무해하다.
  *
- * 사용 예시 — 지도 단독 메뉴(전체 화면), 위치 훅과 조합 + 지도 이동 감지:
+ * `fitBoundsKey`(2026-08-06 확정 — 재검색 시 축척·중심 유지)로 "지금 보이는
+ * places로 지도 범위를 다시 맞출지"를 사용처가 제어할 수 있다. 값이 바뀔
+ * 때만 범위를 다시 맞추고(setBounds/setCenter), places만 바뀌면(같은 키) 마커만
+ * 갱신하고 현재 축척·중심은 그대로 둔다. 카테고리 토글은 애초에 키와 무관하므로
+ * (토글 자체가 범위 재조정을 유발하지 않음) 자연스럽게 축척이 유지된다.
+ * `fitBoundsKey`를 아예 넘기지 않으면 이전과 동일하게 places/토글이 바뀔 때마다
+ * 매번 범위를 맞춘다(mini 모드 등 기존 사용처는 이 prop 없이도 그대로 동작).
+ *
+ * `toggleSlot`(2026-08-06 확정 — 검색바와 토글 같은 줄 배치)으로 카테고리 토글
+ * 칩의 "렌더링 위치"만 바꿀 수 있다. 상태·로직(visibleCategories, 카운트, 클릭
+ * 핸들러)은 전부 이 컴포넌트에 그대로 있고, DOM 마운트 위치만 사용처가 넘긴
+ * 노드로 포털(`createPortal`)한다 — 토글을 MapPage 등 사용처로 "꺼내는" 게
+ * 아니라 내부 구현은 그대로 둔 채 어디에 그릴지만 바꾸는 것. 넘기지 않으면
+ * 기존처럼 지도 좌상단에 떠 있는 오버레이로 렌더링한다(mini 모드 등 영향 없음).
+ *
+ * 사용 예시 — 지도 단독 메뉴(전체 화면), 위치 훅과 조합 + 지도 이동 감지 + 재검색 시 축척 유지:
  * ```jsx
  * const { location, requestLocation } = useGeolocation();
+ * const [toggleSlotNode, setToggleSlotNode] = useState(null);
+ *
+ * <div className="map-page__search">
+ *   <SearchBar ... />
+ *   <div ref={setToggleSlotNode} /> // 검색바와 같은 줄에 토글이 포털될 자리
+ * </div>
  *
  * <PetMap
  *   size="full"
@@ -50,10 +71,12 @@
  *   currentLocation={location}
  *   onLocateClick={requestLocation}
  *   onMapMoved={({ lat, lng }) => setResearchCenter({ lat, lng })}
+ *   fitBoundsKey={fitBoundsKey} // 초기 진입·AI 검색 성공 시에만 증가시키고, 재검색 시엔 유지
+ *   toggleSlot={toggleSlotNode}
  * />
  * ```
  *
- * 사용 예시 — 챗봇 답변 카드 안의 미니 지도:
+ * 사용 예시 — 챗봇 답변 카드 안의 미니 지도 (신규 prop 없이 기존 동작 그대로):
  * ```jsx
  * {places.length > 0 && <PetMap size="mini" places={places} />}
  * ```
@@ -73,9 +96,14 @@
  * - onMapMoved?: ({ lat: number, lng: number }) => void — 사용자가 지도를
  *     직접 움직였을 때(드래그/줌 등) 호출된다. 이 컴포넌트의 자체 프로그래밍적
  *     이동은 걸러지므로 호출되지 않는다.
+ * - fitBoundsKey?: number | string — 값이 바뀔 때만 마커 범위로 지도를 다시
+ *     맞춘다. 생략하면 매번(기존 동작) 맞춘다.
+ * - toggleSlot?: HTMLElement | null — 주어지면 카테고리 토글 칩을 지도 위
+ *     오버레이 대신 이 DOM 노드 안에 포털로 렌더링한다.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { loadKakaoMaps } from './kakaoMapLoader';
 import './PetMap.css';
 
@@ -118,6 +146,8 @@ function PetMap({
   currentLocation = null,
   onLocateClick,
   onMapMoved,
+  fitBoundsKey,
+  toggleSlot = null,
 }) {
   const containerRef = useRef(null);
   const kakaoRef = useRef(null);
@@ -128,6 +158,9 @@ function PetMap({
   const pendingPanRef = useRef(false);
   const modalPanelRef = useRef(null);
   const previousFocusRef = useRef(null); // 모달 열기 전 포커스였던 요소 — 닫을 때 복귀시킨다
+  // fitBoundsKey가 마지막으로 범위를 맞췄을 때의 값. fitBoundsKey 자체를 아예
+  // 넘기지 않은 경우(undefined)는 아래 이펙트에서 이 값과 무관하게 항상 맞춘다.
+  const lastFitKeyRef = useRef(undefined);
   // 이 컴포넌트 자신이 지도를 움직인 경우(범위 맞춤/현위치 이동 등) true로 표시해두면,
   // 그 결과로 뒤이어 발생하는 'idle' 이벤트 1회를 "사용자가 움직인 게 아님"으로 걸러낸다.
   const programmaticMoveRef = useRef(false);
@@ -254,25 +287,36 @@ function PetMap({
       placeMarkersRef.current.push(marker);
     }
 
-    // 보이는 마커 + 현위치가 있으면 함께 화면에 들어오도록 범위를 맞춘다.
-    const boundsPoints = visiblePlaces.map((place) => new kakao.maps.LatLng(place.lat, place.lng));
-    if (currentLocation) {
-      boundsPoints.push(new kakao.maps.LatLng(currentLocation.lat, currentLocation.lng));
-    }
+    // 범위를 다시 맞출지 여부(2026-08-06 확정 — 재검색 시 축척·중심 유지):
+    // fitBoundsKey를 아예 안 넘겼으면(undefined) 항상 맞춘다(기존 동작, mini 모드 등).
+    // 넘겼으면 그 값이 "마지막으로 맞췄을 때"와 달라졌을 때만 맞춘다 — 재검색처럼
+    // places만 바뀌고 키는 그대로인 갱신은 마커만 갈아끼우고 축척·중심은 그대로 둔다.
+    // (카테고리 토글도 키와 무관하므로 자연히 범위 재조정을 유발하지 않는다.)
+    const shouldFit = fitBoundsKey === undefined || lastFitKeyRef.current !== fitBoundsKey;
 
-    // 아래 setCenter/setBounds는 이 컴포넌트 자신의 프로그래밍적 이동이다 —
-    // 뒤이어 발생할 'idle' 1회를 onMapMoved에서 걸러내도록 미리 표시해둔다.
-    if (boundsPoints.length === 1) {
-      programmaticMoveRef.current = true;
-      map.setCenter(boundsPoints[0]);
-    } else if (boundsPoints.length > 1) {
-      programmaticMoveRef.current = true;
-      const bounds = new kakao.maps.LatLngBounds();
-      for (const point of boundsPoints) bounds.extend(point);
-      map.setBounds(bounds);
+    if (shouldFit) {
+      lastFitKeyRef.current = fitBoundsKey;
+
+      // 보이는 마커 + 현위치가 있으면 함께 화면에 들어오도록 범위를 맞춘다.
+      const boundsPoints = visiblePlaces.map((place) => new kakao.maps.LatLng(place.lat, place.lng));
+      if (currentLocation) {
+        boundsPoints.push(new kakao.maps.LatLng(currentLocation.lat, currentLocation.lng));
+      }
+
+      // 아래 setCenter/setBounds는 이 컴포넌트 자신의 프로그래밍적 이동이다 —
+      // 뒤이어 발생할 'idle' 1회를 onMapMoved에서 걸러내도록 미리 표시해둔다.
+      if (boundsPoints.length === 1) {
+        programmaticMoveRef.current = true;
+        map.setCenter(boundsPoints[0]);
+      } else if (boundsPoints.length > 1) {
+        programmaticMoveRef.current = true;
+        const bounds = new kakao.maps.LatLngBounds();
+        for (const point of boundsPoints) bounds.extend(point);
+        map.setBounds(bounds);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- currentLocation은 범위 계산에만 참고, 별도 이펙트에서 마커 관리
-  }, [places, visibleCategories, sdkStatus]);
+  }, [places, visibleCategories, sdkStatus, fitBoundsKey]);
 
   // 현위치 마커 렌더링/갱신
   useEffect(() => {
@@ -410,26 +454,36 @@ function PetMap({
 
   const selectedMeta = selectedPlace ? CATEGORY_META[selectedPlace.category] : null;
 
+  // 토글 칩 마크업/상태/핸들러는 전부 여기(PetMap) 소유 — toggleSlot이 주어지면
+  // 그리는 "위치"만 그 DOM 노드로 포털한다(내부 구현을 MapPage 등으로 옮기지 않음).
+  const toggleChips = (
+    <div
+      className={`pet-map__toggle-list${toggleSlot ? '' : ' pet-map__toggle-list--floating'}`}
+      role="group"
+      aria-label="장소 카테고리 표시 전환"
+    >
+      {Object.entries(CATEGORY_META).map(([category, meta]) => (
+        <button
+          key={category}
+          type="button"
+          className={`pet-map__toggle-chip${visibleCategories[category] ? ' pet-map__toggle-chip--on' : ''}`}
+          style={{ '--chip-color': meta.color }}
+          aria-pressed={visibleCategories[category]}
+          onClick={() => toggleCategory(category)}
+        >
+          <span className="pet-map__toggle-dot" />
+          {meta.label}
+          {categoryCounts[category] > 0 ? ` (${categoryCounts[category]})` : ''}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className={`pet-map pet-map--${size}`}>
       <div ref={containerRef} className="pet-map__canvas" />
 
-      <div className="pet-map__toggles" role="group" aria-label="장소 카테고리 표시 전환">
-        {Object.entries(CATEGORY_META).map(([category, meta]) => (
-          <button
-            key={category}
-            type="button"
-            className={`pet-map__toggle-chip${visibleCategories[category] ? ' pet-map__toggle-chip--on' : ''}`}
-            style={{ '--chip-color': meta.color }}
-            aria-pressed={visibleCategories[category]}
-            onClick={() => toggleCategory(category)}
-          >
-            <span className="pet-map__toggle-dot" />
-            {meta.label}
-            {categoryCounts[category] > 0 ? ` (${categoryCounts[category]})` : ''}
-          </button>
-        ))}
-      </div>
+      {toggleSlot ? createPortal(toggleChips, toggleSlot) : toggleChips}
 
       <div className="pet-map__zoom-control" role="group" aria-label="지도 확대/축소">
         <button
