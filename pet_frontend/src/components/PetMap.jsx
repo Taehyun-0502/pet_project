@@ -106,6 +106,18 @@
  *     바뀔 때마다(이동 주체 무관 — 프로그래밍적 이동 포함) + 최초 생성 직후에
  *     현재 중심을 알린다. AI 검색이 "현재 보고 있는 지도" 기준으로 동작하기
  *     위한 좌표원 (2026-08-06 사용자 결정).
+ * - onRegionChanged?: (regionName: string | null) => void — onCenterChanged와
+ *     같은 시점(이동 주체 무관 + 최초 생성 직후)에, 그 중심 좌표를 카카오
+ *     `services.Geocoder`로 역지오코딩한 행정구역명(예: "중구 명동")을 알린다.
+ *     역지오코딩 실패 시 `null`을 전달한다. 이 prop을 넘기지 않으면 Geocoder
+ *     호출 자체를 하지 않는다(검색바 위치 라벨 표시 등 실제로 필요한 화면만
+ *     API 호출 비용을 지불하도록). 응답 순서 역전(idle 연속 발생) 방지를 위해
+ *     내부적으로 요청 ID로 최신 응답만 반영하며, 직전 요청 좌표에서 150m 미만
+ *     이동은 재요청을 건너뛴다(카카오 쿼터 절약 — QA M-1, 라벨이 동 단위라
+ *     체감 차이 없음).
+ *     라벨 세밀도는 줌 레벨과 무관하게 **동(3depth)까지가 최대**다
+ *     (2026-08-06 사용자 결정 — 최대 줌인에서도 리(4depth)·도로명 등 더
+ *     세밀한 단위는 표시하지 않는다).
  * - fitBoundsKey?: number | string — 값이 바뀔 때만 마커 범위로 지도를 다시
  *     맞춘다. 생략하면 매번(기존 동작) 맞춘다.
  * - toggleSlot?: HTMLElement | null — 주어지면 카테고리 토글 칩을 지도 위
@@ -115,6 +127,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { loadKakaoMaps } from './kakaoMapLoader';
+import { distanceMeters } from '../common/geo';
 import './PetMap.css';
 
 const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY;
@@ -131,6 +144,11 @@ const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // 서울시청 — 위�
 
 const MIN_LEVEL = 1;
 const MAX_LEVEL = 14;
+
+// 역지오코딩(지역 라벨) 재요청 최소 이동 거리 — 라벨 세밀도가 동(3depth) 단위라
+// 이보다 짧은 이동은 결과가 바뀔 가능성이 낮다. 지도 idle마다 무조건 카카오 API를
+// 호출해 쿼터를 낭비하지 않기 위한 억제 장치 (QA M-1, 2026-08-06).
+const REGION_MIN_MOVE_METERS = 150;
 
 function markerPinSvg(color) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
@@ -150,6 +168,39 @@ function svgToDataUrl(svg) {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+/**
+ * 카카오 `Geocoder.coord2RegionCode` 응답 배열을 "구+동" 형태의 지역 라벨 문자열로
+ * 조립하는 순수 함수 (QA L-5 — requestRegionLabel 내부에 섞여 있던 조립 로직을
+ * 분리, 동작 변경 없음). SDK/상태와 무관하며 입력 배열만으로 결정된다 — 향후
+ * vitest 도입 시 이 함수가 단위 테스트 대상이다.
+ *
+ * @param {Array<{region_type: string, region_1depth_name?: string,
+ *   region_2depth_name?: string, region_3depth_name?: string}>} result
+ *   coord2RegionCode의 성공 응답 결과 배열 (status === OK, 비어있지 않음을 호출부가 보장).
+ * @returns {string | null} "중구 명동" 형태의 라벨. 조립 결과가 빈 문자열이면 null.
+ */
+export function buildRegionLabel(result) {
+  // region_type === 'H'(행정동)를 우선하고 없으면 첫 결과(보통 'B' 법정동)를 쓴다.
+  const target = result.find((item) => item.region_type === 'H') ?? result[0];
+  const depth2 = target.region_2depth_name;
+  // "구+동" 형태(예: "중구 명동"). 2depth는 지역에 따라 형태가 다르다 —
+  // 서울/광역시는 구 하나만("중구"), 그 외 비광역시는 "부천시 소사구"처럼 시+구가
+  // 통째로 들어오고, 구가 없는 시/군은 "김포시"/"양평군"만 온다. 어느 경우든
+  // **마지막 어절**만 쓰면 사용자 확정 형태("소사구 괴안동", "김포시 사우동",
+  // "양평군 양평읍")로 일관되게 좁혀진다 (split(' ').at(-1)).
+  // 2depth가 비어 있으면(세종시처럼 구가 없는 광역 단위) 시(1depth)+동으로 폴백해
+  // 어느 지역이든 두 단위 표시를 유지한다 (예: "세종특별자치시 보람동" —
+  // 2026-08-06 사용자 확정, QA L-2 해소. 구가 없으면 구 자리를 시가 대신한다).
+  // 세밀도 상한은 동(3depth) — 최대 줌인에서도 리(region_4depth_name)·도로명 등
+  // 더 세밀한 단위는 라벨에 포함하지 않는다 (2026-08-06 사용자 결정. coord2RegionCode는
+  // 줌과 무관하게 좌표만으로 응답하므로, 4depth를 여기서 쓰지 않는 것으로 보장된다).
+  const depth2Tail = depth2 ? depth2.split(' ').at(-1) : '';
+  const label = depth2
+    ? `${depth2Tail} ${target.region_3depth_name || ''}`.trim()
+    : `${target.region_1depth_name || ''} ${target.region_3depth_name || ''}`.trim();
+  return label || null;
+}
+
 function PetMap({
   places = [],
   size = 'full',
@@ -157,12 +208,14 @@ function PetMap({
   onLocateClick,
   onMapMoved,
   onCenterChanged,
+  onRegionChanged,
   fitBoundsKey,
   toggleSlot = null,
 }) {
   const containerRef = useRef(null);
   const kakaoRef = useRef(null);
   const mapRef = useRef(null);
+  const geocoderRef = useRef(null); // 역지오코딩(중심 좌표 → 행정구역명) — 지도 생성 시 1회 만들어 재사용
   const markerImagesRef = useRef({});
   const placeMarkersRef = useRef([]);
   const currentMarkerRef = useRef(null);
@@ -181,6 +234,17 @@ function PetMap({
   // 거르지 않고 "현재 지도 중심"을 항상 알려준다 — AI 검색이 보고 있는 지도 기준으로
   // 동작하기 위한 좌표원 (2026-08-06 사용자 결정).
   const onCenterChangedRef = useRef(onCenterChanged);
+  // onRegionChanged도 동일한 이유로 ref 경유. 값이 없으면(undefined) 아래 역지오코딩
+  // 요청 함수가 호출 자체를 건너뛴다(불필요한 API 호출 방지).
+  const onRegionChangedRef = useRef(onRegionChanged);
+  // coord2RegionCode 응답 순서 역전 방지 — idle이 연달아 발생하면 먼저 보낸 요청의
+  // 응답이 나중에 도착할 수 있어, 요청마다 증가하는 ID로 최신 응답만 반영한다.
+  const regionRequestIdRef = useRef(0);
+  // 직전 역지오코딩 요청 좌표 — REGION_MIN_MOVE_METERS 미만 이동은 재요청을 건너뛴다 (QA M-1).
+  const regionLastCoordsRef = useRef(null);
+  // 'idle' 리스너 핸들러 참조 — 언마운트 cleanup에서 kakao.maps.event.removeListener로
+  // 해제하기 위해 보관한다 (QA L-3).
+  const idleHandlerRef = useRef(null);
 
   const [sdkStatus, setSdkStatus] = useState(KAKAO_JS_KEY ? 'loading' : 'missing-key');
   const [visibleCategories, setVisibleCategories] = useState({
@@ -193,7 +257,38 @@ function PetMap({
   useEffect(() => {
     onMapMovedRef.current = onMapMoved;
     onCenterChangedRef.current = onCenterChanged;
-  }, [onMapMoved, onCenterChanged]);
+    onRegionChangedRef.current = onRegionChanged;
+  }, [onMapMoved, onCenterChanged, onRegionChanged]);
+
+  // 지도 중심 좌표를 카카오 역지오코딩으로 행정구역명으로 변환해 onRegionChanged로
+  // 알린다. onRegionChanged를 넘기지 않았거나 Geocoder가 아직 준비되지 않았으면
+  // (SDK에 services 라이브러리가 로드되지 않은 등) 조용히 건너뛴다.
+  const requestRegionLabel = (lat, lng) => {
+    const kakao = kakaoRef.current;
+    const geocoder = geocoderRef.current;
+    if (!onRegionChangedRef.current || !kakao || !geocoder) return;
+
+    // 직전 요청 좌표에서 충분히 이동했을 때만 재요청한다 (QA M-1 — idle마다 무조건
+    // 호출하면 진입 직후 연속 idle(로드→fitBounds→재조회)과 미세 이동에도 매번
+    // 카카오 쿼터를 소모). 임계 판정용이지 정밀 지리 계산이 필요한 곳이 아니므로
+    // 공용 유틸 distanceMeters(하버사인)로 충분하다 (QA N-2 — 등장방형 근사 인라인
+    // 계산을 src/common/geo.js로 통합).
+    const last = regionLastCoordsRef.current;
+    if (last && distanceMeters(last, { lat, lng }) < REGION_MIN_MOVE_METERS) return;
+    regionLastCoordsRef.current = { lat, lng };
+
+    const requestId = ++regionRequestIdRef.current;
+    geocoder.coord2RegionCode(lng, lat, (result, status) => {
+      if (regionRequestIdRef.current !== requestId) return; // 더 최신 요청이 이미 발생 — 폐기(언마운트 포함, QA L-3)
+
+      if (status !== kakao.maps.services.Status.OK || !result || result.length === 0) {
+        onRegionChangedRef.current?.(null);
+        return;
+      }
+
+      onRegionChangedRef.current?.(buildRegionLabel(result));
+    });
+  };
 
   const categoryCounts = useMemo(() => {
     const counts = { HOSPITAL: 0, CAFE: 0, HOTEL: 0 };
@@ -226,6 +321,12 @@ function PetMap({
         // 표시되지 않는다 — 커스텀 줌 버튼으로 대체하는 기획에 따라 추가하지 않는다.
         mapRef.current = map;
 
+        // services 라이브러리(kakaoMapLoader의 &libraries=services)가 로드된 경우에만
+        // 존재 — 역지오코딩(중심 좌표 → 행정구역명)에 쓴다. 1회만 생성해 재사용.
+        if (kakao.maps.services) {
+          geocoderRef.current = new kakao.maps.services.Geocoder();
+        }
+
         // 'idle'은 드래그/줌 등 지도 이동이 끝나고 안정된 시점에 1회 발생한다.
         // programmaticMoveRef가 true면(이 컴포넌트 자신이 방금 움직인 경우) 이번
         // idle 1회만 소비하고 onMapMoved는 호출하지 않는다 — 그 외에는 사용자가
@@ -233,18 +334,25 @@ function PetMap({
         // 최초 생성 직후에도 중심을 한 번 알린다 — 사용자가 지도를 안 움직여도
         // AI 검색이 "지금 보이는 지도" 좌표를 쓸 수 있게.
         onCenterChangedRef.current?.({ ...DEFAULT_CENTER });
+        requestRegionLabel(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng);
 
-        kakao.maps.event.addListener(map, 'idle', () => {
+        // 핸들러를 ref에 보관해두면 언마운트 cleanup에서 removeListener로 해제할 수 있다 (QA L-3).
+        const handleIdle = () => {
           const center = map.getCenter();
           const coords = { lat: center.getLat(), lng: center.getLng() };
           // onCenterChanged는 이동 주체와 무관하게 항상 최신 중심을 보고한다.
           onCenterChangedRef.current?.(coords);
+          // onRegionChanged도 동일하게 이동 주체(사용자/프로그래밍적)와 무관하게 갱신 —
+          // 단, 직전 요청 좌표에서 150m 미만 이동은 requestRegionLabel 내부에서 스킵된다 (QA M-1).
+          requestRegionLabel(coords.lat, coords.lng);
           if (programmaticMoveRef.current) {
             programmaticMoveRef.current = false;
             return;
           }
           onMapMovedRef.current?.(coords);
-        });
+        };
+        idleHandlerRef.current = handleIdle;
+        kakao.maps.event.addListener(map, 'idle', handleIdle);
 
         markerImagesRef.current = {
           HOSPITAL: new kakao.maps.MarkerImage(
@@ -277,6 +385,20 @@ function PetMap({
 
     return () => {
       cancelled = true;
+
+      // QA L-3(언마운트 정리): 'idle' 리스너 해제. 지도가 아직 생성되기 전에
+      // 언마운트되는 경우(loadKakaoMaps가 resolve되기 전)에는 map/handler가
+      // null이므로 널 가드로 안전하게 건너뛴다.
+      const kakao = kakaoRef.current;
+      const map = mapRef.current;
+      if (kakao && map && idleHandlerRef.current) {
+        kakao.maps.event.removeListener(map, 'idle', idleHandlerRef.current);
+      }
+
+      // QA L-3: 인플라이트 역지오코딩(coord2RegionCode) 요청을 무효화한다. requestId를
+      // 증가시켜두면, 언마운트 이후 도착하는 콜백이 "더 최신 요청이 이미 발생"
+      // 가드에 걸려 폐기되고 부모 setState(onRegionChanged)를 호출하지 않는다.
+      regionRequestIdRef.current += 1;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 지도 인스턴스는 마운트당 1회만 생성
   }, []);

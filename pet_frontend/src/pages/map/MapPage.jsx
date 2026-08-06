@@ -49,10 +49,16 @@
 //    없음"으로 교체(사용자 결정) — 초기 진입/내 위치 재조회/재검색 버튼 등
 //    loadNearbyPlaces를 거치는 모든 경로에 공통 적용. AI 검색은 답변 시트 자체가
 //    결과 유무를 보여주므로 대상이 아니다(loadNearbyPlaces를 거치지 않음).
+//
+// 현재 지도 위치 라벨 표시: PetMap의 onRegionChanged로 지도 중심의 행정구역명(예:
+// "중구 명동")을 받아 SearchBar의 locationLabel로 전달, input placeholder 접두
+// ("중구 명동 · AI에게 질문하기")로 보여준다(2026-08-06 사용자 결정 — 별도 칩에서
+// placeholder 자리로 변경). 지도를 옮길 때마다(프로그래밍적 이동 포함) 최신화된다.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PetMap from '../../components/PetMap'
 import SearchBar from '../../components/SearchBar'
+import { distanceMeters } from '../../common/geo'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import { askChat, getNearbyPlaces } from './mapApi'
 import './MapPage.css'
@@ -61,22 +67,10 @@ import './MapPage.css'
 // 초기 마커 조회에 쓸 기본 좌표. PetMap은 수정 대상이 아니므로 값만 그대로 미러링한다.
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }
 
-// "이 지역에서 재검색" 버튼을 띄울 최소 이동 거리(대략). 하버사인 근사로 충분하다는
-// 판단 — 재검색 여부를 가리는 용도일 뿐 정밀한 지리 계산이 필요한 곳이 아니다.
+// "이 지역에서 재검색" 버튼을 띄울 최소 이동 거리(대략). distanceMeters(하버사인)
+// 근사로 충분하다는 판단 — 재검색 여부를 가리는 용도일 뿐 정밀한 지리 계산이
+// 필요한 곳이 아니다. (QA N-2 — 거리 계산은 src/common/geo.js로 통합)
 const RESEARCH_THRESHOLD_METERS = 500
-
-function distanceMeters(a, b) {
-  const R = 6371000
-  const toRad = (deg) => (deg * Math.PI) / 180
-  const dLat = toRad(b.lat - a.lat)
-  const dLng = toRad(b.lng - a.lng)
-  const lat1 = toRad(a.lat)
-  const lat2 = toRad(b.lat)
-  const sinDLat = Math.sin(dLat / 2)
-  const sinDLng = Math.sin(dLng / 2)
-  const h = sinDLat * sinDLat + Math.cos(lat1) * Math.cos(lat2) * sinDLng * sinDLng
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)))
-}
 
 function MapPage() {
   const { location, requestLocation } = useGeolocation()
@@ -128,6 +122,15 @@ function MapPage() {
   const mapCenterRef = useRef(null)
   const handleCenterChanged = useCallback((center) => {
     mapCenterRef.current = center
+  }, [])
+
+  // 현재 지도 중심의 행정구역명(예: "중구 명동") — PetMap의 onRegionChanged가
+  // 이동 주체와 무관하게(프로그래밍적 이동 포함) 최신화한다. SearchBar의
+  // locationLabel로 전달되어 input placeholder 접두("중구 명동 · …")로 표시된다
+  // (칩 표시안은 폐기 — 2026-08-06 사용자 결정, QA M-2로 주석 정합화).
+  const [regionLabel, setRegionLabel] = useState(null)
+  const handleRegionChanged = useCallback((label) => {
+    setRegionLabel(label)
   }, [])
 
   // 응답 순서가 뒤바뀌어 오래된 주변 조회 결과가 최신 결과를 덮어쓰지 않도록 요청 ID로 판별
@@ -315,6 +318,7 @@ function MapPage() {
               // (off로 되돌리는 상태 갱신을 하지 않음 — SearchBar M-3 controlled 패턴).
               onAiToggle={() => {}}
               onAiSearch={handleAiSearch}
+              locationLabel={regionLabel}
             />
           </div>
           <div className="map-page__toggle-slot" ref={setToggleSlotNode} />
@@ -327,6 +331,7 @@ function MapPage() {
           onLocateClick={handleLocateClick}
           onMapMoved={handleMapMoved}
           onCenterChanged={handleCenterChanged}
+          onRegionChanged={handleRegionChanged}
           fitBoundsKey={fitBoundsKey}
           toggleSlot={toggleSlotNode}
         />

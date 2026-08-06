@@ -15,7 +15,8 @@ export function loadKakaoMaps(appKey) {
     }
 
     const script = document.createElement('script');
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false`;
+    // libraries=services — 역지오코딩(kakao.maps.services.Geocoder, 지도 중심 → 행정구역명)에 필요.
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&autoload=false&libraries=services`;
     script.async = true;
     script.onload = () => {
       window.kakao.maps.load(() => resolve(window.kakao));

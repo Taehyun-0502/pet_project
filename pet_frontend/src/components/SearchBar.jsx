@@ -36,6 +36,8 @@
  * 텍스트로도 인지할 수 있게 하려는 의도적 동작이다. 모드별로 다른
  * placeholder가 필요하면 이 동작을 참고해 상위 컴포넌트에서 값을
  * 분기해 넘기기보다, 필요 시 향후 `aiPlaceholder` prop 분리를 검토한다.
+ * `locationLabel`이 있으면 이 문구 앞에 `"{locationLabel} · "`가 접두로 붙는다
+ * (2026-08-06 사용자 결정 — 별도 칩 대신 placeholder 자리를 재사용하도록 변경).
  *
  * AI 토글 제어 방식 — 선택적 controlled/uncontrolled 패턴 (React 표준):
  *   - `aiEnabled`와 `onAiToggle`을 **둘 다** 넘기면 controlled로 동작한다.
@@ -96,6 +98,17 @@
  *     요소(카테고리 토글 칩 등)와 높이를 맞춰야 할 때 쓰는 축소 변형이다.
  *     기본값('default')은 기존 크기 그대로라 다른 사용처(리스트 페이지 등)는
  *     영향받지 않는다.
+ * - locationLabel?: string | null — 지도 페이지 전용 용도(2026-08-06 추가,
+ *     같은 날 표시 위치를 별도 칩에서 placeholder 자리로 변경 — 사용자 결정):
+ *     값이 있고 빈 문자열이 아니면 placeholder 앞에 접두로 합쳐 보여준다
+ *     (예: "중구 명동" — 현재 지도 중심의 행정구역명):
+ *       - AI 모드: `"{locationLabel} · AI에게 질문하기"`
+ *       - 필터 모드: `"{locationLabel} · {placeholder}"`
+ *     placeholder는 입력 시작과 동시에 사라지므로, 이 값이 있으면 input의
+ *     `aria-label`도 `"검색 (현재 지도 위치: {locationLabel})"`로 보강해
+ *     스크린리더 사용자가 입력 중에도 위치 맥락을 잃지 않게 한다.
+ *     넘기지 않으면 기존과 동일하게 동작해 다른 사용처(리스트 페이지 등)는
+ *     전혀 영향받지 않는다.
  *
  * 사용 예시 — 지도 페이지에서 토글 칩과 같은 줄에 배치(compact):
  * ```jsx
@@ -114,6 +127,7 @@ function SearchBar({
   onAiToggle,
   debounceMs = 250,
   size = 'default',
+  locationLabel = null,
 }) {
   const [query, setQuery] = useState('');
   const isAiControlled = aiEnabled !== undefined && onAiToggle !== undefined;
@@ -167,6 +181,12 @@ function SearchBar({
     }
   };
 
+  // locationLabel이 있으면 placeholder 앞에 "{locationLabel} · " 접두를 붙인다
+  // (2026-08-06 사용자 결정 — 별도 칩 대신 placeholder 자리 재사용).
+  const basePlaceholder = aiOn ? 'AI에게 질문하기' : placeholder;
+  const displayPlaceholder = locationLabel ? `${locationLabel} · ${basePlaceholder}` : basePlaceholder;
+  const inputAriaLabel = locationLabel ? `검색 (현재 지도 위치: ${locationLabel})` : '검색';
+
   const handleSubmit = (event) => {
     event.preventDefault();
 
@@ -205,10 +225,10 @@ function SearchBar({
       <input
         type="text"
         className="search-bar__input"
-        placeholder={aiOn ? 'AI에게 질문하기' : placeholder}
+        placeholder={displayPlaceholder}
         value={query}
         onChange={handleChange}
-        aria-label="검색"
+        aria-label={inputAriaLabel}
       />
 
       <button type="submit" className="search-bar__submit" aria-label="검색 실행">
