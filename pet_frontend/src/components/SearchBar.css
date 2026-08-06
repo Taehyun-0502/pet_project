@@ -1,0 +1,90 @@
+/* SearchBar 공용 컴포넌트 스타일.
+   design-agent가 디자인 토큰을 정의하면 색상/간격을 교체할 수 있도록
+   클래스명을 목적 단위로 명확히 나눈다 (임시 스타일 — 과한 장식 지양).
+   참조 토큰 8종(--accent, --accent-bg, --accent-border, --bg, --border,
+   --text, --text-h, --code-bg)은 모두 src/index.css에 정의돼 있으므로
+   fallback 리터럴 없이 var(--토큰)만 사용한다. */
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 640px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+/* 입력 필드는 outline을 자체적으로 표시하지 않는 대신, 폼 전체 포커스
+   시 App.css의 :focus-visible 관례(outline: 2px solid var(--accent))와
+   동일한 링을 두른다. */
+.search-bar:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search-bar__ai-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.search-bar__ai-toggle:hover {
+  border-color: var(--accent-border);
+}
+
+.search-bar__ai-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.search-bar__ai-toggle--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.search-bar__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--text-h);
+}
+
+.search-bar__submit {
+  flex: none;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.search-bar__submit:hover {
+  background: var(--accent-bg);
+}
+
+.search-bar__submit:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
