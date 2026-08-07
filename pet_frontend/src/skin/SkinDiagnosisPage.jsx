@@ -240,16 +240,41 @@ export default function SkinDiagnosisPage() {
     setError(null)
   }
 
-  // 파생 상태 (Derived State): 12종 세부 결과 내림차순 정렬
-  const sortedMultiPredictions = multiResult?.predictions
-    ? [...multiResult.predictions].sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
-    : []
-
-  const topBinaryPrediction = binaryResult?.topPrediction || binaryResult?.top_prediction
-  const topMultiPrediction = sortedMultiPredictions[0] || multiResult?.topPrediction || multiResult?.top_prediction
-
+  // 헬퍼 속성 접근 함수
   const getItemClassName = (item) => item?.className || item?.class_name || '진단 질환'
   const getItemConfidence = (item) => item?.confidence ?? 0
+
+  const topBinaryPrediction = binaryResult?.topPrediction || binaryResult?.top_prediction
+
+  // 파생 상태 (Derived State): 1차 스크리닝이 "피부 질환 가능성"인 경우 2차 12종 결과에서 '정상' 제외 및 100% 확률 재정규화
+  const sortedMultiPredictions = (() => {
+    if (!multiResult?.predictions) return []
+
+    const isDiseaseLikely = topBinaryPrediction && getItemClassName(topBinaryPrediction) === '피부 질환 가능성'
+    
+    // 1차 결과가 '피부 질환 가능성'인 경우 2차 결과에서 '정상' 항목 필터링 제거
+    let list = isDiseaseLikely
+      ? multiResult.predictions.filter((item) => getItemClassName(item) !== '정상')
+      : [...multiResult.predictions]
+
+    // 내림차순 정렬
+    list.sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+
+    // 유병 질환들 간의 상대 확률 100% 기준 소프트맥스 재정규화 (Renormalization)
+    if (isDiseaseLikely && list.length > 0) {
+      const totalProb = list.reduce((sum, item) => sum + (item.confidence || 0), 0)
+      if (totalProb > 0) {
+        list = list.map((item) => ({
+          ...item,
+          confidence: Math.round(((item.confidence || 0) / totalProb) * 10000) / 100
+        }))
+      }
+    }
+
+    return list
+  })()
+
+  const topMultiPrediction = sortedMultiPredictions[0]
 
   return (
     <div style={containerStyle}>
@@ -366,10 +391,10 @@ export default function SkinDiagnosisPage() {
               </div>
             )}
 
-            {/* 1차 진단 결과 하단에 2차 12종 세부 질환 정밀 진단 연계 버튼 탑재 */}
+            {/* 1차 진단 결과 하단에 2차 12종 세부 질환 정밀 진단 연계 버튼 (베타 버전 명시) */}
             <div style={secondaryActionContainerStyle}>
               <p style={secondaryActionNoticeStyle}>
-                💡 1차 스크리닝이 완료되었습니다. 아픈 피부의 12종 세부 질환 정밀 분석이 필요하신가요?
+                💡 1차 스크리닝이 완료되었습니다. 아픈 피부의 세부 질환 정밀 분석이 필요하신가요?
               </p>
               <button
                 type="button"
@@ -377,28 +402,28 @@ export default function SkinDiagnosisPage() {
                 style={multiDiagnosisButtonStyle}
                 disabled={loadingMulti}
               >
-                {loadingMulti ? '12종 정밀 분석 중...' : '🔍 12종 세부 질환 정밀 AI 진단받기'}
+                {loadingMulti ? '정밀 분석 중...' : '🔍 세부 질환 정밀 AI 진단받기 (베타 버전)'}
               </button>
             </div>
           </section>
         )}
 
-        {/* 2차 12종 세부 피부 질환 정밀 AI 분석 결과 카드 영역 */}
+        {/* 2차 세부 피부 질환 정밀 AI 분석 결과 카드 영역 */}
         {multiResult && multiResult.success && (
           <section style={resultCardStyle}>
-            <h2 style={resultHeadingStyle}>🩺 12종 세부 피부 질환 정밀 AI 분석 결과</h2>
+            <h2 style={resultHeadingStyle}>🩺 세부 피부 질환 정밀 AI 분석 결과</h2>
 
             {topMultiPrediction && (
               <div style={topPredictionCardStyle}>
                 <span style={topBadgeStyle}>최고 확률 정밀 진단</span>
                 <h3 style={topDiseaseNameStyle}>{getItemClassName(topMultiPrediction)}</h3>
                 <div style={topConfidenceStyle}>
-                  신뢰도 <strong>{getItemConfidence(topMultiPrediction)}%</strong>
+                  상대 신뢰도 <strong>{getItemConfidence(topMultiPrediction)}%</strong>
                 </div>
               </div>
             )}
 
-            <h4 style={subHeadingStyle}>12개 세부 질환별 분석 확률 (높은 순)</h4>
+            <h4 style={subHeadingStyle}>세부 질환별 분석 확률 (높은 순)</h4>
             <div style={progressListStyle}>
               {sortedMultiPredictions.map((item, index) => (
                 <div key={item.classIndex ?? item.class_index ?? index} style={progressItemStyle}>
@@ -419,6 +444,23 @@ export default function SkinDiagnosisPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* 수의사 진료 권장 유의사항 안내 배너 (가독성 구조화 리디자인) */}
+            <div style={disclaimerCardStyle}>
+              <div style={disclaimerHeaderStyle}>
+                <span style={{ fontSize: '18px' }}>🩺</span>
+                <h4 style={disclaimerTitleStyle}>안전한 반려견 건강 케어를 위한 안내</h4>
+                <span style={betaTagStyle}>BETA</span>
+              </div>
+              <ul style={disclaimerListStyle}>
+                <li style={disclaimerListItemStyle}>
+                  <strong>촬영 환경 유의:</strong> 본 12종 정밀 진단은 학습 중인 베타 버전으로, 촬영 조명 및 각도에 따라 결과 신뢰도가 다소 차이 날 수 있습니다.
+                </li>
+                <li style={disclaimerListItemStyle}>
+                  <strong>전문 수의사 진료 권장:</strong> 피부 질환 가능성이 소견되거나 의심되는 경우, 정확한 진단과 치료를 위해 <strong><u>가까운 동물병원 수의사의 정밀 진료</u></strong>를 받으시기 바랍니다.
+                </li>
+              </ul>
             </div>
           </section>
         )}
@@ -712,4 +754,51 @@ const progressBarFillStyle = {
   height: '100%',
   borderRadius: '5px',
   transition: 'width 0.5s ease-in-out',
+}
+
+const disclaimerCardStyle = {
+  marginTop: '28px',
+  padding: '20px 24px',
+  backgroundColor: '#FFFBEB',
+  border: '1.5px solid #FCD34D',
+  borderRadius: '14px',
+  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.08)',
+}
+
+const disclaimerHeaderStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '8px',
+  marginBottom: '12px',
+}
+
+const disclaimerTitleStyle = {
+  fontSize: '15px',
+  fontWeight: '700',
+  color: '#92400E',
+  margin: 0,
+}
+
+const betaTagStyle = {
+  fontSize: '11px',
+  fontWeight: '800',
+  color: '#B45309',
+  backgroundColor: '#FEF3C7',
+  padding: '2px 8px',
+  borderRadius: '6px',
+  border: '1px solid #FDE68A',
+}
+
+const disclaimerListStyle = {
+  margin: 0,
+  paddingLeft: '20px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '8px',
+}
+
+const disclaimerListItemStyle = {
+  fontSize: '13.5px',
+  color: '#78350F',
+  lineHeight: '1.5',
 }

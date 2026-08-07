@@ -1,22 +1,15 @@
-# Python
+# 파이썬 가상환경 및 캐시
 __pycache__/
 *.py[cod]
-*.egg-info/
-.ipynb_checkpoints/
-
-# 가상환경 (환경은 environment.yml로 공유)
-venv/
+*$py.class
 .venv/
+venv/
+env/
 
-# 환경변수/비밀값
-.env
-
-# 모델 아티팩트 (용량이 커서 git에 올리지 않음)
-*.pkl
+# AI 모델 대용량 가중치 파일 및 폴더 제외
+weights/
 *.pt
+*.pth
+*.bin
 *.onnx
-models/
-
-# IDE
-.idea/
-.vscode/
+*.pkl

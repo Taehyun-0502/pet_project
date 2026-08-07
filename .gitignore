@@ -18,3 +18,12 @@ desktop.ini
 
 # 마크다운 문서 전체 제외
 *.md
+
+# AI 모델 대용량 가중치 파일 및 폴더 제외
+weights/
+**/weights/
+*.pt
+*.pth
+*.bin
+*.onnx
+*.pkl
