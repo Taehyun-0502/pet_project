@@ -33,6 +33,11 @@ public enum ErrorCode {
     CHAT_OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "방장은 위임 후에만 나갈 수 있습니다."),
     CONCURRENT_UPDATE(HttpStatus.CONFLICT, "다른 요청이 먼저 처리되었습니다. 새로고침 후 다시 시도해 주세요."),
 
+    // ───── 장소 검색 파트 (지도/AI 장소 추천 — 멤버 4) ─────
+    // 주의: 이 상수는 병합에서 유실된 이력이 있다 — KakaoClient/PlaceService가 참조하므로
+    // 삭제되면 백엔드 컴파일이 깨진다. 병합 해결 시 이 블록 유지 확인 필수.
+    PLACE_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "장소 검색에 실패했습니다. 잠시 후 다시 시도해 주세요."),
+
     // ───── 숏츠(릴스) 파트 ─────
     // 다른 파트와 줄이 섞이지 않게 한 덩어리로 모아둔다 (동시 수정 시 머지 충돌 최소화)
     SHORTS_NOT_FOUND(HttpStatus.NOT_FOUND, "숏츠를 찾을 수 없습니다."),
