@@ -30,7 +30,9 @@ public class Member {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 255)
+    // LOCAL의 로그인 ID. 소셜 계정은 이메일 미동의 시 NULL — "이메일 없는 계정은 소셜뿐"은
+    // DB CHECK(ck_pet_member_provider_integrity)가 보장한다 (2026-08-10 개정)
+    @Column(length = 255)
     private String email;
 
     // BCrypt 해시(60자)만 저장. 소셜 계정은 NULL
@@ -76,6 +78,12 @@ public class Member {
     // 자체(이메일) 가입 회원. password는 반드시 BCrypt로 인코딩된 값이어야 한다
     public static Member createLocalMember(String email, String encodedPassword, String name) {
         return new Member(email, encodedPassword, name, Role.MEMBER, Provider.LOCAL, null);
+    }
+
+    // 카카오 첫 로그인 = 가입. password NULL은 DB CHECK(ck_pet_member_provider_integrity)와 짝이고,
+    // email은 미동의 시 null일 수 있다 (2026-08-10 개정)
+    public static Member createKakaoMember(String email, String name, String providerId) {
+        return new Member(email, null, name, Role.MEMBER, Provider.KAKAO, providerId);
     }
 
     // password는 반드시 BCrypt로 인코딩된 값이어야 한다 (createLocalMember와 같은 계약)

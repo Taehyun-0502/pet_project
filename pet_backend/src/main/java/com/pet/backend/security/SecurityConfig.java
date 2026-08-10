@@ -50,8 +50,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정.
                         // refresh·logout은 Authorization 헤더가 아니라 쿠키로 인증하므로 여기서는 공개다
-                        // (액세스 토큰이 만료된 상태에서 호출되는 것이 정상 동선)
+                        // (액세스 토큰이 만료된 상태에서 호출되는 것이 정상 동선).
+                        // 공개 경로를 추가하면 JwtAuthenticationFilter.PERMITTED_URIS에도 함께 추가할 것 (백로그 40번)
                         .requestMatchers("/api/members/signup", "/api/members/login",
+                                "/api/members/login/kakao",
                                 "/api/members/refresh", "/api/members/logout",
                                 "/api/v1/skin/**", "/api/v1/hybrid/**").permitAll()
                         // WebSocket 핸드셰이크(HTTP GET). 브라우저가 헤더를 못 붙이므로 여기서는 인증하지 않고,

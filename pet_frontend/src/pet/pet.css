@@ -50,15 +50,32 @@
   border-radius: 8px;
 }
 
-/* 항목 전체가 링크 — 클릭 영역을 li 전체로 넓힌다 */
+/* 항목 전체가 링크 — 클릭 영역을 li 전체로 넓힌다 (썸네일이 들어와 세로 중앙 정렬) */
 .pet-list li a {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   padding: 12px 14px;
   text-align: left;
   color: inherit;
   text-decoration: none;
+}
+
+/* 목록 썸네일 — 없으면 placeholder */
+.pet-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.pet-thumb-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f1f1;
+  font-size: 22px;
 }
 
 .pet-list li a:hover {
@@ -68,6 +85,41 @@
 .muted {
   color: #888;
   font-size: 14px;
+}
+
+/* 상세 화면 — 프로필 사진 */
+.pet-photo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pet-photo img,
+.pet-photo-placeholder {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ccc;
+}
+
+.pet-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f1f1;
+  font-size: 40px;
+}
+
+.pet-photo-upload {
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.pet-photo-upload input {
+  display: none;
 }
 
 /* 상세 화면 */

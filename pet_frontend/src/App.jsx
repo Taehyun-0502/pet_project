@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import ChatRoomListPage from './chat/ChatRoomListPage'
 import ChatRoomPage from './chat/ChatRoomPage'
+import KakaoCallbackPage from './member/KakaoCallbackPage'
 import LoginPage from './member/LoginPage'
 import MyPage from './member/MyPage'
 import RequireLogin from './member/RequireLogin'
@@ -107,6 +108,8 @@ function App() {
       />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      {/* 카카오 인가 리다이렉트 수신 — 공개 경로 (로그인 전 상태에서 진입한다) */}
+      <Route path="/oauth/kakao" element={<KakaoCallbackPage />} />
     </Routes>
   )
 }

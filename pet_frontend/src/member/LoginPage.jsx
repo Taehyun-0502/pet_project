@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import { startKakaoLogin } from './kakaoOAuth'
 import './member.css'
 
 export default function LoginPage() {
@@ -67,6 +68,10 @@ export default function LoginPage() {
         {submitError && <p className="submit-error">{submitError}</p>}
         <button type="submit" disabled={submitting}>
           {submitting ? '로그인 중…' : '로그인'}
+        </button>
+        {/* 인가 페이지로 이동하므로 submit이 아니라 일반 버튼 — 폼 검증을 타면 안 된다 */}
+        <button type="button" className="kakao-login" onClick={startKakaoLogin}>
+          카카오로 시작하기
         </button>
       </form>
       <p className="auth-switch">

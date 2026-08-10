@@ -2,6 +2,7 @@ package com.pet.backend.member;
 
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
@@ -24,6 +25,7 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final KakaoOAuthClient kakaoOAuthClient;
 
     @Transactional
     public MemberResponse signup(SignupRequest request) {
@@ -56,8 +58,55 @@ public class MemberService {
         if (member.getPassword() == null || !matchesSafely(request.password(), member.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        return issueLoginTokens(member);
+    }
+
+    /**
+     * 카카오 로그인 (docs/api-spec.md 1절 4차). 첫 로그인이면 자동 가입한다.
+     * 응답 계약은 자체 로그인과 완전히 동일 — 프론트는 code 전달 이후를 구분할 필요가 없다.
+     */
+    @Transactional
+    public LoginResult kakaoLogin(KakaoLoginRequest request) {
+        KakaoOAuthClient.KakaoUserInfo userInfo =
+                kakaoOAuthClient.fetchUser(request.code(), request.redirectUri());
+        Member member = memberRepository
+                .findByProviderAndProviderIdAndDeletedAtIsNull(Provider.KAKAO, userInfo.providerId())
+                .orElseGet(() -> registerKakaoMember(userInfo));
+        return issueLoginTokens(member);
+    }
+
+    private Member registerKakaoMember(KakaoOAuthClient.KakaoUserInfo userInfo) {
+        // 이메일은 카카오의 선택 동의 항목이라 없을 수 있다 — 미제공이면 null로 가입한다
+        // (2026-08-10 개정, docs/api-spec.md 1절 4차. placeholder 이메일은 채우지 않는다)
+        String email = (userInfo.email() == null || userInfo.email().isBlank())
+                ? null
+                : userInfo.email();
+        // 같은 이메일의 자체 가입 계정이 있으면 자동 연결하지 않고 거부한다 —
+        // 카카오 이메일 검증을 신뢰하면 계정 탈취 벡터가 되고, 한 계정 = 한 provider 스키마와도 맞지 않는다
+        if (email != null && memberRepository.existsByEmailAndDeletedAtIsNull(email)) {
+            throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
+        }
+        String name = (userInfo.nickname() == null || userInfo.nickname().isBlank())
+                ? "카카오 회원"
+                : userInfo.nickname().trim();
+        if (name.length() > 50) {
+            name = name.substring(0, 50); // name VARCHAR(50) — 카카오 닉네임 상한이 더 짧지만 방어
+        }
+        try {
+            return memberRepository.save(
+                    Member.createKakaoMember(email, name, userInfo.providerId()));
+        } catch (DataIntegrityViolationException e) {
+            // 같은 카카오 계정의 동시 첫 로그인 경쟁(ux_pet_member_provider_active) — 먼저 들어간 행으로 로그인.
+            // 이메일 인덱스 쪽 충돌이었다면 재조회도 비어 있으므로 이메일 충돌로 응답한다
+            return memberRepository
+                    .findByProviderAndProviderIdAndDeletedAtIsNull(Provider.KAKAO, userInfo.providerId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT));
+        }
+    }
+
+    // 로그인마다 새 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다
+    private LoginResult issueLoginTokens(Member member) {
         String accessToken = jwtTokenProvider.createAccessToken(member.getId(), member.getRole());
-        // 로그인마다 새 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다
         String refreshToken = refreshTokenService.issue(member.getId());
         return new LoginResult(
                 LoginResponse.of(accessToken, jwtTokenProvider.expirationSeconds(), member),

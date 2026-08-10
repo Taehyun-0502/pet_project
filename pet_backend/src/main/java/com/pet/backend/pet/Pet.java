@@ -45,6 +45,10 @@ public class Pet {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    // Storage 공개 URL + ?v=타임스탬프 (캐시 무효화). NULL = 사진 없음 (프론트가 placeholder 표시)
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -77,6 +81,12 @@ public class Pet {
         this.name = name;
         this.breed = breed;
         this.birthDate = birthDate;
+    }
+
+    // update()에 포함하지 않는 이유: PUT 전체 교체 의미론에 사진이 섞이면
+    // 사진 없이 정보만 수정해도 사진이 지워진다 — 사진은 전용 업로드 경로로만 바뀐다
+    public void changeProfileImage(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 
     public boolean isDeleted() {

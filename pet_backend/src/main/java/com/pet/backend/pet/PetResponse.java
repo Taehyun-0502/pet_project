@@ -9,11 +9,12 @@ public record PetResponse(
         String name,
         String breed,
         LocalDate birthDate,
+        String profileImageUrl,  // 사진 없으면 null — 프론트가 placeholder 표시
         Instant createdAt
 ) {
 
     public static PetResponse from(Pet pet) {
         return new PetResponse(pet.getId(), pet.getName(), pet.getBreed(),
-                pet.getBirthDate(), pet.getCreatedAt());
+                pet.getBirthDate(), pet.getProfileImageUrl(), pet.getCreatedAt());
     }
 }

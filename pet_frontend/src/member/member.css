@@ -65,6 +65,12 @@
   cursor: default;
 }
 
+/* 카카오 로그인 — 카카오 디자인 가이드의 컨테이너 색상(#FEE500) + 검정 라벨 */
+.auth-form .kakao-login {
+  background-color: #fee500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
 .auth-switch {
   margin-top: 16px;
   font-size: 14px;
@@ -100,5 +106,12 @@
 }
 
 .my-info dd {
+  margin: 0;
+}
+
+/* 소셜 계정 안내 등 보조 설명 문구 */
+.muted-note {
+  color: #888;
+  font-size: 14px;
   margin: 0;
 }

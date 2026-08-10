@@ -1,6 +1,7 @@
 package com.pet.backend.member;
 
 import com.pet.backend.common.ApiResponse;
+import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
@@ -39,6 +40,17 @@ public class MemberController {
     @PostMapping("/api/members/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResult result = memberService.login(request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE,
+                        refreshTokenCookie.create(result.refreshToken()).toString())
+                .body(ApiResponse.ok(result.response()));
+    }
+
+    // 카카오 로그인 — 응답 계약은 자체 로그인과 완전히 동일 (docs/api-spec.md 1절 4차)
+    @PostMapping("/api/members/login/kakao")
+    public ResponseEntity<ApiResponse<LoginResponse>> kakaoLogin(
+            @Valid @RequestBody KakaoLoginRequest request) {
+        LoginResult result = memberService.kakaoLogin(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
                         refreshTokenCookie.create(result.refreshToken()).toString())

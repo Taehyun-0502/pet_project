@@ -1,0 +1,56 @@
+import { useEffect, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from './AuthContext'
+import { KAKAO_REDIRECT_URI, consumeKakaoState } from './kakaoOAuth'
+import './member.css'
+
+// 카카오 인가 리다이렉트 수신 화면 (/oauth/kakao, docs/api-spec.md 1절 4차).
+// code를 백엔드로 넘겨 로그인을 완료한다 — 화면에 머무는 시간은 정상 흐름에서 1초 미만이다.
+export default function KakaoCallbackPage() {
+  const navigate = useNavigate()
+  const { loginWithKakao } = useAuth()
+  const [error, setError] = useState('')
+  // StrictMode의 이중 effect 실행 가드 — 인가 코드는 1회용이라 두 번 보내면 두 번째가 실패하면서
+  // 성공했던 로그인 화면 상태를 오류로 덮어쓴다
+  const started = useRef(false)
+
+  useEffect(() => {
+    if (started.current) return
+    started.current = true
+
+    const params = new URLSearchParams(window.location.search)
+    // 사용자가 카카오 동의 화면에서 취소한 경우 — error=access_denied
+    if (params.get('error')) {
+      setError('카카오 로그인이 취소되었습니다.')
+      return
+    }
+    const code = params.get('code')
+    if (!code) {
+      setError('잘못된 접근입니다. 로그인 화면에서 다시 시도해 주세요.')
+      return
+    }
+    // 인가 요청 때 저장한 state와 대조 — 위조된 리다이렉트를 걸러낸다 (CSRF 방지)
+    if (!params.get('state') || params.get('state') !== consumeKakaoState()) {
+      setError('잘못된 접근입니다. 로그인 화면에서 다시 시도해 주세요.')
+      return
+    }
+    loginWithKakao({ code, redirectUri: KAKAO_REDIRECT_URI })
+      .then(() => navigate('/', { replace: true }))
+      // AUTH_SOCIAL_EMAIL_CONFLICT(같은 이메일의 자체 가입 계정)·AUTH_SOCIAL_LOGIN_FAILED 등 —
+      // 서버 메시지가 이미 한국어 안내라 그대로 보여준다
+      .catch((err) => setError(err.message))
+  }, [loginWithKakao, navigate])
+
+  return (
+    <main className="auth-page">
+      <h1>카카오 로그인</h1>
+      {!error && <p>로그인 처리 중…</p>}
+      {error && <p className="submit-error">{error}</p>}
+      {error && (
+        <p className="auth-switch">
+          <Link to="/login">로그인 화면으로 돌아가기</Link>
+        </p>
+      )}
+    </main>
+  )
+}

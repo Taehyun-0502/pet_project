@@ -12,6 +12,12 @@ export function login({ email, password }) {
   return request('/api/members/login', { method: 'POST', body: { email, password } })
 }
 
+// 카카오 로그인 — 인가 코드를 백엔드로 넘기면 토큰 교환·가입까지 처리된다.
+// 성공 응답은 login과 완전히 동일 (api-spec.md 1절 4차)
+export function kakaoLogin({ code, redirectUri }) {
+  return request('/api/members/login/kakao', { method: 'POST', body: { code, redirectUri } })
+}
+
 // 성공 시 { id, email, name, role } — 저장된 토큰으로 로그인 상태 복원에 사용
 export function getMyInfo() {
   return request('/api/members/me')

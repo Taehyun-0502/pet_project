@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { clearToken, getToken, saveToken } from '../common/apiClient'
-import { getMyInfo, login as loginApi, logout as logoutApi } from './memberApi'
+import { getMyInfo, kakaoLogin as kakaoLoginApi, login as loginApi, logout as logoutApi } from './memberApi'
 
 // 로그인 상태의 중앙 관리소.
-// 어느 화면이든 useAuth()로 { user, restoring, login, logout, updateUser }를 꺼내 쓴다
+// 어느 화면이든 useAuth()로 { user, restoring, login, loginWithKakao, logout, updateUser }를 꺼내 쓴다
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -30,6 +30,13 @@ export function AuthProvider({ children }) {
     setUser(data.user)
   }
 
+  // 카카오 로그인 — 응답 계약이 자체 로그인과 동일해 이후 처리도 같다
+  const loginWithKakao = async ({ code, redirectUri }) => {
+    const data = await kakaoLoginApi({ code, redirectUri })
+    saveToken(data.accessToken)
+    setUser(data.user)
+  }
+
   /**
    * 로그아웃 — 서버의 리프레시 토큰까지 폐기해야 다른 곳에서 재발급으로 세션이 이어지지 않는다.
    * 서버 호출이 실패하더라도 이 기기에서는 로그아웃된 것으로 처리한다
@@ -50,7 +57,7 @@ export function AuthProvider({ children }) {
   const updateUser = (nextUser) => setUser(nextUser)
 
   return (
-    <AuthContext.Provider value={{ user, restoring, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, restoring, login, loginWithKakao, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

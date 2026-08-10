@@ -92,7 +92,8 @@ export default function MyPage() {
         <dl>
           <div>
             <dt>이메일</dt>
-            <dd>{user.email}</dd>
+            {/* 소셜 계정은 이메일 미동의 시 null (api-spec.md 1절 4차) */}
+            <dd>{user.email ?? '미제공 (카카오 계정)'}</dd>
           </div>
         </dl>
         <form className="auth-form" onSubmit={onNameSubmit} noValidate>
@@ -112,6 +113,15 @@ export default function MyPage() {
         </form>
       </section>
 
+      {/* 소셜 계정은 비밀번호 자체가 없어(password NULL) 폼을 보여줄 이유가 없다 —
+          서버도 401로 거부하지만 폼을 숨기는 것이 1차 안내다 (api-spec.md 1절 4차) */}
+      {user.provider !== 'LOCAL' && (
+        <section>
+          <h2>비밀번호 변경</h2>
+          <p className="muted-note">카카오로 로그인한 계정은 비밀번호가 없습니다.</p>
+        </section>
+      )}
+      {user.provider === 'LOCAL' && (
       <section>
         <h2>비밀번호 변경</h2>
         <form className="auth-form" onSubmit={onSubmit} noValidate>
@@ -151,6 +161,7 @@ export default function MyPage() {
           </button>
         </form>
       </section>
+      )}
 
       <p className="auth-switch">
         <Link to="/">← 홈으로</Link>
