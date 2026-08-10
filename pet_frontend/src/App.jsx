@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import ChatRoomListPage from './chat/ChatRoomListPage'
 import ChatRoomPage from './chat/ChatRoomPage'
 import LoginPage from './member/LoginPage'
+import MyPage from './member/MyPage'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import MapPage from './pages/map/MapPage'
@@ -54,6 +55,14 @@ function App() {
         element={
           <RequireLogin>
             <PetEditPage />
+          </RequireLogin>
+        }
+      />
+      <Route
+        path="/mypage"
+        element={
+          <RequireLogin>
+            <MyPage />
           </RequireLogin>
         }
       />

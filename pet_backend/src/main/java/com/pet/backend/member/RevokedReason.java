@@ -8,7 +8,8 @@ package com.pet.backend.member;
  * 반면 로그아웃으로 끊은 토큰이 다시 오는 것은 유예할 이유가 없다.
  */
 public enum RevokedReason {
-    ROTATED,        // 재발급으로 회전됨 — 짧은 유예 동안 재제출을 정상으로 취급
-    LOGOUT,         // 로그아웃으로 폐기 — 유예 없음
-    REUSE_DETECTED  // 재사용 감지로 일괄 폐기됨
+    ROTATED,         // 재발급으로 회전됨 — 짧은 유예 동안 재제출을 정상으로 취급
+    LOGOUT,          // 로그아웃으로 폐기 — 유예 없음
+    REUSE_DETECTED,  // 재사용 감지로 일괄 폐기됨
+    PASSWORD_CHANGED // 비밀번호 변경으로 전 기기 일괄 폐기 — 유출 대응이 목적이므로 유예 없음
 }

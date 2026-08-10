@@ -29,6 +29,8 @@ export default function PetListPage() {
         <h1>내 반려동물</h1>
         <div className="who">
           <span>{user.name}님</span>
+          {/* 홈 구조 확정 전까지 로그아웃·회원 정보는 홈에 유지, 진입점만 추가 (roadmap 3번) */}
+          <Link to="/mypage">마이페이지</Link>
           <button type="button" onClick={onLogout}>
             로그아웃
           </button>

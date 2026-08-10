@@ -68,6 +68,17 @@ public class RefreshTokenService {
         return new Rotated(memberId, issue(memberId));
     }
 
+    /**
+     * 비밀번호 변경 — 그 회원의 활성 토큰을 **전부** 폐기하고(다른 기기 로그아웃, 유예 없음)
+     * 변경한 기기에만 새 토큰을 발급한다 (docs/api-spec.md 1절, a안).
+     * 폐기가 발급보다 먼저여야 한다 — 순서가 반대면 방금 발급한 토큰까지 일괄 UPDATE에 쓸려 나간다.
+     */
+    @Transactional
+    public String reissueAfterPasswordChange(Long memberId) {
+        refreshTokenRepository.revokeAllByMemberId(memberId, Instant.now(), RevokedReason.PASSWORD_CHANGED);
+        return issue(memberId);
+    }
+
     /** 로그아웃 — 해당 토큰만 폐기한다(다른 기기는 유지). 쿠키가 없거나 이미 죽은 토큰이어도 조용히 넘어간다(멱등). */
     @Transactional
     public void revoke(String rawToken) {
@@ -91,6 +102,13 @@ public class RefreshTokenService {
             throw new BusinessException(ErrorCode.AUTH_REFRESH_EXPIRED);
         }
         if (token.isRevoked() && !token.isWithinRotationGrace(ROTATION_GRACE)) {
+            // 비밀번호 변경으로 끊긴 토큰의 재제출은 침해가 아니라 **보장된 정상 동작**이다 —
+            // 다른 기기는 변경 사실을 모르므로 다음 재발급(15분 안)에 반드시 이 경로로 들어온다.
+            // 재사용 감지로 취급하면 그 revokeAll이 변경한 기기의 새 토큰까지 죽여
+            // "현재 기기는 유지"(a안)가 무력화된다. 전체 폐기 없이 재로그인만 요구한다.
+            if (token.getRevokedReason() == RevokedReason.PASSWORD_CHANGED) {
+                throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+            }
             // 유예를 넘긴 폐기 토큰 제출 — 정상 플로우에서는 나올 수 없다. 유출로 보고 세션을 전부 끊는다.
             // 아래 예외가 이 요청의 트랜잭션을 롤백시키므로 폐기는 별도 트랜잭션에서 커밋해야 한다
             reuseHandler.revokeAllOf(token.getMemberId());
