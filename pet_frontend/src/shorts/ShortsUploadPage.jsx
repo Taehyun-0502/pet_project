@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { getMyPets } from '../pet/petApi'
 import { createShorts, uploadVideoFile } from './shortsApi'
 import '../member/member.css'
 import './shortsUpload.css'
@@ -123,6 +124,8 @@ export default function ShortsUploadPage() {
   const [fileError, setFileError] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [step, setStep] = useState('') // 진행 상황 안내 ('' = 대기)
+  const [pets, setPets] = useState([]) // 내 반려동물 목록. 실패하거나 0마리면 빈 배열
+  const [petIds, setPetIds] = useState([]) // 고른 반려동물 id들. 빈 배열 = 고르지 않음
 
   /*
    * 한 번이라도 제안했거나 사용자가 직접 누른 주제. 다시 제안하지 않기 위해 기억한다.
@@ -132,6 +135,16 @@ export default function ShortsUploadPage() {
    * 제안은 어디까지나 제안이고 최종 결정권은 사용자에게 있다(설계 4절).
    */
   const proposedRef = useRef(new Set())
+
+  /*
+   * 내 반려동물 목록. 실패해도 업로드를 막지 않는다 — 반려동물 선택은 선택 사항이라
+   * 목록을 못 불러왔다고 영상까지 못 올리게 할 이유가 없다. 그 경우 선택란만 비어 보인다.
+   */
+  useEffect(() => {
+    getMyPets()
+      .then(setPets)
+      .catch(() => setPets([]))
+  }, [])
 
   // 미리보기용 blob URL은 다 쓰면 반드시 해제한다 (놔두면 메모리에 남는다)
   useEffect(() => {
@@ -239,6 +252,11 @@ export default function ShortsUploadPage() {
     setTopics([...topics, topic])
   }
 
+  // 여러 마리를 고를 수 있다 — 한 영상에 두 마리가 함께 나오는 경우가 흔하다
+  const togglePet = (id) => {
+    setPetIds((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]))
+  }
+
   const onSubmit = async (e) => {
     e.preventDefault()
     setSubmitError('')
@@ -255,6 +273,7 @@ export default function ShortsUploadPage() {
       // 2) 받은 URL과 정보를 등록
       setStep('정보를 저장하는 중…')
       await createShorts({
+        petIds,
         videoUrl,
         thumbnailUrl: null, // 썸네일 생성은 나중 단계
         caption: caption.trim() || null,
@@ -263,7 +282,9 @@ export default function ShortsUploadPage() {
         durationSec: Math.round(duration),
       })
 
-      navigate('/shorts', { replace: true }) // 피드가 다시 마운트되며 새 영상을 불러온다
+      // 피드가 다시 마운트되며 목록을 새로 불러온다. 방금 올린 영상은 거기 없다 —
+      // 피드는 내가 올린 영상을 빼고 보여준다 (ShortsRepository.findPersonalizedRankedIds)
+      navigate('/shorts', { replace: true })
     } catch (err) {
       setSubmitError(err.message)
     } finally {
@@ -275,6 +296,18 @@ export default function ShortsUploadPage() {
   // 설정이 빠져 있으면 업로드 요청 시 서버가 이유를 담은 메시지를 돌려주고, submitError로 표시된다
   const submitting = step !== ''
   const crop = size ? cropInfo(size.width, size.height) : null
+  /*
+   * 고른 반려동물들의 품종 — 서버가 tags에 붙일 값과 같아야 하므로 서버와 같은 규칙으로 만든다.
+   * 빈 품종은 빼고, 같은 품종을 여러 마리 골랐으면 하나로 합친다 (ShortsService.toTags).
+   */
+  const autoTags = [
+    ...new Set(
+      pets
+        .filter((pet) => petIds.includes(pet.id))
+        .map((pet) => pet.breed?.trim())
+        .filter(Boolean)
+    ),
+  ]
 
   return (
     <main className="auth-page">
@@ -321,6 +354,58 @@ export default function ShortsUploadPage() {
             placeholder="예: 산책 나온 우리 강아지 🐾"
           />
         </label>
+
+        {/* 반려동물이 0마리면 묶음 자체를 감춘다 — 고를 것이 없는 빈 목록은 방해만 된다.
+            등록하러 가는 링크만 안내하고, 그대로 영상을 올릴 수 있다 (선택 사항).
+            label이 아니라 fieldset인 이유는 주제 칩과 같다 — 대상이 여럿이라 label 하나가
+            가리킬 곳이 없다 */}
+        {pets.length > 0 ? (
+          <fieldset className="su-tags">
+            <legend>주인공 반려동물 (선택 · {petIds.length}/{pets.length})</legend>
+            <p className="su-tags-hint">
+              여러 마리를 고를 수 있습니다. 고른 반려동물의 품종이 태그로 함께 저장됩니다.
+            </p>
+
+            <ul className="su-tag-list">
+              {pets.map((pet) => {
+                const on = petIds.includes(pet.id)
+                return (
+                  <li key={pet.id}>
+                    <button
+                      type="button"
+                      className={on ? 'su-tag su-tag-on' : 'su-tag'}
+                      onClick={() => togglePet(pet.id)}
+                      disabled={submitting}
+                      aria-pressed={on}
+                    >
+                      {pet.name}
+                      {pet.breed ? ` (${pet.breed})` : ''}
+                      {on && <span aria-hidden="true">×</span>}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+
+            {/* 어떤 태그가 붙을지 미리 보여준다 — 올리고 나서 모르는 태그가 생겼다고 느끼지 않게 */}
+            {autoTags.length > 0 && (
+              <p className="su-tags-notice">
+                품종 <strong>{autoTags.join(', ')}</strong>이(가) 태그로 함께 저장됩니다.
+              </p>
+            )}
+            {petIds.length > 0 && autoTags.length === 0 && (
+              <p className="su-tags-hint">
+                고른 반려동물에 품종이 없어 자동으로 붙는 태그가 없습니다.{' '}
+                <Link to={`/pets/${petIds[0]}/edit`}>품종 입력하기</Link>
+              </p>
+            )}
+          </fieldset>
+        ) : (
+          <p className="su-tags-hint">
+            등록한 반려동물이 없습니다. <Link to="/pets/new">반려동물을 등록</Link>하면
+            영상의 주인공을 고르고 품종이 태그로 자동 저장됩니다.
+          </p>
+        )}
 
         {/* label로 감싸지 않는다 — 선택 대상이 13개라 label 하나가 가리킬 대상이 없다.
             대신 fieldset/legend로 묶어 스크린리더에도 하나의 묶음으로 읽히게 한다 */}

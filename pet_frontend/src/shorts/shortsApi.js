@@ -87,13 +87,19 @@ export function uploadVideoFile(file) {
  * **고정 목록 13종 안의 값이어야 한다** — 서버가 `ShortsTopic` enum으로 최종 검증하고,
  * 목록 밖 값이면 허용 목록을 담은 400을 돌려준다.
  *
- * 필드 이름이 tags가 아니라 topics인 이유: 최종 `shorts.tags`는 "주제 + (나중에) 자동 태그
- * (종류·품종·지역)"의 합집합이고, 클라이언트가 보내는 것은 그중 주제뿐이다 (설계 5절).
+ * 필드 이름이 tags가 아니라 topics인 이유: 최종 `shorts.tags`는 "주제 + 자동 태그"의 합집합이고,
+ * 클라이언트가 보내는 것은 그중 주제뿐이다 (설계 5절).
+ *
+ * petIds는 영상의 주인공 반려동물들이며 **선택 사항**이다(빈 배열 가능 — 반려동물이 없어도 올릴 수
+ * 있다). 한 영상에 여러 마리를 고를 수 있고, 서버가 그 반려동물들의 **품종을 자동 태그로 tags에
+ * 합쳐 넣는다** — 품종 문자열을 프론트가 직접 topics에 넣지 않는다. topics는 고정 목록 13종만
+ * 허용이라 품종을 넣으면 400이 되고, 무엇보다 남의 반려동물 품종을 사칭해 보낼 수 있다.
+ * 서버가 소유자를 확인한 뒤 붙이는 이유다 (하나라도 내 것이 아니면 404 PET_NOT_FOUND).
  */
-export function createShorts({ videoUrl, thumbnailUrl, caption, topics, durationSec }) {
+export function createShorts({ petIds, videoUrl, thumbnailUrl, caption, topics, durationSec }) {
   return request('/api/shorts', {
     method: 'POST',
-    body: { videoUrl, thumbnailUrl, caption, topics, durationSec },
+    body: { petIds, videoUrl, thumbnailUrl, caption, topics, durationSec },
   })
 }
 

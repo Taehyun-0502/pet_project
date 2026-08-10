@@ -16,6 +16,20 @@ import org.hibernate.validator.constraints.URL;
  */
 public record ShortsCreateRequest(
 
+        /*
+         * 영상의 주인공 반려동물들. 한 영상에 여러 마리가 나올 수 있어 목록으로 받는다.
+         * 선택 사항이라 null이나 빈 목록이면 그냥 고르지 않은 것이다 — 반려동물을 등록하지 않은
+         * 회원도 올릴 수 있어야 하므로 필수로 만들지 않는다.
+         *
+         * 이 id들 자체는 저장되지 않는다 — 고른 반려동물의 품종만 shorts.tags에 자동 태그로
+         * 합쳐진다 (숏츠_태그_설계.md 5절). 즉 "어느 반려동물이 나왔는지"는 남지 않는다.
+         * 전부 내 반려동물이 맞는지는 ShortsService.upload가 확인한다 — 하나라도 남의 것이면 404다.
+         *
+         * 개수 상한을 두지 않는 이유: 소유자 검증을 통과한 id만 태그가 되므로 자기 반려동물 수를
+         * 넘어설 수 없고(중복은 걸러진다), 그 수 자체가 현실적인 상한이다.
+         */
+        List<Long> petIds,
+
         @NotBlank(message = "영상 주소는 필수입니다.")
         @URL(message = "영상 주소 형식이 올바르지 않습니다.")
         String videoUrl,
