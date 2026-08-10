@@ -4,6 +4,7 @@ import com.pet.backend.common.ApiResponse;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
+import com.pet.backend.member.dto.NameUpdateRequest;
 import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
@@ -72,6 +73,14 @@ public class MemberController {
     @GetMapping("/api/members/me")
     public ApiResponse<MemberResponse> getMyInfo(@AuthenticationPrincipal Long memberId) {
         return ApiResponse.ok(memberService.getMyInfo(memberId));
+    }
+
+    // 이름 수정 — 응답은 GET /me와 동일 형태라 프론트가 그대로 상태에 반영할 수 있다
+    @PatchMapping("/api/members/me")
+    public ApiResponse<MemberResponse> updateName(
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody NameUpdateRequest request) {
+        return ApiResponse.ok(memberService.updateName(memberId, request));
     }
 
     // 비밀번호 변경 — 다른 기기 토큰은 전부 폐기되고, 이 기기에는 새 리프레시 토큰이 쿠키로 내려간다

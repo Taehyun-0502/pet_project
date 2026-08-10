@@ -3,7 +3,7 @@ import { clearToken, getToken, saveToken } from '../common/apiClient'
 import { getMyInfo, login as loginApi, logout as logoutApi } from './memberApi'
 
 // 로그인 상태의 중앙 관리소.
-// 어느 화면이든 useAuth()로 { user, restoring, login, logout }을 꺼내 쓴다
+// 어느 화면이든 useAuth()로 { user, restoring, login, logout, updateUser }를 꺼내 쓴다
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
@@ -45,8 +45,12 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
+  // 회원 정보 수정(이름 등) 후 서버 응답으로 상태를 맞춘다 —
+  // 화면이 각자 setState를 들고 있으면 홈의 "OO님" 같은 표시가 어긋난 채 남는다
+  const updateUser = (nextUser) => setUser(nextUser)
+
   return (
-    <AuthContext.Provider value={{ user, restoring, login, logout }}>
+    <AuthContext.Provider value={{ user, restoring, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

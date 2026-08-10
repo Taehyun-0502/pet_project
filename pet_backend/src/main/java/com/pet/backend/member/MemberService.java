@@ -5,6 +5,7 @@ import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
+import com.pet.backend.member.dto.NameUpdateRequest;
 import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
@@ -105,6 +106,11 @@ public class MemberService {
                 || !matchesSafely(request.currentPassword(), member.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        // 같은 비밀번호로의 "변경"은 거부한다 (2026-08-10 확정) — 유출 대응이 목적인 기능인데
+        // 같은 값이면 아무것도 바뀌지 않으면서 다른 기기만 로그아웃되는 어리둥절한 결과가 된다
+        if (matchesSafely(request.newPassword(), member.getPassword())) {
+            throw new BusinessException(ErrorCode.AUTH_PASSWORD_UNCHANGED);
+        }
         member.changePassword(passwordEncoder.encode(request.newPassword()));
         return refreshTokenService.reissueAfterPasswordChange(memberId);
     }
@@ -124,6 +130,16 @@ public class MemberService {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    // 이름 수정 (docs/api-spec.md 1절). 검증 규칙은 가입과 동일, 저장 전 trim
+    @Transactional
+    public MemberResponse updateName(Long memberId, NameUpdateRequest request) {
+        Member member = memberRepository.findById(memberId)
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        member.changeName(request.name().trim());
+        return MemberResponse.from(member);
     }
 
     // 토큰은 유효하지만 그 사이 탈퇴한 계정일 수 있으므로 활성 여부까지 확인한다

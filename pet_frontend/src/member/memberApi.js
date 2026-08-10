@@ -22,6 +22,11 @@ export function logout() {
   return request('/api/members/logout', { method: 'POST' })
 }
 
+// 이름 수정. 성공 시 갱신된 { id, email, name, role } — GET /me와 동일 형태
+export function updateMyName({ name }) {
+  return request('/api/members/me', { method: 'PATCH', body: { name } })
+}
+
 // 비밀번호 변경. 성공 시 다른 기기의 리프레시 토큰은 전부 폐기되고
 // 이 기기에는 새 토큰이 쿠키로 내려와 로그인이 유지된다 (api-spec.md 1절)
 export function changePassword({ currentPassword, newPassword }) {

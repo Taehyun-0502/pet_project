@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 import { signup } from './memberApi'
+import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
 import './member.css'
 
 // 서버(SignupRequest)와 같은 규칙으로 1차 검증 — 최종 차단은 서버가 한다
@@ -12,8 +13,10 @@ function validate(form) {
   else if (form.email.length > 255) errors.email = '이메일은 255자 이하여야 합니다.'
 
   if (!form.password) errors.password = '비밀번호는 필수입니다.'
-  else if (form.password.length < 8 || form.password.length > 60)
-    errors.password = '비밀번호는 8자 이상 60자 이하여야 합니다.'
+  else {
+    const ruleError = passwordRuleError(form.password)
+    if (ruleError) errors.password = ruleError
+  }
 
   if (form.passwordConfirm !== form.password)
     errors.passwordConfirm = '비밀번호가 일치하지 않습니다.'
@@ -70,7 +73,7 @@ export default function SignupPage() {
           {errors.email && <p className="field-error">{errors.email}</p>}
         </label>
         <label>
-          비밀번호 (8자 이상)
+          비밀번호 ({PASSWORD_RULE_LABEL})
           <input
             type="password" name="password" value={form.password} onChange={onChange}
             aria-invalid={Boolean(errors.password)} autoComplete="new-password"

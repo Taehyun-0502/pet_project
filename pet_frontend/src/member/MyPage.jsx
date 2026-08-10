@@ -1,15 +1,47 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import { changePassword } from './memberApi'
+import { changePassword, updateMyName } from './memberApi'
+import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
 import './member.css'
 
-// 마이페이지 — 내 정보 표시 + 비밀번호 변경 (3-1 덩어리, docs/roadmap.md 3번)
-// 이름 수정은 3-2에서 이 화면에 얹는다
+// 마이페이지 — 내 정보(이름 수정) + 비밀번호 변경 (docs/roadmap.md 3번의 3-1·3-2 덩어리)
 export default function MyPage() {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
 
-  const [form, setForm] = useState({ currentPassword: '', newPassword: '' })
+  // 이름 수정 — 성공 시 updateUser로 전역 상태를 맞춰 홈의 "OO님" 표시도 함께 갱신된다
+  const [name, setName] = useState(user.name)
+  const [nameError, setNameError] = useState('')
+  const [nameNotice, setNameNotice] = useState('')
+  const [nameSubmitting, setNameSubmitting] = useState(false)
+
+  const onNameSubmit = async (e) => {
+    e.preventDefault()
+    setNameNotice('')
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setNameError('이름은 필수입니다.')
+      return
+    }
+    if (trimmed.length > 50) {
+      setNameError('이름은 50자 이하여야 합니다.')
+      return
+    }
+    setNameError('')
+    setNameSubmitting(true)
+    try {
+      const updated = await updateMyName({ name: trimmed })
+      updateUser(updated)
+      setName(updated.name)
+      setNameNotice('이름이 변경되었습니다.')
+    } catch (err) {
+      setNameError(err.message)
+    } finally {
+      setNameSubmitting(false)
+    }
+  }
+
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', newPasswordConfirm: '' })
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -25,20 +57,26 @@ export default function MyPage() {
     if (!form.currentPassword) nextErrors.currentPassword = '현재 비밀번호는 필수입니다.'
     if (!form.newPassword) {
       nextErrors.newPassword = '새 비밀번호는 필수입니다.'
-    } else if (form.newPassword.length < 8 || form.newPassword.length > 60) {
-      nextErrors.newPassword = '비밀번호는 8자 이상 60자 이하여야 합니다.'
+    } else {
+      const ruleError = passwordRuleError(form.newPassword)
+      if (ruleError) nextErrors.newPassword = ruleError
+      // 같은 값 입력은 서버까지 안 가고 여기서 거른다 — 최종 판정은 서버(BCrypt 대조)가 한다
+      else if (form.newPassword === form.currentPassword)
+        nextErrors.newPassword = '새 비밀번호는 현재 비밀번호와 달라야 합니다.'
     }
+    if (form.newPasswordConfirm !== form.newPassword)
+      nextErrors.newPasswordConfirm = '비밀번호가 일치하지 않습니다.'
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
     setSubmitting(true)
     try {
-      await changePassword(form)
+      await changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
       // 성공 — 다른 기기 세션은 서버가 끊었고, 이 기기는 새 쿠키로 로그인 유지
-      setForm({ currentPassword: '', newPassword: '' })
+      setForm({ currentPassword: '', newPassword: '', newPasswordConfirm: '' })
       setSuccess(true)
     } catch (err) {
-      // AUTH_INVALID_CREDENTIALS(현재 비밀번호 불일치)·VALIDATION_ERROR 등 — 서버 메시지를 그대로 안내
+      // AUTH_INVALID_CREDENTIALS(현재 비밀번호 불일치)·AUTH_PASSWORD_UNCHANGED 등 — 서버 메시지를 그대로 안내
       setSubmitError(err.message)
     } finally {
       setSubmitting(false)
@@ -53,14 +91,25 @@ export default function MyPage() {
         <h2>내 정보</h2>
         <dl>
           <div>
-            <dt>이름</dt>
-            <dd>{user.name}</dd>
-          </div>
-          <div>
             <dt>이메일</dt>
             <dd>{user.email}</dd>
           </div>
         </dl>
+        <form className="auth-form" onSubmit={onNameSubmit} noValidate>
+          <label>
+            이름
+            <input
+              type="text" name="name" value={name}
+              onChange={(e) => setName(e.target.value)}
+              aria-invalid={Boolean(nameError)} autoComplete="name"
+            />
+            {nameError && <p className="field-error">{nameError}</p>}
+          </label>
+          {nameNotice && <p className="notice">{nameNotice}</p>}
+          <button type="submit" disabled={nameSubmitting}>
+            {nameSubmitting ? '저장 중…' : '이름 저장'}
+          </button>
+        </form>
       </section>
 
       <section>
@@ -76,13 +125,22 @@ export default function MyPage() {
             {errors.currentPassword && <p className="field-error">{errors.currentPassword}</p>}
           </label>
           <label>
-            새 비밀번호
+            새 비밀번호 ({PASSWORD_RULE_LABEL})
             <input
               type="password" name="newPassword" value={form.newPassword}
               onChange={onChange} aria-invalid={Boolean(errors.newPassword)}
               autoComplete="new-password"
             />
             {errors.newPassword && <p className="field-error">{errors.newPassword}</p>}
+          </label>
+          <label>
+            새 비밀번호 확인
+            <input
+              type="password" name="newPasswordConfirm" value={form.newPasswordConfirm}
+              onChange={onChange} aria-invalid={Boolean(errors.newPasswordConfirm)}
+              autoComplete="new-password"
+            />
+            {errors.newPasswordConfirm && <p className="field-error">{errors.newPasswordConfirm}</p>}
           </label>
           {submitError && <p className="submit-error">{submitError}</p>}
           {success && (

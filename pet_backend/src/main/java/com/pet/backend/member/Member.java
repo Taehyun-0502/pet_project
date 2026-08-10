@@ -83,6 +83,10 @@ public class Member {
         this.password = encodedPassword;
     }
 
+    public void changeName(String name) {
+        this.name = name;
+    }
+
     public boolean isDeleted() {
         return deletedAt != null;
     }
