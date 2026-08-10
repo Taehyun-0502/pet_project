@@ -78,6 +78,11 @@ public class Member {
         return new Member(email, encodedPassword, name, Role.MEMBER, Provider.LOCAL, null);
     }
 
+    // password는 반드시 BCrypt로 인코딩된 값이어야 한다 (createLocalMember와 같은 계약)
+    public void changePassword(String encodedPassword) {
+        this.password = encodedPassword;
+    }
+
     public boolean isDeleted() {
         return deletedAt != null;
     }

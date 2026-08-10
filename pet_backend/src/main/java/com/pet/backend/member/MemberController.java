@@ -4,6 +4,7 @@ import com.pet.backend.common.ApiResponse;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
+import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
 import jakarta.validation.Valid;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -70,5 +72,16 @@ public class MemberController {
     @GetMapping("/api/members/me")
     public ApiResponse<MemberResponse> getMyInfo(@AuthenticationPrincipal Long memberId) {
         return ApiResponse.ok(memberService.getMyInfo(memberId));
+    }
+
+    // 비밀번호 변경 — 다른 기기 토큰은 전부 폐기되고, 이 기기에는 새 리프레시 토큰이 쿠키로 내려간다
+    @PatchMapping("/api/members/me/password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody PasswordChangeRequest request) {
+        String refreshToken = memberService.changePassword(memberId, request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.create(refreshToken).toString())
+                .body(ApiResponse.ok());
     }
 }
