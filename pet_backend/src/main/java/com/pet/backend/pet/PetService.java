@@ -6,7 +6,6 @@ import com.pet.backend.common.ImageStorageClient;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,11 +14,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 @RequiredArgsConstructor
 public class PetService {
-
-    // 프로필 사진 제약 (docs/api-spec.md 2절) — 초과·미허용 형식은 400
-    private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-    private static final Set<String> ALLOWED_IMAGE_TYPES =
-            Set.of("image/jpeg", "image/png", "image/webp");
 
     private final PetRepository petRepository;
     private final ImageStorageClient imageStorageClient;
@@ -69,7 +63,7 @@ public class PetService {
      * 저장 단계의 재조회가 404로 걸러낸다 (Storage에 파일만 남고 DB에는 반영되지 않음 — 무해).
      */
     public PetResponse uploadProfileImage(Long memberId, Long petId, MultipartFile file) {
-        validateImage(file);
+        imageStorageClient.validateImage(file); // 형식·용량 규칙은 회원 사진과 공유 (ImageStorageClient)
         // 업로드 전에 소유자 확인 — 타인 pet 경로에 스토리지 쓰기가 일어나지 않게
         getMyPetOrThrow(memberId, petId);
 
@@ -87,20 +81,6 @@ public class PetService {
         pet.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
         petRepository.save(pet);
         return PetResponse.from(pet);
-    }
-
-    private void validateImage(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이미지 파일은 필수입니다.");
-        }
-        if (file.getContentType() == null || !ALLOWED_IMAGE_TYPES.contains(file.getContentType())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "jpeg·png·webp 이미지만 업로드할 수 있습니다.");
-        }
-        if (file.getSize() > MAX_IMAGE_BYTES) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
-                    "이미지는 5MB 이하여야 합니다.");
-        }
     }
 
     /**

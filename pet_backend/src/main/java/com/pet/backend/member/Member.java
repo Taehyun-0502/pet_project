@@ -53,6 +53,10 @@ public class Member {
     @Column(name = "provider_id", length = 255)
     private String providerId;
 
+    // Storage 공개 URL + ?v=타임스탬프 (캐시 무효화). NULL = 사진 없음 (프론트가 placeholder 표시)
+    @Column(name = "profile_image_url", length = 500)
+    private String profileImageUrl;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -93,6 +97,10 @@ public class Member {
 
     public void changeName(String name) {
         this.name = name;
+    }
+
+    public void changeProfileImage(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
     }
 
     public boolean isDeleted() {

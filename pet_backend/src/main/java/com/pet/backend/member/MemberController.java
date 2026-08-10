@@ -20,8 +20,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -93,6 +95,14 @@ public class MemberController {
             @AuthenticationPrincipal Long memberId,
             @Valid @RequestBody NameUpdateRequest request) {
         return ApiResponse.ok(memberService.updateName(memberId, request));
+    }
+
+    // 프로필 사진 업로드 (multipart, part 이름 "file") — pet 쪽과 같은 규칙 (docs/api-spec.md 1절)
+    @PostMapping("/api/members/me/image")
+    public ApiResponse<MemberResponse> uploadProfileImage(
+            @AuthenticationPrincipal Long memberId,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(memberService.uploadProfileImage(memberId, file));
     }
 
     // 비밀번호 변경 — 다른 기기 토큰은 전부 폐기되고, 이 기기에는 새 리프레시 토큰이 쿠키로 내려간다

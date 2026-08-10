@@ -33,6 +33,14 @@ export function updateMyName({ name }) {
   return request('/api/members/me', { method: 'PATCH', body: { name } })
 }
 
+// 프로필 사진 업로드 (jpeg/png/webp, 5MB 이하 — 서버가 최종 검증).
+// 성공 시 갱신된 회원 객체 (profileImageUrl에 ?v=가 붙어 교체 즉시 새 이미지가 보인다)
+export function uploadMyImage(file) {
+  const form = new FormData()
+  form.append('file', file)
+  return request('/api/members/me/image', { method: 'POST', body: form })
+}
+
 // 비밀번호 변경. 성공 시 다른 기기의 리프레시 토큰은 전부 폐기되고
 // 이 기기에는 새 토큰이 쿠키로 내려와 로그인이 유지된다 (api-spec.md 1절)
 export function changePassword({ currentPassword, newPassword }) {

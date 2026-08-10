@@ -1,13 +1,40 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import { changePassword, updateMyName } from './memberApi'
+import { changePassword, updateMyName, uploadMyImage } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
 import './member.css'
 
 // 마이페이지 — 내 정보(이름 수정) + 비밀번호 변경 (docs/roadmap.md 3번의 3-1·3-2 덩어리)
 export default function MyPage() {
   const { user, updateUser } = useAuth()
+
+  // 프로필 사진 — pet 상세와 같은 흐름 (검증 규칙도 서버 ImageStorageClient와 동일)
+  const [photoError, setPhotoError] = useState('')
+  const [photoUploading, setPhotoUploading] = useState(false)
+
+  const onPhotoChange = async (e) => {
+    const file = e.target.files[0]
+    e.target.value = '' // 같은 파일을 다시 골라도 change 이벤트가 나도록 초기화
+    if (!file) return
+    setPhotoError('')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setPhotoError('jpeg·png·webp 이미지만 업로드할 수 있습니다.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoError('이미지는 5MB 이하여야 합니다.')
+      return
+    }
+    setPhotoUploading(true)
+    try {
+      updateUser(await uploadMyImage(file)) // 전역 user 갱신 — ?v= 덕에 즉시 새 이미지
+    } catch (err) {
+      setPhotoError(err.message)
+    } finally {
+      setPhotoUploading(false)
+    }
+  }
 
   // 이름 수정 — 성공 시 updateUser로 전역 상태를 맞춰 홈의 "OO님" 표시도 함께 갱신된다
   const [name, setName] = useState(user.name)
@@ -89,6 +116,21 @@ export default function MyPage() {
 
       <section className="my-info">
         <h2>내 정보</h2>
+        <div className="profile-photo">
+          {user.profileImageUrl ? (
+            <img src={user.profileImageUrl} alt="내 프로필 사진" />
+          ) : (
+            <div className="profile-photo-placeholder" aria-hidden="true">👤</div>
+          )}
+          <label className="profile-photo-upload">
+            {photoUploading ? '업로드 중…' : user.profileImageUrl ? '사진 변경' : '사진 등록'}
+            <input
+              type="file" accept="image/jpeg,image/png,image/webp"
+              onChange={onPhotoChange} disabled={photoUploading}
+            />
+          </label>
+        </div>
+        {photoError && <p className="submit-error">{photoError}</p>}
         <dl>
           <div>
             <dt>이메일</dt>

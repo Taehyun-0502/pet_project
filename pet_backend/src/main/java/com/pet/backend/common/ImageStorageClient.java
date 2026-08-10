@@ -1,11 +1,13 @@
 package com.pet.backend.common;
 
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 프로필 이미지(회원·반려동물)를 Supabase Storage에 올리는 클라이언트.
@@ -22,8 +24,29 @@ import org.springframework.web.client.RestClientException;
 @RequiredArgsConstructor
 public class ImageStorageClient {
 
+    // 프로필 사진 공통 제약 (docs/api-spec.md 2절) — 회원·반려동물이 같은 규칙을 쓴다.
+    // 도메인마다 복사하면 규칙이 조용히 갈라진다 (프론트 accept 속성·1차 검증도 이 값 기준)
+    private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final Set<String> ALLOWED_IMAGE_TYPES =
+            Set.of("image/jpeg", "image/png", "image/webp");
+
     private final ImageStorageProperties properties;
     private final RestClient.Builder restClientBuilder;
+
+    /** 형식·용량 검증 — 위반은 400. 업로드 호출 전에 반드시 거친다 */
+    public void validateImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이미지 파일은 필수입니다.");
+        }
+        if (file.getContentType() == null || !ALLOWED_IMAGE_TYPES.contains(file.getContentType())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "jpeg·png·webp 이미지만 업로드할 수 있습니다.");
+        }
+        if (file.getSize() > MAX_IMAGE_BYTES) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "이미지는 5MB 이하여야 합니다.");
+        }
+    }
 
     /**
      * @param path     버킷 안에서의 파일 경로 (예: pet-3). 확장자 없이 고정 경로를 쓴다 —

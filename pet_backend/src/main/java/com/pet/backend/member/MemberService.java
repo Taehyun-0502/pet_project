@@ -2,6 +2,9 @@ package com.pet.backend.member;
 
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.ImageStorageClient;
+import java.io.IOException;
+import java.time.Instant;
 import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
@@ -16,6 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +30,7 @@ public class MemberService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
     private final KakaoOAuthClient kakaoOAuthClient;
+    private final ImageStorageClient imageStorageClient;
 
     @Transactional
     public MemberResponse signup(SignupRequest request) {
@@ -179,6 +184,37 @@ public class MemberService {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * 프로필 사진 업로드 (docs/api-spec.md 1절). PetService.uploadProfileImage와 같은 구조 —
+     * Storage 업로드(외부 HTTP) 동안 커넥션을 점유하지 않도록 의도적으로 비트랜잭션이고,
+     * 저장은 save()가 자체 트랜잭션으로 처리한다.
+     */
+    public MemberResponse uploadProfileImage(Long memberId, MultipartFile file) {
+        imageStorageClient.validateImage(file);
+        // 업로드 전에 활성 회원 확인 — 탈퇴 계정의 토큰으로 스토리지 쓰기가 일어나지 않게
+        findActiveMemberOrThrow(memberId);
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지 (ImageStorageClient 주석)
+        String url = imageStorageClient.upload("member-" + memberId, bytes, file.getContentType());
+
+        Member member = findActiveMemberOrThrow(memberId);
+        member.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
+        memberRepository.save(member);
+        return MemberResponse.from(member);
+    }
+
+    private Member findActiveMemberOrThrow(Long memberId) {
+        return memberRepository.findById(memberId)
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 
     // 이름 수정 (docs/api-spec.md 1절). 검증 규칙은 가입과 동일, 저장 전 trim
