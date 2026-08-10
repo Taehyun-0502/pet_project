@@ -29,6 +29,11 @@ export function sendMessage(roomId, { content }) {
 // ── 이하 2차: 권한 행사 기능 ──
 
 // 참여자 목록 (참여자만) — [{ memberId, name, role }] , OWNER → MANAGER → MEMBER 순
+// 읽음 위치 보고 — 멱등, 과거 값은 서버가 무시(단조 증가). 실패해도 다음 보고가 만회한다
+export function markRead(roomId, lastReadMessageId) {
+  return request(`/api/chat/rooms/${roomId}/read`, { method: 'PUT', body: { lastReadMessageId } })
+}
+
 export function getRoomMembers(roomId) {
   return request(`/api/chat/rooms/${roomId}/members`)
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { resizeImage } from '../common/imageResize'
 import { useAuth } from './AuthContext'
 import { changePassword, updateMyName, uploadMyImage } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
@@ -28,7 +29,9 @@ export default function MyPage() {
     }
     setPhotoUploading(true)
     try {
-      updateUser(await uploadMyImage(file)) // 전역 user 갱신 — ?v= 덕에 즉시 새 이미지
+      // 업로드 전 512px 축소 — 원본이 아바타·썸네일 조회마다 내려가는 것을 막는다 (imageResize.js)
+      const resized = await resizeImage(file)
+      updateUser(await uploadMyImage(resized)) // 전역 user 갱신 — ?v= 덕에 즉시 새 이미지
     } catch (err) {
       setPhotoError(err.message)
     } finally {

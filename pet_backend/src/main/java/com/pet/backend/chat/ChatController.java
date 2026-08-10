@@ -4,6 +4,7 @@ import com.pet.backend.chat.dto.ChatDelegateRequest;
 import com.pet.backend.chat.dto.ChatMemberResponse;
 import com.pet.backend.chat.dto.ChatMessageCreateRequest;
 import com.pet.backend.chat.dto.ChatMessageResponse;
+import com.pet.backend.chat.dto.ChatReadRequest;
 import com.pet.backend.chat.dto.ChatRoleChangeRequest;
 import com.pet.backend.chat.dto.ChatRoomCreateRequest;
 import com.pet.backend.chat.dto.ChatRoomResponse;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -37,9 +39,19 @@ public class ChatController {
         return ApiResponse.ok(chatService.createRoom(memberId, request));
     }
 
+    // 방 목록 — unreadCount(안 읽은 수)는 내 참여 방에만 값이 있고 미참여 방은 null
     @GetMapping("/api/chat/rooms")
-    public ApiResponse<List<ChatRoomResponse>> getRooms() {
-        return ApiResponse.ok(chatService.getRooms());
+    public ApiResponse<List<ChatRoomResponse>> getRooms(@AuthenticationPrincipal Long memberId) {
+        return ApiResponse.ok(chatService.getRooms(memberId));
+    }
+
+    // 읽음 위치 보고 — 멱등, 과거 값은 무시된다 (docs/api-spec.md 7절)
+    @PutMapping("/api/chat/rooms/{roomId}/read")
+    public ApiResponse<Void> markRead(@AuthenticationPrincipal Long memberId,
+                                      @PathVariable Long roomId,
+                                      @Valid @RequestBody ChatReadRequest request) {
+        chatService.markRead(memberId, roomId, request.lastReadMessageId());
+        return ApiResponse.ok();
     }
 
     @PostMapping("/api/chat/rooms/{roomId}/join")

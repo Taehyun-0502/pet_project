@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { resizeImage } from '../common/imageResize'
 import { deletePet, getPet, uploadPetImage } from './petApi'
 import './pet.css'
 
@@ -29,7 +30,9 @@ export default function PetDetailPage() {
     }
     setUploading(true)
     try {
-      setPet(await uploadPetImage(petId, file)) // 응답의 ?v= 덕에 즉시 새 이미지로 갱신된다
+      // 업로드 전 512px 축소 — 원본이 아바타·썸네일 조회마다 내려가는 것을 막는다 (imageResize.js)
+      const resized = await resizeImage(file)
+      setPet(await uploadPetImage(petId, resized)) // 응답의 ?v= 덕에 즉시 새 이미지로 갱신된다
     } catch (err) {
       setActionError(err.message)
     } finally {

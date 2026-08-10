@@ -1,6 +1,7 @@
 package com.pet.backend.chat;
 
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
@@ -10,4 +11,7 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     // 증분 조회: afterId 이후 전부 — 1차 폴링과 2차 WebSocket 복구가 같이 쓰는 핵심 쿼리
     List<ChatMessage> findByRoomIdAndIdGreaterThanOrderByIdAsc(Long roomId, Long afterId);
+
+    // 입장 시 읽음 위치 초기화용 — 방의 최신 메시지 (없으면 empty)
+    Optional<ChatMessage> findTopByRoomIdOrderByIdDesc(Long roomId);
 }

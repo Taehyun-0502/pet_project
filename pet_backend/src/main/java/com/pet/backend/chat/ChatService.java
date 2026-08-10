@@ -39,11 +39,11 @@ public class ChatService {
         ChatRoom room = ChatRoom.create(request.name().trim(), memberId);
         chatRoomRepository.save(room);
         chatRoomMemberRepository.save(ChatRoomMember.owner(room.getId(), memberId));
-        return ChatRoomResponse.of(room, 1);
+        return ChatRoomResponse.of(room, 1, 0L); // 방금 만든 방 — 안 읽은 메시지가 있을 수 없다
     }
 
     @Transactional(readOnly = true)
-    public List<ChatRoomResponse> getRooms() {
+    public List<ChatRoomResponse> getRooms(Long memberId) {
         List<ChatRoom> rooms = chatRoomRepository.findByDeletedAtIsNullOrderByCreatedAtDesc();
         if (rooms.isEmpty()) {
             return List.of();
@@ -54,9 +54,25 @@ public class ChatService {
                 .collect(Collectors.toMap(
                         ChatRoomMemberRepository.RoomParticipantCount::getRoomId,
                         ChatRoomMemberRepository.RoomParticipantCount::getParticipantCount));
+        // 안 읽은 수도 쿼리 한 번 — 내가 참여 중인 방만 결과에 있고, 없는 방은 null(미참여, 배지 없음)
+        Map<Long, Long> unreads = chatRoomMemberRepository.countUnreadByMember(memberId).stream()
+                .collect(Collectors.toMap(
+                        ChatRoomMemberRepository.RoomUnreadCount::getRoomId,
+                        ChatRoomMemberRepository.RoomUnreadCount::getUnreadCount));
         return rooms.stream()
-                .map(room -> ChatRoomResponse.of(room, counts.getOrDefault(room.getId(), 0L)))
+                .map(room -> ChatRoomResponse.of(room, counts.getOrDefault(room.getId(), 0L),
+                        unreads.get(room.getId())))
                 .toList();
+    }
+
+    /**
+     * 읽음 위치 보고 (docs/api-spec.md 7절). 멱등 — 같은 값·과거 값 보고는 0행 갱신으로 조용히 끝난다.
+     * 참여 검증은 벌크 UPDATE의 WHERE가 겸한다 (미참여자는 no-op — 자기 행 외에는 건드릴 수 없는 구조).
+     */
+    @Transactional
+    public void markRead(Long memberId, Long roomId, Long lastReadMessageId) {
+        getActiveRoom(roomId);
+        chatRoomMemberRepository.markRead(roomId, memberId, lastReadMessageId);
     }
 
     /**
@@ -75,7 +91,12 @@ public class ChatService {
         }
         if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
             try {
-                chatRoomMemberRepository.save(ChatRoomMember.join(roomId, memberId));
+                // 입장 전 메시지는 읽은 것으로 취급 — 입장 시점의 최신 메시지 id로 읽음 위치 초기화
+                // (없으면 null. 오래된 방 입장 직후 "안 읽음 수천 개" 배지를 막는다 — 2026-08-10 확정)
+                Long latestMessageId = chatMessageRepository.findTopByRoomIdOrderByIdDesc(roomId)
+                        .map(ChatMessage::getId)
+                        .orElse(null);
+                chatRoomMemberRepository.save(ChatRoomMember.join(roomId, memberId, latestMessageId));
                 // 실제로 새로 참여했을 때만 알린다 (이미 참여 중인 멱등 호출은 바뀐 게 없다)
                 eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
             } catch (DataIntegrityViolationException e) {
@@ -86,22 +107,23 @@ public class ChatService {
                 .mapToLong(ChatRoomMemberRepository.RoomParticipantCount::getParticipantCount)
                 .findFirst()
                 .orElse(0L);
-        return ChatRoomResponse.of(room, count);
+        // 입장 직후는 읽을 게 없는 상태다 (신규 입장은 최신 id로 초기화, 기존 참여자는 방 화면이 곧 보고)
+        return ChatRoomResponse.of(room, count, 0L);
     }
 
     @Transactional
     public ChatMessageResponse sendMessage(Long memberId, Long roomId, ChatMessageCreateRequest request) {
         getActiveRoom(roomId);
         requireParticipant(roomId, memberId);
-        // 발신자 이름 조회를 INSERT보다 먼저 — INSERT 후 추가 왕복이 있으면
+        // 발신자 조회를 INSERT보다 먼저 — INSERT 후 추가 왕복이 있으면
         // id 채번과 커밋 사이 구간이 길어져, 그 사이 더 큰 id가 먼저 커밋되면
         // afterId 폴링이 이 메시지를 건너뛸 수 있다 (docs/troubleshooting.md 3번)
-        String senderName = memberRepository.findById(memberId)
-                .map(Member::getName)
-                .orElse("알 수 없음");
+        Member sender = memberRepository.findById(memberId).orElse(null);
         ChatMessage message = ChatMessage.of(roomId, memberId, request.content().trim());
         chatMessageRepository.save(message);
-        ChatMessageResponse response = ChatMessageResponse.of(message, senderName);
+        ChatMessageResponse response = ChatMessageResponse.of(message,
+                sender != null ? sender.getName() : "알 수 없음",
+                sender != null ? sender.getProfileImageUrl() : null);
         // 실제 push는 커밋 후에 일어난다 — 이벤트 발행 자체는 메모리 작업이라 위 구간을 넓히지 않는다
         eventPublisher.publishEvent(new ChatMessageCreatedEvent(roomId, response));
         return response;
@@ -125,13 +147,17 @@ public class ChatService {
             return List.of();
         }
 
-        // 발신자 이름 일괄 조회 — 메시지마다 회원을 조회하면 N+1
+        // 발신자 일괄 조회 — 메시지마다 회원을 조회하면 N+1. 이름·프로필 사진을 같은 조회에서 얻는다
         Set<Long> senderIds = messages.stream().map(ChatMessage::getSenderId).collect(Collectors.toSet());
-        Map<Long, String> senderNames = memberRepository.findAllById(senderIds).stream()
-                .collect(Collectors.toMap(Member::getId, Member::getName));
+        Map<Long, Member> senders = memberRepository.findAllById(senderIds).stream()
+                .collect(Collectors.toMap(Member::getId, member -> member));
         return messages.stream()
-                .map(message -> ChatMessageResponse.of(message,
-                        senderNames.getOrDefault(message.getSenderId(), "알 수 없음")))
+                .map(message -> {
+                    Member sender = senders.get(message.getSenderId());
+                    return ChatMessageResponse.of(message,
+                            sender != null ? sender.getName() : "알 수 없음",
+                            sender != null ? sender.getProfileImageUrl() : null);
+                })
                 .toList();
     }
 
@@ -142,15 +168,19 @@ public class ChatService {
         requireParticipant(roomId, memberId);
         List<ChatRoomMember> members = chatRoomMemberRepository
                 .findByRoomIdAndLeftAtIsNullOrderByJoinedAtAsc(roomId);
-        // 이름 일괄 조회 — 참여자마다 회원을 조회하면 N+1
+        // 회원 일괄 조회 — 참여자마다 조회하면 N+1. 이름·프로필 사진을 같은 조회에서 얻는다
         Set<Long> memberIds = members.stream().map(ChatRoomMember::getMemberId).collect(Collectors.toSet());
-        Map<Long, String> names = memberRepository.findAllById(memberIds).stream()
-                .collect(Collectors.toMap(Member::getId, Member::getName));
+        Map<Long, Member> memberById = memberRepository.findAllById(memberIds).stream()
+                .collect(Collectors.toMap(Member::getId, member -> member));
         return members.stream()
                 // enum 선언 순서(OWNER=0, MANAGER=1, MEMBER=2)가 곧 표시 순서. 정렬은 안정적이라 입장순 유지
                 .sorted(Comparator.comparingInt(member -> member.getRole().ordinal()))
-                .map(member -> new ChatMemberResponse(member.getMemberId(),
-                        names.getOrDefault(member.getMemberId(), "알 수 없음"), member.getRole()))
+                .map(member -> {
+                    Member found = memberById.get(member.getMemberId());
+                    return new ChatMemberResponse(member.getMemberId(),
+                            found != null ? found.getName() : "알 수 없음", member.getRole(),
+                            found != null ? found.getProfileImageUrl() : null);
+                })
                 .toList();
     }
 

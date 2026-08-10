@@ -55,6 +55,16 @@ public class ChatRoomMember {
     private ChatLeftReason leftReason;
 
     /**
+     * 마지막으로 읽은 메시지 id (안 읽은 수 집계 기준 — docs/api-spec.md 7절).
+     * 입장 시점의 방 최신 메시지 id로 초기화한다 — 입장 전 메시지는 읽은 것으로 취급 (2026-08-10 확정).
+     * NULL은 "메시지가 없던 방에 입장" 상태이며 집계에서 0으로 취급(coalesce)한다.
+     * 갱신은 엔티티가 아니라 벌크 UPDATE(markRead)로만 한다 — 읽음 보고가 @Version을 올리면
+     * 권한 변경(위임·강퇴)과 불필요한 409 충돌을 만들기 때문.
+     */
+    @Column(name = "last_read_message_id")
+    private Long lastReadMessageId;
+
+    /**
      * 낙관적 잠금 (리뷰 백로그 22번).
      * 위임·나가기·강퇴·지명이 같은 행을 동시에 고치면 나중 커밋이 앞 커밋을 통째로 덮어써
      * "나간 사람이 방장으로 부활"·"활성 OWNER 0명/2명" 같은 상태가 만들어졌다.
@@ -76,9 +86,11 @@ public class ChatRoomMember {
         return new ChatRoomMember(roomId, memberId, ChatRole.OWNER);
     }
 
-    // 일반 입장
-    public static ChatRoomMember join(Long roomId, Long memberId) {
-        return new ChatRoomMember(roomId, memberId, ChatRole.MEMBER);
+    // 일반 입장. latestMessageId = 입장 시점의 방 최신 메시지 id (없으면 null)
+    public static ChatRoomMember join(Long roomId, Long memberId, Long latestMessageId) {
+        ChatRoomMember member = new ChatRoomMember(roomId, memberId, ChatRole.MEMBER);
+        member.lastReadMessageId = latestMessageId;
+        return member;
     }
 
     // 자진 나가기 — 재입장하면 새 행이 생긴다

@@ -75,6 +75,12 @@ export default function ChatRoomListPage() {
           {rooms.map((room) => (
             <li key={room.id} onClick={() => onEnter(room)}>
               <strong>{room.name}</strong>
+              {/* unreadCount: 미참여 방은 null(배지 없음), 표시는 99+ 상한 (docs/api-spec.md 7절) */}
+              {room.unreadCount > 0 && (
+                <span className="unread-badge">
+                  {room.unreadCount > 99 ? '99+' : room.unreadCount}
+                </span>
+              )}
               <span className="count">{room.participantCount}명 참여 중</span>
             </li>
           ))}

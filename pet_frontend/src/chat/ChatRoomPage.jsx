@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../member/AuthContext'
 import {
   changeMemberRole, delegateOwner, deleteRoom, getMessages, getRoomMembers,
-  joinRoom, kickMember, leaveRoom, sendMessage,
+  joinRoom, kickMember, leaveRoom, markRead, sendMessage,
 } from './chatApi'
 import { subscribeRoom } from './chatSocket'
 import './chat.css'
@@ -30,6 +30,28 @@ export default function ChatRoomPage() {
   const [actionError, setActionError] = useState('') // 권한 동작(강퇴·위임 등) 오류
   const lastIdRef = useRef(null) // 서버에게 확인받은 마지막 message id — 재연결 복구의 afterId
   const listRef = useRef(null) // 스크롤 하단 고정용
+  const reportedIdRef = useRef(0) // 읽음 보고를 마친 마지막 message id (docs/api-spec.md 7절)
+
+  // 화면에 표시된 메시지를 읽음으로 보고 — 1초 디바운스로 남발을 막는다.
+  // 실패는 삼킨다: 멱등이라 다음 수신·재입장 때의 보고가 만회한다
+  useEffect(() => {
+    if (messages.length === 0) return undefined
+    const lastId = messages[messages.length - 1].id
+    if (lastId <= reportedIdRef.current) return undefined
+    const timer = setTimeout(() => {
+      reportedIdRef.current = lastId
+      markRead(roomId, lastId).catch(() => {})
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [messages, roomId])
+
+  // 방을 떠날 때 디바운스 대기 중이던 보고를 마저 보낸다 — 안 보내면 방금 본 메시지가 배지로 남는다
+  useEffect(() => () => {
+    const lastId = lastIdRef.current
+    if (lastId && lastId > reportedIdRef.current) {
+      markRead(roomId, lastId).catch(() => {})
+    }
+  }, [roomId])
 
   // 수신 메시지 병합 — id 기준 중복 제거 + 정렬.
   // lastIdRef는 여기서 건드리지 않는다 (전송 응답으로 전진시키면 메시지 유실 — docs/troubleshooting.md 1번)
@@ -58,6 +80,7 @@ export default function ChatRoomPage() {
     setFatalError(null)
     setConnected(false)
     lastIdRef.current = null
+    reportedIdRef.current = 0
 
     // afterId 이후를 받아 병합한다. 첫 로드(afterId 없음 = 최근 50개)와
     // 재연결 복구가 같은 경로를 쓴다 (docs/api-spec.md 7절)
@@ -257,6 +280,11 @@ export default function ChatRoomPage() {
           {members.map((m) => (
             <li key={m.memberId}>
               <span className="member-name">
+                {m.profileImageUrl ? (
+                  <img className="avatar" src={m.profileImageUrl} alt="" />
+                ) : (
+                  <span className="avatar avatar-empty" aria-hidden="true">👤</span>
+                )}
                 {m.name}
                 {m.memberId === user.id && ' (나)'}
                 {ROLE_LABEL[m.role] && <em className="role-badge">{ROLE_LABEL[m.role]}</em>}
@@ -285,7 +313,14 @@ export default function ChatRoomPage() {
         {messages.map((message) => (
           <li key={message.id} className={message.senderId === user.id ? 'mine' : ''}>
             {message.senderId !== user.id && (
-              <span className="sender">{message.senderName}</span>
+              <span className="sender">
+                {message.senderProfileImageUrl ? (
+                  <img className="avatar" src={message.senderProfileImageUrl} alt="" />
+                ) : (
+                  <span className="avatar avatar-empty" aria-hidden="true">👤</span>
+                )}
+                {message.senderName}
+              </span>
             )}
             {message.content}
           </li>
