@@ -29,6 +29,10 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	runtimeOnly 'org.postgresql:postgresql'
+	// AI 챗봇(멤버 4): Claude API 공식 Java SDK
+	implementation 'com.anthropic:anthropic-java:2.52.0'
+	// 장소 검색(카카오) 결과 단기 캐시 (TTL) — 카카오 약관상 DB 영구 저장 금지
+	implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	annotationProcessor 'org.projectlombok:lombok'

@@ -32,8 +32,18 @@ public enum ErrorCode {
     DEVICE_ALREADY_MAPPED(HttpStatus.CONFLICT, "해당 반려동물에 이미 디바이스가 매핑되어 있습니다."),
     CHAT_OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "방장은 위임 후에만 나갈 수 있습니다."),
     CONCURRENT_UPDATE(HttpStatus.CONFLICT, "다른 요청이 먼저 처리되었습니다. 새로고침 후 다시 시도해 주세요."),
-    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 
+    // ───── 숏츠(릴스) 파트 ─────
+    // 다른 파트와 줄이 섞이지 않게 한 덩어리로 모아둔다 (동시 수정 시 머지 충돌 최소화)
+    SHORTS_NOT_FOUND(HttpStatus.NOT_FOUND, "숏츠를 찾을 수 없습니다."),
+    SHORTS_COMMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "댓글을 찾을 수 없습니다."),
+    SHORTS_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "영상 업로드에 실패했습니다."),
+
+    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다."),
+     // 카카오 로컬 API 등 외부 연동 실패 — 원본 예외 메시지(응답 본문 일부 등)를 그대로
+    // 클라이언트/모델에 노출하지 않기 위해 도메인 서비스가 이 코드로 감싸 던진다.
+    PLACE_SEARCH_FAILED(HttpStatus.BAD_GATEWAY, "장소 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.");
+    
     private final HttpStatus status;
     private final String defaultMessage;
 }
