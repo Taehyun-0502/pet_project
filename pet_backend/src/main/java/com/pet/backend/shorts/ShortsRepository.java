@@ -61,11 +61,19 @@ public interface ShortsRepository extends JpaRepository<Shorts, Long> {
     /**
      * 개인화 랭킹 (C단계, 가이드 5절). 로그인 사용자 전용 — {@code memberId}는 null이면 안 된다.
      *
-     * <p>B단계의 {@link #findRankedIds}에 두 가지가 더해진다.
+     * <p>B단계의 {@link #findRankedIds}에 세 가지가 더해진다.
      * <ol>
      *   <li><b>태그 선호 부스트</b> — 최근 30일 행동을 태그별로 집계해(tag_affinity) 품질점수에 곱한다</li>
      *   <li><b>본 영상 뒤로 밀기</b> — view 이벤트가 있는 영상을 두 번째 묶음으로 내린다</li>
+     *   <li><b>내가 올린 영상 제외</b> — {@code s.member_id <> :memberId}</li>
      * </ol>
+     *
+     * <p>내 영상만은 "뒤로 밀기"가 아니라 <b>하드 제외</b>다. 위 2번을 뒤로 밀기로 정한 이유는
+     * 영상이 적을 때 피드가 빈 화면이 되는 것을 막기 위해서인데, 내 영상은 다 봤다고 해서
+     * 다시 보여줄 이유가 없다 — 내가 올린 것을 내 피드에서 다시 만나는 것 자체가 어색하다.
+     *
+     * <p>이 조건은 <b>로그인 조회에만 걸린다.</b> 비로그인({@link #findRankedIds})은 보는 사람이
+     * 누구인지 알 수 없어 제외할 대상이 없다 — 같은 사람이 로그아웃 상태로 보면 자기 영상이 보인다.
      *
      * <p><b>가이드 4절의 "후보에서 제외"를 "뒤로 밀기"로 바꿨다.</b> 이유:
      * 페이지네이션은 B단계에서 이미 excludeIds가 맡았으므로(9절) 하드 제외의 남은 효과는
@@ -110,6 +118,7 @@ public interface ShortsRepository extends JpaRepository<Shorts, Long> {
             join pet_member m on m.id = s.member_id
             where s.deleted_at is null
               and m.deleted_at is null
+              and s.member_id <> :memberId
               and s.id not in (:excludeIds)
             order by
                 case when exists (

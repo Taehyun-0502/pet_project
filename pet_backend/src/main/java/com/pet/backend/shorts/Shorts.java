@@ -39,6 +39,12 @@ public class Shorts {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
+    /*
+     * 영상의 주인공 반려동물은 여기에 없다 — 업로드할 때 고르지만 그 자체를 저장하지는 않고,
+     * 고른 반려동물의 품종만 아래 tags에 자동 태그로 합쳐 넣는다 (ShortsService.toTags).
+     * "어느 반려동물이 나왔는지"를 조회할 일이 생기면 그때 연결 테이블을 만들면 된다.
+     */
+
     // Storage에 저장된 mp4 주소
     @Column(name = "video_url", nullable = false, columnDefinition = "text")
     private String videoUrl;

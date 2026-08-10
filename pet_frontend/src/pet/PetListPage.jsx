@@ -39,7 +39,11 @@ export default function PetListPage() {
         <Link className="pet-add" to="/pets/new">
           + 반려동물 등록
         </Link>
-        <Link to="/chat">오픈채팅 →</Link>
+        {/* 링크가 늘어나도 "+ 반려동물 등록"은 왼쪽에 고정되도록 묶어서 오른쪽에 배치한다 */}
+        <span className="pet-nav-links">
+          <Link to="/shorts">숏츠 →</Link>
+          <Link to="/chat">오픈채팅 →</Link>
+        </span>
       </nav>
 
       {error && <p className="submit-error">{error}</p>}
