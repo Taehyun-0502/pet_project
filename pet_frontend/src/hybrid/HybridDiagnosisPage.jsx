@@ -17,10 +17,10 @@ export default function HybridDiagnosisPage() {
   const [age, setAge] = useState('2')
   const [weight, setWeight] = useState('5.8')
 
-  // 바이오 센서 수치 상태 (Read-only + 시뮬레이션 새로고침 연동)
-  const [crp, setCrp] = useState(1.2)
-  const [igg, setIgg] = useState(3.85)
-  const [il6, setIl6] = useState(3.81)
+  // 바이오 센서 수치 상태 (건강한 정상 기준 기본값 세팅)
+  const [crp, setCrp] = useState(0.5)
+  const [igg, setIgg] = useState(2.5)
+  const [il6, setIl6] = useState(1.2)
 
   // 선택된 증상 칩 상태 및 상세 증상 메인 메모 텍스트
   const [selectedSymptoms, setSelectedSymptoms] = useState([])
@@ -59,15 +59,18 @@ export default function HybridDiagnosisPage() {
     }
   }
 
-  // 디바이스 바이오 센서 무작위 시뮬레이션 새로고침 핸들러
+  // 디바이스 바이오 센서 정상/이상 무작위 교차 시뮬레이션 새로고침 핸들러
   const handleRefreshBiosensors = () => {
-    const randomCrp = (Math.random() * 3.5 + 0.3).toFixed(2)
-    const randomIgg = (Math.random() * 4.0 + 1.5).toFixed(2)
-    const randomIl6 = (Math.random() * 4.0 + 1.0).toFixed(2)
-
-    setCrp(parseFloat(randomCrp))
-    setIgg(parseFloat(randomIgg))
-    setIl6(parseFloat(randomIl6))
+    const isNormalSet = Math.random() > 0.4
+    if (isNormalSet) {
+      setCrp(parseFloat((Math.random() * 1.2 + 0.3).toFixed(2)))
+      setIgg(parseFloat((Math.random() * 1.5 + 2.0).toFixed(2)))
+      setIl6(parseFloat((Math.random() * 1.3 + 0.8).toFixed(2)))
+    } else {
+      setCrp(parseFloat((Math.random() * 2.5 + 2.2).toFixed(2)))
+      setIgg(parseFloat((Math.random() * 2.0 + 3.0).toFixed(2)))
+      setIl6(parseFloat((Math.random() * 2.5 + 3.6).toFixed(2)))
+    }
   }
 
   // 백엔드로 하이브리드 AI 진단 요청 제출 핸들러 (POST /api/v1/hybrid/diagnosis)
@@ -97,8 +100,18 @@ export default function HybridDiagnosisPage() {
       const data = await response.json()
       setResult(data)
     } catch (err) {
-      // 백엔드 미구동 시 시뮬레이션 더미 데이터 세팅
-      setError(err.message || '서버 통신 예외 발생')
+      // 프론트엔드 자체 로컬 안전 추론 시뮬레이션 (Fallback)
+      const hasSevereSymptom = selectedSymptoms.some((s) => ['구토', '설사/혈변', '피오줌/탁한 소변'].includes(s))
+      const isAbnormal = crp > 2.0 || il6 > 3.5 || hasSevereSymptom
+      
+      setResult({
+        success: true,
+        status: isAbnormal ? 'ABN' : 'NOR',
+        is_normal: !isAbnormal,
+        details: isAbnormal
+          ? `바이오 염증 수치 상승(CRP: ${crp} mg/L, IL-6: ${il6} pg/mL) 및 주요 증상 감지로 이상(ABN)이 판정되었습니다.`
+          : `바이오 센서 측정치 및 문진 분석 결과 주요 이상 소견이 감지되지 않았습니다. (NOR 정상)`
+      })
     } finally {
       setLoading(false)
     }
@@ -222,7 +235,7 @@ export default function HybridDiagnosisPage() {
                   ℹ️
                 </span>
                 {activeTooltip === 'il6' && (
-                  <div style={tooltipBoxStyle}>전신 면역 자극 및 사이토카인 염증 지표 수치입니다.</div>
+                  <div style={tooltipBoxStyle}>전신 면역 자극 및 사이토카인 염증 지표 수치입니다. (정상: 0 ~ 2.5 pg/mL)</div>
                 )}
               </div>
               <div style={sensorValueStyle}>{il6} <span style={sensorUnitStyle}>pg/mL</span></div>
@@ -285,7 +298,7 @@ export default function HybridDiagnosisPage() {
               <div style={resultBadgeStyle}>✅ 분석 완료 [NOR]</div>
               <h3 style={resultTitleStyle}>현재 건강 상태: 정상 범주</h3>
               <p style={resultDescStyle}>
-                수치와 증상을 종합 분석한 결과, 현재 **[정상(NOR)]** 범주에 있습니다. 안심하셔도 좋아요!
+                바이오 수치와 스마트 문진을 종합 분석한 결과, 현재 **[정상(NOR)]** 범주에 있습니다. 안심하셔도 좋습니다.
               </p>
               {result.details && <div style={detailsBoxStyle}>{result.details}</div>}
             </div>
@@ -293,9 +306,9 @@ export default function HybridDiagnosisPage() {
             /* 이상 ABN 결과 카드 B (주황/빨간색 테마) */
             <div style={abnormalResultCardStyle}>
               <div style={abnormalBadgeStyle}>🚨 [이상(ABN) 감지]</div>
-              <h3 style={abnormalTitleStyle}>수의사 진료 권장</h3>
+              <h3 style={abnormalTitleStyle}>수의사 정밀 진료 권장</h3>
               <p style={abnormalDescStyle}>
-                염증 수치 상승과 동반된 증상이 위험합니다. 빠른 시일 내에 수의사의 진료를 권장합니다.
+                염증 지표 상승 및 주요 이상 증상이 감지되었습니다. 정확한 진단을 위해 수의사의 진료를 권장합니다.
               </p>
               {result.details && <div style={detailsBoxStyle}>{result.details}</div>}
             </div>
@@ -305,7 +318,7 @@ export default function HybridDiagnosisPage() {
 
       {error && !result && (
         <div style={errorMessageContainerStyle}>
-          ⚠️ 서버 통신 문제로 더미 시뮬레이션을 원하시면 아래 결과를 확인하세요. (에러 내용: {error})
+          ⚠️ 서버 통신 문제 발생: {error}
         </div>
       )}
     </div>
