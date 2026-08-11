@@ -2,16 +2,21 @@ package com.pet.backend.pet;
 
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.ImageStorageClient;
+import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class PetService {
 
     private final PetRepository petRepository;
+    private final ImageStorageClient imageStorageClient;
 
     // memberId는 컨트롤러가 토큰에서 꺼내 넘긴 값 — 소유자 격리의 출발점 (docs/conventions.md 5절)
     @Transactional
@@ -47,6 +52,35 @@ public class PetService {
     @Transactional
     public void delete(Long memberId, Long petId) {
         getMyPetOrThrow(memberId, petId).delete();
+    }
+
+    /**
+     * 프로필 사진 업로드 (docs/api-spec.md 2절).
+     *
+     * 의도적으로 **비트랜잭션**이다 — Storage 업로드(외부 HTTP, 수 초 가능)를 트랜잭션 안에서 하면
+     * 그동안 커넥션을 점유한다(풀이 작은 환경의 병목). 소유자 검증 → 업로드 → 짧은 저장 순서로 가고,
+     * 저장은 save()가 자체 트랜잭션으로 처리한다. 검증과 저장 사이에 pet이 삭제되는 극단 경쟁은
+     * 저장 단계의 재조회가 404로 걸러낸다 (Storage에 파일만 남고 DB에는 반영되지 않음 — 무해).
+     */
+    public PetResponse uploadProfileImage(Long memberId, Long petId, MultipartFile file) {
+        imageStorageClient.validateImage(file); // 형식·용량 규칙은 회원 사진과 공유 (ImageStorageClient)
+        // 업로드 전에 소유자 확인 — 타인 pet 경로에 스토리지 쓰기가 일어나지 않게
+        getMyPetOrThrow(memberId, petId);
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        // 확장자 없는 고정 경로 — 형식이 바뀌어도 같은 객체를 덮어써 고아 파일이 없다 (ImageStorageClient 주석)
+        String url = imageStorageClient.upload("pet-" + petId, bytes, file.getContentType());
+
+        Pet pet = getMyPetOrThrow(memberId, petId);
+        // ?v=업로드시각 — 같은 URL 덮어쓰기의 브라우저 캐시를 무효화한다
+        pet.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
+        petRepository.save(pet);
+        return PetResponse.from(pet);
     }
 
     /**

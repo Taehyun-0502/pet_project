@@ -65,6 +65,12 @@
   cursor: default;
 }
 
+/* 카카오 로그인 — 카카오 디자인 가이드의 컨테이너 색상(#FEE500) + 검정 라벨 */
+.auth-form .kakao-login {
+  background-color: #fee500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
 .auth-switch {
   margin-top: 16px;
   font-size: 14px;
@@ -82,7 +88,7 @@
 }
 
 .my-info dl {
-  margin: 0;
+  margin: 0 0 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -101,4 +107,46 @@
 
 .my-info dd {
   margin: 0;
+}
+
+/* 소셜 계정 안내 등 보조 설명 문구 */
+.muted-note {
+  color: #888;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 마이페이지 — 프로필 사진 (pet 상세의 .pet-photo와 같은 구성) */
+.profile-photo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.profile-photo img,
+.profile-photo-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #ccc;
+}
+
+.profile-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f1f1f1;
+  font-size: 32px;
+}
+
+.profile-photo-upload {
+  cursor: pointer;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.profile-photo-upload input {
+  display: none;
 }

@@ -12,6 +12,12 @@ export function login({ email, password }) {
   return request('/api/members/login', { method: 'POST', body: { email, password } })
 }
 
+// 카카오 로그인 — 인가 코드를 백엔드로 넘기면 토큰 교환·가입까지 처리된다.
+// 성공 응답은 login과 완전히 동일 (api-spec.md 1절 4차)
+export function kakaoLogin({ code, redirectUri }) {
+  return request('/api/members/login/kakao', { method: 'POST', body: { code, redirectUri } })
+}
+
 // 성공 시 { id, email, name, role } — 저장된 토큰으로 로그인 상태 복원에 사용
 export function getMyInfo() {
   return request('/api/members/me')
@@ -20,6 +26,19 @@ export function getMyInfo() {
 // 서버에 저장된 리프레시 토큰을 폐기하고 쿠키를 지운다. 쿠키가 없어도 성공(멱등)
 export function logout() {
   return request('/api/members/logout', { method: 'POST' })
+}
+
+// 이름 수정. 성공 시 갱신된 { id, email, name, role } — GET /me와 동일 형태
+export function updateMyName({ name }) {
+  return request('/api/members/me', { method: 'PATCH', body: { name } })
+}
+
+// 프로필 사진 업로드 (jpeg/png/webp, 5MB 이하 — 서버가 최종 검증).
+// 성공 시 갱신된 회원 객체 (profileImageUrl에 ?v=가 붙어 교체 즉시 새 이미지가 보인다)
+export function uploadMyImage(file) {
+  const form = new FormData()
+  form.append('file', file)
+  return request('/api/members/me/image', { method: 'POST', body: form })
 }
 
 // 비밀번호 변경. 성공 시 다른 기기의 리프레시 토큰은 전부 폐기되고

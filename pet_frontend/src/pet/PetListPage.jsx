@@ -57,6 +57,11 @@ export default function PetListPage() {
             <li key={pet.id}>
               {/* 항목 전체를 링크로 — li에 onClick을 걸면 키보드로 접근할 수 없다 */}
               <Link to={`/pets/${pet.id}`}>
+                {pet.profileImageUrl ? (
+                  <img className="pet-thumb" src={pet.profileImageUrl} alt="" />
+                ) : (
+                  <span className="pet-thumb pet-thumb-empty" aria-hidden="true">🐶</span>
+                )}
                 <strong>{pet.name}</strong>
                 <span className="muted">{pet.breed ?? '품종 미입력'}</span>
                 <span className="muted">{pet.birthDate ?? '생년월일 미입력'}</span>

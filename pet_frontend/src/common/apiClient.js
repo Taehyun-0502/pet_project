@@ -75,10 +75,13 @@ async function requestNewAccessToken() {
   return payload.data.accessToken
 }
 
-// 요청 1회 — 재시도 판단은 호출자(request)가 한다
+// 요청 1회 — 재시도 판단은 호출자(request)가 한다.
+// body가 FormData면(파일 업로드) JSON 직렬화·Content-Type 지정을 모두 건너뛴다 —
+// Content-Type을 직접 지정하면 multipart 경계(boundary)가 빠져 서버가 본문을 파싱하지 못한다
 async function send(path, { method = 'GET', body } = {}) {
   const headers = {}
-  if (body) headers['Content-Type'] = 'application/json'
+  const isFormData = body instanceof FormData
+  if (body && !isFormData) headers['Content-Type'] = 'application/json'
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
 
@@ -87,7 +90,7 @@ async function send(path, { method = 'GET', body } = {}) {
     response = await fetch(`${BACKEND_URL}${path}`, {
       method,
       headers,
-      body: body ? JSON.stringify(body) : undefined,
+      body: isFormData ? body : body ? JSON.stringify(body) : undefined,
       // 리프레시 토큰 쿠키를 주고받기 위해 필요 (docs/api-spec.md 6절)
       credentials: 'include',
     })

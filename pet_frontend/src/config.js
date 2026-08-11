@@ -3,3 +3,6 @@
 
 export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 export const PYTHON_URL = import.meta.env.VITE_PYTHON_URL;
+
+// 카카오 OAuth REST API 키 (인가 URL용 — 공개 값이라 프론트 노출 무해, api-spec.md 1절 4차)
+export const KAKAO_CLIENT_ID = import.meta.env.VITE_KAKAO_CLIENT_ID;

@@ -41,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final Set<String> PERMITTED_URIS = Set.of(
             "/api/members/signup",
             "/api/members/login",
+            "/api/members/login/kakao",
             "/api/members/refresh",
             "/api/members/logout");
 

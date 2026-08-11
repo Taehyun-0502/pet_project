@@ -14,4 +14,7 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
 
     // 회원가입: 이메일 중복 여부 (활성 회원 기준 — 최종 차단은 DB 부분 UNIQUE 인덱스)
     boolean existsByEmailAndDeletedAtIsNull(String email);
+
+    // 카카오 로그인: 외부 식별자로 활성 계정 조회 (ux_pet_member_provider_active 인덱스 사용)
+    Optional<Member> findByProviderAndProviderIdAndDeletedAtIsNull(Provider provider, String providerId);
 }

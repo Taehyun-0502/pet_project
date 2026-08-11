@@ -26,3 +26,11 @@ export function updatePet(petId, { name, breed, birthDate }) {
 export function deletePet(petId) {
   return request(`/api/pets/${petId}`, { method: 'DELETE' })
 }
+
+// 프로필 사진 업로드 (jpeg/png/webp, 5MB 이하 — 서버가 최종 검증).
+// 성공 시 갱신된 pet 객체 (profileImageUrl에 ?v=가 붙어 교체 즉시 새 이미지가 보인다)
+export function uploadPetImage(petId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return request(`/api/pets/${petId}/image`, { method: 'POST', body: form })
+}

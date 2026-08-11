@@ -1,9 +1,11 @@
 package com.pet.backend.member;
 
 import com.pet.backend.common.ApiResponse;
+import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
+import com.pet.backend.member.dto.NameUpdateRequest;
 import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
@@ -18,8 +20,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -38,6 +42,17 @@ public class MemberController {
     @PostMapping("/api/members/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
         LoginResult result = memberService.login(request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE,
+                        refreshTokenCookie.create(result.refreshToken()).toString())
+                .body(ApiResponse.ok(result.response()));
+    }
+
+    // 카카오 로그인 — 응답 계약은 자체 로그인과 완전히 동일 (docs/api-spec.md 1절 4차)
+    @PostMapping("/api/members/login/kakao")
+    public ResponseEntity<ApiResponse<LoginResponse>> kakaoLogin(
+            @Valid @RequestBody KakaoLoginRequest request) {
+        LoginResult result = memberService.kakaoLogin(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
                         refreshTokenCookie.create(result.refreshToken()).toString())
@@ -72,6 +87,22 @@ public class MemberController {
     @GetMapping("/api/members/me")
     public ApiResponse<MemberResponse> getMyInfo(@AuthenticationPrincipal Long memberId) {
         return ApiResponse.ok(memberService.getMyInfo(memberId));
+    }
+
+    // 이름 수정 — 응답은 GET /me와 동일 형태라 프론트가 그대로 상태에 반영할 수 있다
+    @PatchMapping("/api/members/me")
+    public ApiResponse<MemberResponse> updateName(
+            @AuthenticationPrincipal Long memberId,
+            @Valid @RequestBody NameUpdateRequest request) {
+        return ApiResponse.ok(memberService.updateName(memberId, request));
+    }
+
+    // 프로필 사진 업로드 (multipart, part 이름 "file") — pet 쪽과 같은 규칙 (docs/api-spec.md 1절)
+    @PostMapping("/api/members/me/image")
+    public ApiResponse<MemberResponse> uploadProfileImage(
+            @AuthenticationPrincipal Long memberId,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(memberService.uploadProfileImage(memberId, file));
     }
 
     // 비밀번호 변경 — 다른 기기 토큰은 전부 폐기되고, 이 기기에는 새 리프레시 토큰이 쿠키로 내려간다

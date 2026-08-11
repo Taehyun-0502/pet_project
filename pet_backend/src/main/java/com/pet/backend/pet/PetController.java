@@ -12,8 +12,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 // 인증 필수 경로 — memberId는 JwtAuthenticationFilter가 토큰에서 꺼내 실어준 값
 @RestController
@@ -47,6 +49,14 @@ public class PetController {
                                            @PathVariable Long petId,
                                            @Valid @RequestBody PetSaveRequest request) {
         return ApiResponse.ok(petService.update(memberId, petId, request));
+    }
+
+    // 프로필 사진 업로드 (multipart, part 이름 "file") — 사진은 PUT 전체 교체와 무관하게 이 경로로만 바뀐다
+    @PostMapping("/api/pets/{petId}/image")
+    public ApiResponse<PetResponse> uploadProfileImage(@AuthenticationPrincipal Long memberId,
+                                                       @PathVariable Long petId,
+                                                       @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(petService.uploadProfileImage(memberId, petId, file));
     }
 
     @DeleteMapping("/api/pets/{petId}")

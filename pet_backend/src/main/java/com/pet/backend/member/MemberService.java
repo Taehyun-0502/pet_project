@@ -2,9 +2,14 @@ package com.pet.backend.member;
 
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.ImageStorageClient;
+import java.io.IOException;
+import java.time.Instant;
+import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
+import com.pet.backend.member.dto.NameUpdateRequest;
 import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
@@ -14,6 +19,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +29,8 @@ public class MemberService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final KakaoOAuthClient kakaoOAuthClient;
+    private final ImageStorageClient imageStorageClient;
 
     @Transactional
     public MemberResponse signup(SignupRequest request) {
@@ -55,8 +63,76 @@ public class MemberService {
         if (member.getPassword() == null || !matchesSafely(request.password(), member.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        return issueLoginTokens(member);
+    }
+
+    /**
+     * 카카오 로그인 (docs/api-spec.md 1절 4차). 첫 로그인이면 자동 가입한다.
+     * 응답 계약은 자체 로그인과 완전히 동일 — 프론트는 code 전달 이후를 구분할 필요가 없다.
+     *
+     * <p>uploadProfileImage와 같은 이유로 **의도적인 비트랜잭션**이다 (리뷰 백로그 76번).
+     * @Transactional을 걸면 Hibernate가 트랜잭션 시작 시점에 잡은 DB 커넥션을 카카오 REST 왕복
+     * 2회(토큰 교환 → 사용자 조회)가 끝날 때까지 쥐고 있는다. 풀 크기가 2인 환경에서는
+     * 카카오 로그인 2건이 겹치는 것만으로 풀이 비어 채팅·pet 등 모든 요청이
+     * connectionTimeout까지 대기하다 500이 된다.
+     *
+     * <p>대신 조회·가입·토큰 발급이 각각 자체 트랜잭션으로 처리된다. 원자성은 잃지만
+     * 중간 실패로 남는 것은 "가입은 됐지만 토큰을 못 받은 계정"뿐이고, 다음 로그인이 그 행을
+     * 그대로 찾아 이어받으므로 사용자에게는 재시도 한 번으로 끝난다.
+     */
+    public LoginResult kakaoLogin(KakaoLoginRequest request) {
+        KakaoOAuthClient.KakaoUserInfo userInfo =
+                kakaoOAuthClient.fetchUser(request.code(), request.redirectUri());
+        Member member = memberRepository
+                .findByProviderAndProviderIdAndDeletedAtIsNull(Provider.KAKAO, userInfo.providerId())
+                .orElseGet(() -> registerKakaoMember(userInfo));
+        return issueLoginTokens(member);
+    }
+
+    private Member registerKakaoMember(KakaoOAuthClient.KakaoUserInfo userInfo) {
+        // 이메일은 카카오의 선택 동의 항목이라 없을 수 있다 — 미제공이면 null로 가입한다
+        // (2026-08-10 개정, docs/api-spec.md 1절 4차. placeholder 이메일은 채우지 않는다)
+        String email = (userInfo.email() == null || userInfo.email().isBlank())
+                ? null
+                : userInfo.email();
+        // 같은 이메일의 자체 가입 계정이 있으면 자동 연결하지 않고 거부한다 —
+        // 카카오 이메일 검증을 신뢰하면 계정 탈취 벡터가 되고, 한 계정 = 한 provider 스키마와도 맞지 않는다
+        if (email != null && memberRepository.existsByEmailAndDeletedAtIsNull(email)) {
+            throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
+        }
+        String name = (userInfo.nickname() == null || userInfo.nickname().isBlank())
+                ? "카카오 회원"
+                : userInfo.nickname().trim();
+        if (name.length() > 50) {
+            name = name.substring(0, 50); // name VARCHAR(50) — 카카오 닉네임 상한이 더 짧지만 방어
+        }
+        try {
+            return memberRepository.save(
+                    Member.createKakaoMember(email, name, userInfo.providerId()));
+        } catch (DataIntegrityViolationException e) {
+            // 같은 카카오 계정의 동시 첫 로그인 경쟁(ux_pet_member_provider_active) — 먼저 들어간 행으로 로그인.
+            //
+            // 이 흡수는 **호출자가 비트랜잭션일 때만** 성립한다 (백로그 78번). 바깥 트랜잭션이 있으면
+            // save()가 거기에 참여해 제약 위반 순간 rollback-only가 찍히고, 여기서 정상 반환해도
+            // 커밋에서 UnexpectedRollbackException → 500이 된다. kakaoLogin의 @Transactional을
+            // 되살리려는 사람은 이 catch가 함께 죽는다는 것을 알아야 한다.
+            return memberRepository
+                    .findByProviderAndProviderIdAndDeletedAtIsNull(Provider.KAKAO, userInfo.providerId())
+                    .orElseGet(() -> {
+                        // 카카오 계정 인덱스 충돌이 아니었다. 사전 검사와 INSERT 사이에 같은 이메일이
+                        // 먼저 가입한 경우만 409로 안내하고, 그 밖의 제약 위반(예: provider 무결성 CHECK)은
+                        // 원인을 "이메일 충돌"로 덮어쓰지 않고 그대로 올린다
+                        if (email != null && memberRepository.existsByEmailAndDeletedAtIsNull(email)) {
+                            throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
+                        }
+                        throw e;
+                    });
+        }
+    }
+
+    // 로그인마다 새 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다
+    private LoginResult issueLoginTokens(Member member) {
         String accessToken = jwtTokenProvider.createAccessToken(member.getId(), member.getRole());
-        // 로그인마다 새 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다
         String refreshToken = refreshTokenService.issue(member.getId());
         return new LoginResult(
                 LoginResponse.of(accessToken, jwtTokenProvider.expirationSeconds(), member),
@@ -105,6 +181,11 @@ public class MemberService {
                 || !matchesSafely(request.currentPassword(), member.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
+        // 같은 비밀번호로의 "변경"은 거부한다 (2026-08-10 확정) — 유출 대응이 목적인 기능인데
+        // 같은 값이면 아무것도 바뀌지 않으면서 다른 기기만 로그아웃되는 어리둥절한 결과가 된다
+        if (matchesSafely(request.newPassword(), member.getPassword())) {
+            throw new BusinessException(ErrorCode.AUTH_PASSWORD_UNCHANGED);
+        }
         member.changePassword(passwordEncoder.encode(request.newPassword()));
         return refreshTokenService.reissueAfterPasswordChange(memberId);
     }
@@ -124,6 +205,47 @@ public class MemberService {
         } catch (IllegalArgumentException e) {
             return false;
         }
+    }
+
+    /**
+     * 프로필 사진 업로드 (docs/api-spec.md 1절). PetService.uploadProfileImage와 같은 구조 —
+     * Storage 업로드(외부 HTTP) 동안 커넥션을 점유하지 않도록 의도적으로 비트랜잭션이고,
+     * 저장은 save()가 자체 트랜잭션으로 처리한다.
+     */
+    public MemberResponse uploadProfileImage(Long memberId, MultipartFile file) {
+        imageStorageClient.validateImage(file);
+        // 업로드 전에 활성 회원 확인 — 탈퇴 계정의 토큰으로 스토리지 쓰기가 일어나지 않게
+        findActiveMemberOrThrow(memberId);
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지 (ImageStorageClient 주석)
+        String url = imageStorageClient.upload("member-" + memberId, bytes, file.getContentType());
+
+        Member member = findActiveMemberOrThrow(memberId);
+        member.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
+        memberRepository.save(member);
+        return MemberResponse.from(member);
+    }
+
+    private Member findActiveMemberOrThrow(Long memberId) {
+        return memberRepository.findById(memberId)
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    // 이름 수정 (docs/api-spec.md 1절). 검증 규칙은 가입과 동일, 저장 전 trim
+    @Transactional
+    public MemberResponse updateName(Long memberId, NameUpdateRequest request) {
+        Member member = memberRepository.findById(memberId)
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        member.changeName(request.name().trim());
+        return MemberResponse.from(member);
     }
 
     // 토큰은 유효하지만 그 사이 탈퇴한 계정일 수 있으므로 활성 여부까지 확인한다
