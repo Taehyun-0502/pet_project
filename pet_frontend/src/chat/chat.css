@@ -46,6 +46,53 @@
   flex: 1;
 }
 
+/* 3차: 검색·필터 (검색창 + 카테고리 칩 + 정렬 토글) */
+.chat-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chat-filter input {
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.chat-filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chat-chip {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chat-chip.active {
+  background: #2b6cb0;
+  border-color: #2b6cb0;
+  color: #fff;
+}
+
+.chat-sort {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+}
+
 .chat-room-list {
   list-style: none;
   padding: 0;

@@ -47,10 +47,16 @@ public class ChatController {
         return ApiResponse.ok(chatService.updateRoom(memberId, roomId, request));
     }
 
-    // 방 목록 — unreadCount(안 읽은 수)는 내 참여 방에만 값이 있고 미참여 방은 null
+    // 방 목록 + 검색·필터 (3차) — 파라미터 전부 선택, 없으면 전체·최신순.
+    // category·sort를 String으로 받는 이유는 Service의 파싱 주석 참조 (오값 400).
+    // unreadCount(안 읽은 수)는 내 참여 방에만 값이 있고 미참여 방은 null
     @GetMapping("/api/chat/rooms")
-    public ApiResponse<List<ChatRoomResponse>> getRooms(@AuthenticationPrincipal Long memberId) {
-        return ApiResponse.ok(chatService.getRooms(memberId));
+    public ApiResponse<List<ChatRoomResponse>> getRooms(
+            @AuthenticationPrincipal Long memberId,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String sort) {
+        return ApiResponse.ok(chatService.getRooms(memberId, keyword, category, sort));
     }
 
     // 읽음 위치 보고 — 멱등, 과거 값은 무시된다 (docs/api-spec.md 7절)

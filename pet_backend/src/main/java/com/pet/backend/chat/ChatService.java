@@ -57,9 +57,18 @@ public class ChatService {
         return ChatRoomResponse.of(room, countActive(roomId), null);
     }
 
+    /**
+     * 방 목록 + 검색·필터 (docs/api-spec.md 7절 3차). 파라미터 없으면 종전과 동일(전체·최신순).
+     * category·sort를 enum이 아니라 String으로 받는 이유: 잘못된 값의 enum 바인딩 실패는
+     * 500이 되는 계열(백로그 13번)이라 여기서 400으로 판정한다 (기기 관리 sessionId 파싱과 같은 방식).
+     */
     @Transactional(readOnly = true)
-    public List<ChatRoomResponse> getRooms(Long memberId) {
-        List<ChatRoom> rooms = chatRoomRepository.findByDeletedAtIsNullOrderByCreatedAtDesc();
+    public List<ChatRoomResponse> getRooms(Long memberId, String keyword, String category, String sort) {
+        ChatCategory categoryFilter = parseCategory(category);
+        boolean popular = parsePopularSort(sort);
+        // "필터 없음"은 null이 아니라 "" — null이면 PG 파라미터 타입 추론이 깨진다 (searchActive 주석)
+        String keywordFilter = (keyword == null || keyword.isBlank()) ? "" : keyword.trim();
+        List<ChatRoom> rooms = chatRoomRepository.searchActive(keywordFilter, categoryFilter);
         if (rooms.isEmpty()) {
             return List.of();
         }
@@ -74,10 +83,43 @@ public class ChatService {
                 .collect(Collectors.toMap(
                         ChatRoomMemberRepository.RoomUnreadCount::getRoomId,
                         ChatRoomMemberRepository.RoomUnreadCount::getUnreadCount));
+        // 참여자순은 메모리 정렬 — 정렬 키(참여자 수)를 위에서 어차피 전부 집계했으므로 쿼리 추가가 없다.
+        // 같은 인원끼리는 쿼리의 최신 생성순이 유지된다 (sorted는 안정 정렬)
+        if (popular) {
+            rooms = rooms.stream()
+                    .sorted(Comparator.comparingLong(
+                            (ChatRoom room) -> counts.getOrDefault(room.getId(), 0L)).reversed())
+                    .toList();
+        }
         return rooms.stream()
                 .map(room -> ChatRoomResponse.of(room, counts.getOrDefault(room.getId(), 0L),
                         unreads.get(room.getId())))
                 .toList();
+    }
+
+    // 카테고리 필터 파싱 — 빈 값은 전체(null), 목록에 없는 값은 400
+    private ChatCategory parseCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return null;
+        }
+        try {
+            return ChatCategory.valueOf(category);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "category는 WALK·TRAINING·HEALTH·FREE 중 하나여야 합니다.");
+        }
+    }
+
+    // 정렬 파싱 — 기본 recent(최신순, 2026-08-11 확정), popular = 참여자 많은 순
+    private boolean parsePopularSort(String sort) {
+        if (sort == null || sort.isBlank() || sort.equals("recent")) {
+            return false;
+        }
+        if (sort.equals("popular")) {
+            return true;
+        }
+        throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                "sort는 recent 또는 popular여야 합니다.");
     }
 
     /**

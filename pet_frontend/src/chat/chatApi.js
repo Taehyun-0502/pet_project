@@ -2,9 +2,16 @@
 
 import { request } from '../common/apiClient'
 
-// 성공 시 { id, name, category, description, participantCount, maxMembers, unreadCount, createdAt } 배열
-export function getRooms() {
-  return request('/api/chat/rooms')
+// 성공 시 { id, name, category, description, participantCount, maxMembers, unreadCount, createdAt } 배열.
+// 파라미터 전부 선택 (api-spec.md 7절 3차) — keyword: 이름+소개 부분 일치, category: ROOM_CATEGORIES 값,
+// sort: 'recent'(기본)|'popular'. 없으면 전체·최신순
+export function getRooms({ keyword, category, sort } = {}) {
+  const params = new URLSearchParams()
+  if (keyword) params.set('keyword', keyword)
+  if (category) params.set('category', category)
+  if (sort && sort !== 'recent') params.set('sort', sort)
+  const query = params.toString()
+  return request(`/api/chat/rooms${query ? `?${query}` : ''}`)
 }
 
 // category 필수(ROOM_CATEGORIES 값), description·maxMembers 선택(null 허용) — api-spec.md 7절 3차

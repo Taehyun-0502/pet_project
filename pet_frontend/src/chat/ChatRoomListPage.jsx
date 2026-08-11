@@ -13,11 +13,30 @@ export default function ChatRoomListPage() {
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
 
+  // 검색·필터 (3차) — keyword만 300ms 디바운스, 칩·정렬 변경은 즉시 조회
+  const [keyword, setKeyword] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('') // '' = 전체
+  const [sort, setSort] = useState('recent')
+  const filterActive = keyword.trim() !== '' || categoryFilter !== ''
+
   useEffect(() => {
-    getRooms()
-      .then(setRooms)
-      .catch((err) => setError(err.message))
-  }, [])
+    let cancelled = false
+    const timer = setTimeout(() => {
+      getRooms({ keyword: keyword.trim() || undefined, category: categoryFilter || undefined, sort })
+        .then((list) => {
+          if (cancelled) return
+          setRooms(list)
+          setError('')
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err.message)
+        })
+    }, keyword.trim() ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [keyword, categoryFilter, sort])
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -102,9 +121,44 @@ export default function ChatRoomListPage() {
         </button>
       </form>
 
+      <div className="chat-filter">
+        <input
+          type="search" value={keyword} onChange={(e) => setKeyword(e.target.value)}
+          placeholder="방 이름·소개 검색" aria-label="방 검색"
+        />
+        <div className="chat-filter-row">
+          <button
+            type="button"
+            className={`chat-chip${categoryFilter === '' ? ' active' : ''}`}
+            onClick={() => setCategoryFilter('')}
+          >
+            전체
+          </button>
+          {ROOM_CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              className={`chat-chip${categoryFilter === c.value ? ' active' : ''}`}
+              onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
+            >
+              {c.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="chat-sort"
+            onClick={() => setSort(sort === 'recent' ? 'popular' : 'recent')}
+          >
+            {sort === 'recent' ? '최신순' : '참여자순'} ↕
+          </button>
+        </div>
+      </div>
+
       {error && <p className="submit-error">{error}</p>}
       {rooms === null && !error && <p>불러오는 중…</p>}
-      {rooms && rooms.length === 0 && <p>아직 방이 없습니다. 첫 방을 만들어 보세요.</p>}
+      {rooms && rooms.length === 0 && (
+        <p>{filterActive ? '검색 결과가 없습니다.' : '아직 방이 없습니다. 첫 방을 만들어 보세요.'}</p>
+      )}
       {rooms && rooms.length > 0 && (
         <ul className="chat-room-list">
           {rooms.map((room) => (
