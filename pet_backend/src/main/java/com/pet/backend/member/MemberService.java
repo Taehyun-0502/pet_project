@@ -5,6 +5,7 @@ import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
+import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
 import com.pet.backend.security.JwtTokenProvider;
@@ -85,6 +86,27 @@ public class MemberService {
     @Transactional
     public void logout(String rawRefreshToken) {
         refreshTokenService.revoke(rawRefreshToken);
+    }
+
+    /**
+     * 비밀번호 변경 (docs/api-spec.md 1절). 유출 의심 대응이 대표 목적이므로 다른 기기의
+     * 리프레시 토큰을 전부 폐기하고, 변경한 기기에만 새 토큰을 발급해 로그인을 유지한다.
+     * 반환값은 새 리프레시 토큰 원문 — 호출자(Controller)가 쿠키로 내보낸다.
+     *
+     * 소셜 계정(password NULL)도 현재 비밀번호 불일치와 같은 코드로 거부한다 — 로그인과
+     * 같은 이유로 계정 유형을 노출하지 않는다.
+     */
+    @Transactional
+    public String changePassword(Long memberId, PasswordChangeRequest request) {
+        Member member = memberRepository.findById(memberId)
+                .filter(m -> !m.isDeleted())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        if (member.getPassword() == null
+                || !matchesSafely(request.currentPassword(), member.getPassword())) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        member.changePassword(passwordEncoder.encode(request.newPassword()));
+        return refreshTokenService.reissueAfterPasswordChange(memberId);
     }
 
     /**

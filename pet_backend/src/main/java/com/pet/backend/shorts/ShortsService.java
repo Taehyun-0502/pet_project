@@ -4,6 +4,8 @@ import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.Member;
 import com.pet.backend.member.MemberRepository;
+import com.pet.backend.pet.Pet;
+import com.pet.backend.pet.PetRepository;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.util.Collection;
@@ -43,6 +45,7 @@ public class ShortsService {
     private final ShortsRepository shortsRepository;
     private final ShortsLikeRepository shortsLikeRepository;
     private final MemberRepository memberRepository;
+    private final PetRepository petRepository; // 업로드할 때 고른 반려동물의 소유자 확인 + 품종 자동 태그
     private final ShortsStorageClient storageClient;
     private final ShortsEventService eventService;
 
@@ -126,12 +129,38 @@ public class ShortsService {
                 .filter(found -> !found.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
+        // 고르지 않았으면 빈 목록. 골랐다면 전부 "내 것, 활성"이어야 한다
+        List<Pet> pets = findMyPets(memberId, request.petIds());
+
         Shorts shorts = Shorts.upload(memberId, request.videoUrl().trim(),
                 blankToNull(request.thumbnailUrl()), blankToNull(request.caption()),
-                toTags(request.topics()), request.durationSec());
+                toTags(request.topics(), pets), request.durationSec());
         shortsRepository.save(shorts);
 
         return ShortsResponse.of(shorts, member.getName());
+    }
+
+    /**
+     * 고른 반려동물들을 확인해 가져온다 — <b>품종을 자동 태그로 붙이기 위한 조회다.</b>
+     * "어느 반려동물이 나왔는지"를 따로 저장하지는 않는다(스키마를 늘리지 않기로 했다).
+     * 그래도 검증을 하는 이유는 남의 반려동물 품종을 사칭해 태그로 넣을 수 있기 때문이다.
+     *
+     * <p><b>하나라도 내 것이 아니면 전체를 거절한다</b> — 남의 것만 조용히 빼고 저장하면
+     * 사용자는 고른 대로 태그가 붙은 줄 알게 된다.
+     *
+     * <p>조회 조건에 소유자를 넣어 없음/남의 것/삭제됨을 모두 404로 합친다
+     * (PetService와 같은 원칙, docs/conventions.md 5절 — id 존재 여부가 새어나가지 않게).
+     */
+    private List<Pet> findMyPets(Long memberId, List<Long> petIds) {
+        if (petIds == null || petIds.isEmpty()) {
+            return List.of();
+        }
+        return petIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(petId -> petRepository.findByIdAndMemberIdAndDeletedAtIsNull(petId, memberId)
+                        .orElseThrow(() -> new BusinessException(ErrorCode.PET_NOT_FOUND)))
+                .toList();
     }
 
     /**
@@ -253,16 +282,40 @@ public class ShortsService {
      * 펼쳐 <b>합산</b>하므로, 같은 주제가 배열에 두 번 들어 있으면 그 영상을 본 것만으로
      * 해당 주제 점수가 두 배가 된다.
      *
-     * <p>자동 태그(동물 종류·품종·지역, 설계 1절·5절)는 <b>아직 붙이지 않는다.</b>
-     * {@code pet}에 종(species) 컬럼이 없고(강아지 전용 서비스), {@code pet_member}에 지역
-     * 컬럼이 없으며, {@code pet.breed}는 자유 입력이라 표기가 흩어진다. 스키마가 갖춰지면
-     * 이 메서드가 돌려준 목록에 합쳐 넣으면 된다 — 나머지 흐름은 그대로다.
+     * <p><b>자동 태그(설계 5절)</b>는 업로드할 때 고른 반려동물의 <b>품종만</b> 붙인다.
+     * 개수 상한({@code @Size(max = 5)})은 사용자가 고르는 주제에만 걸리는 값이라 자동 태그는
+     * 그 밖이다 — 최종 {@code shorts.tags}는 "주제 + 자동 태그"의 합집합이다.
      *
-     * @return 남은 주제가 없으면 null — 엔티티에서 빈 배열을 NULL로 통일하는 것과 같은 이유
+     * <p>나머지 자동 태그는 여전히 스키마가 없어 붙이지 못한다 — {@code pet}에 종(species)
+     * 컬럼이 없고(강아지 전용 서비스), {@code pet_member}에 지역 컬럼이 없다. 생기면 여기에
+     * 같은 방식으로 합치면 된다.
+     *
+     * <p><b>주의</b> — {@code pet.breed}는 자유 입력이라 '골든리트리버'/'골든'/'골리'가 서로 다른
+     * 태그가 된다(설계 1절 ⚠). 선호도는 문자열이 정확히 같을 때만 합산되므로(가이드 5절
+     * {@code tag = any(s.tags)}) 표기가 갈린 만큼 부스트도 갈린다. 품종을 고정 목록으로 바꾸기
+     * 전까지는 이 한계를 안고 간다.
+     *
+     * @param pets 업로드할 때 고른 반려동물들. 고르지 않았으면 빈 목록
+     * @return 남은 태그가 없으면 null — 엔티티에서 빈 배열을 NULL로 통일하는 것과 같은 이유
      */
-    private List<String> toTags(List<String> topics) {
+    private List<String> toTags(List<String> topics, List<Pet> pets) {
+        // 주제를 하나도 고르지 않아도(topics == null) 품종 자동 태그는 붙어야 하므로 여기서 끝내지 않는다
+        List<String> labels = toTopicLabels(topics);
+
+        // 같은 품종의 반려동물을 여러 마리 골랐으면 태그는 하나다. 배열에 두 번 들어가면
+        // unnest 합산에서 그 태그 점수가 두 배가 된다 (고른 주제와 겹치는 경우도 마찬가지)
+        List<String> breeds = pets.stream()
+                .map(pet -> blankToNull(pet.getBreed()))
+                .filter(Objects::nonNull)
+                .toList();
+
+        List<String> merged = Stream.concat(labels.stream(), breeds.stream()).distinct().toList();
+        return merged.isEmpty() ? null : merged;
+    }
+
+    private List<String> toTopicLabels(List<String> topics) {
         if (topics == null) {
-            return null;
+            return List.of();
         }
         List<String> labels = topics.stream()
                 .filter(Objects::nonNull)
@@ -275,7 +328,8 @@ public class ShortsService {
                 .map(ShortsTopic::label)
                 .distinct()
                 .toList();
-        return labels.isEmpty() ? null : labels;
+        // 빈 목록을 그대로 돌려준다 — NULL 통일은 자동 태그까지 합친 뒤 toTags가 한 번에 판단한다
+        return labels;
     }
 
     // mp4(ISO BMFF) 여부: [0..3]은 박스 크기, [4..7]이 'ftyp'이어야 한다
