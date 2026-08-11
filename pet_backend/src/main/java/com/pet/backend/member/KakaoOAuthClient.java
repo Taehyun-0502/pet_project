@@ -3,8 +3,10 @@ package com.pet.backend.member;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
+import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -25,12 +27,27 @@ class KakaoOAuthClient {
     // email·nickname은 동의 항목이라 null일 수 있다 — 처리 방침은 MemberService가 정한다
     record KakaoUserInfo(String providerId, String email, String nickname) {}
 
+    // place/KakaoClient와 같은 값. 타임아웃이 없으면 카카오가 응답하지 않을 때 요청 스레드가
+    // 무한 대기한다 (리뷰 백로그 86번). 초과 시 던져지는 것도 RestClientException이라
+    // 아래 catch가 그대로 흡수해 AUTH_SOCIAL_LOGIN_FAILED가 된다
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
+
     private final KakaoOAuthProperties properties;
-    private final RestClient authClient = RestClient.builder().baseUrl("https://kauth.kakao.com").build();
-    private final RestClient apiClient = RestClient.builder().baseUrl("https://kapi.kakao.com").build();
+    private final RestClient authClient;
+    private final RestClient apiClient;
 
     KakaoOAuthClient(KakaoOAuthProperties properties) {
         this.properties = properties;
+        this.authClient = clientFor("https://kauth.kakao.com");
+        this.apiClient = clientFor("https://kapi.kakao.com");
+    }
+
+    private static RestClient clientFor(String baseUrl) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
+        requestFactory.setReadTimeout(READ_TIMEOUT);
+        return RestClient.builder().baseUrl(baseUrl).requestFactory(requestFactory).build();
     }
 
     KakaoUserInfo fetchUser(String code, String redirectUri) {

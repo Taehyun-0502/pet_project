@@ -69,8 +69,17 @@ public class MemberService {
     /**
      * 카카오 로그인 (docs/api-spec.md 1절 4차). 첫 로그인이면 자동 가입한다.
      * 응답 계약은 자체 로그인과 완전히 동일 — 프론트는 code 전달 이후를 구분할 필요가 없다.
+     *
+     * <p>uploadProfileImage와 같은 이유로 **의도적인 비트랜잭션**이다 (리뷰 백로그 76번).
+     * @Transactional을 걸면 Hibernate가 트랜잭션 시작 시점에 잡은 DB 커넥션을 카카오 REST 왕복
+     * 2회(토큰 교환 → 사용자 조회)가 끝날 때까지 쥐고 있는다. 풀 크기가 2인 환경에서는
+     * 카카오 로그인 2건이 겹치는 것만으로 풀이 비어 채팅·pet 등 모든 요청이
+     * connectionTimeout까지 대기하다 500이 된다.
+     *
+     * <p>대신 조회·가입·토큰 발급이 각각 자체 트랜잭션으로 처리된다. 원자성은 잃지만
+     * 중간 실패로 남는 것은 "가입은 됐지만 토큰을 못 받은 계정"뿐이고, 다음 로그인이 그 행을
+     * 그대로 찾아 이어받으므로 사용자에게는 재시도 한 번으로 끝난다.
      */
-    @Transactional
     public LoginResult kakaoLogin(KakaoLoginRequest request) {
         KakaoOAuthClient.KakaoUserInfo userInfo =
                 kakaoOAuthClient.fetchUser(request.code(), request.redirectUri());
@@ -102,10 +111,22 @@ public class MemberService {
                     Member.createKakaoMember(email, name, userInfo.providerId()));
         } catch (DataIntegrityViolationException e) {
             // 같은 카카오 계정의 동시 첫 로그인 경쟁(ux_pet_member_provider_active) — 먼저 들어간 행으로 로그인.
-            // 이메일 인덱스 쪽 충돌이었다면 재조회도 비어 있으므로 이메일 충돌로 응답한다
+            //
+            // 이 흡수는 **호출자가 비트랜잭션일 때만** 성립한다 (백로그 78번). 바깥 트랜잭션이 있으면
+            // save()가 거기에 참여해 제약 위반 순간 rollback-only가 찍히고, 여기서 정상 반환해도
+            // 커밋에서 UnexpectedRollbackException → 500이 된다. kakaoLogin의 @Transactional을
+            // 되살리려는 사람은 이 catch가 함께 죽는다는 것을 알아야 한다.
             return memberRepository
                     .findByProviderAndProviderIdAndDeletedAtIsNull(Provider.KAKAO, userInfo.providerId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT));
+                    .orElseGet(() -> {
+                        // 카카오 계정 인덱스 충돌이 아니었다. 사전 검사와 INSERT 사이에 같은 이메일이
+                        // 먼저 가입한 경우만 409로 안내하고, 그 밖의 제약 위반(예: provider 무결성 CHECK)은
+                        // 원인을 "이메일 충돌"로 덮어쓰지 않고 그대로 올린다
+                        if (email != null && memberRepository.existsByEmailAndDeletedAtIsNull(email)) {
+                            throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
+                        }
+                        throw e;
+                    });
         }
     }
 
