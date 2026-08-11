@@ -7,19 +7,24 @@ import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
 import com.pet.backend.member.dto.NameUpdateRequest;
 import com.pet.backend.member.dto.PasswordChangeRequest;
+import com.pet.backend.member.dto.SessionResponse;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,10 +43,14 @@ public class MemberController {
         return ApiResponse.ok(memberService.signup(request));
     }
 
-    // 액세스 토큰은 바디, 리프레시 토큰은 HttpOnly 쿠키로 나간다 (docs/api-spec.md 1절)
+    // 액세스 토큰은 바디, 리프레시 토큰은 HttpOnly 쿠키로 나간다 (docs/api-spec.md 1절).
+    // 쿠키에 이전 리프레시 토큰이 실려 있으면 함께 폐기한다 (백로그 37번 — 유령 기기 방지)
     @PostMapping("/api/members/login")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest request) {
-        LoginResult result = memberService.login(request);
+    public ResponseEntity<ApiResponse<LoginResponse>> login(
+            @Valid @RequestBody LoginRequest request,
+            @CookieValue(name = "refreshToken", required = false) String priorRefreshToken,
+            @RequestHeader(name = HttpHeaders.USER_AGENT, required = false) String userAgent) {
+        LoginResult result = memberService.login(request, priorRefreshToken, DeviceInfoParser.parse(userAgent));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
                         refreshTokenCookie.create(result.refreshToken()).toString())
@@ -51,8 +60,10 @@ public class MemberController {
     // 카카오 로그인 — 응답 계약은 자체 로그인과 완전히 동일 (docs/api-spec.md 1절 4차)
     @PostMapping("/api/members/login/kakao")
     public ResponseEntity<ApiResponse<LoginResponse>> kakaoLogin(
-            @Valid @RequestBody KakaoLoginRequest request) {
-        LoginResult result = memberService.kakaoLogin(request);
+            @Valid @RequestBody KakaoLoginRequest request,
+            @CookieValue(name = "refreshToken", required = false) String priorRefreshToken,
+            @RequestHeader(name = HttpHeaders.USER_AGENT, required = false) String userAgent) {
+        LoginResult result = memberService.kakaoLogin(request, priorRefreshToken, DeviceInfoParser.parse(userAgent));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
                         refreshTokenCookie.create(result.refreshToken()).toString())
@@ -109,10 +120,29 @@ public class MemberController {
     @PatchMapping("/api/members/me/password")
     public ResponseEntity<ApiResponse<Void>> changePassword(
             @AuthenticationPrincipal Long memberId,
-            @Valid @RequestBody PasswordChangeRequest request) {
-        String refreshToken = memberService.changePassword(memberId, request);
+            @Valid @RequestBody PasswordChangeRequest request,
+            @RequestHeader(name = HttpHeaders.USER_AGENT, required = false) String userAgent) {
+        String refreshToken = memberService.changePassword(memberId, request, DeviceInfoParser.parse(userAgent));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.create(refreshToken).toString())
                 .body(ApiResponse.ok());
+    }
+
+    // 로그인 기기 목록 (docs/api-spec.md 1절 5차). 쿠키는 현재 기기 판별용 — 없어도 목록은 내려간다
+    @GetMapping("/api/members/me/sessions")
+    public ApiResponse<List<SessionResponse>> getSessions(
+            @AuthenticationPrincipal Long memberId,
+            @CookieValue(name = "refreshToken", required = false) String refreshToken) {
+        return ApiResponse.ok(memberService.getSessions(memberId, refreshToken));
+    }
+
+    // 다른 기기 원격 로그아웃. sessionId를 String으로 받는 이유는 Service의 UUID 파싱 주석 참조
+    @DeleteMapping("/api/members/me/sessions/{sessionId}")
+    public ApiResponse<Void> revokeSession(
+            @AuthenticationPrincipal Long memberId,
+            @PathVariable String sessionId,
+            @CookieValue(name = "refreshToken", required = false) String refreshToken) {
+        memberService.revokeSession(memberId, sessionId, refreshToken);
+        return ApiResponse.ok();
     }
 }

@@ -50,4 +50,15 @@ export function changePassword({ currentPassword, newPassword }) {
   })
 }
 
+// 로그인 기기(세션) 목록 (api-spec.md 1절 5차). 현재 기기가 먼저, 나머지는 마지막 사용 내림차순으로 온다.
+// [{ sessionId, deviceInfo, loggedInAt, lastUsedAt, current }] — deviceInfo가 null이면 "알 수 없는 기기"
+export function getSessions() {
+  return request('/api/members/me/sessions')
+}
+
+// 다른 기기 원격 로그아웃. 현재 기기는 서버가 400으로 거부한다 (화면도 버튼을 숨기지만 서버가 최종 방어)
+export function revokeSession(sessionId) {
+  return request(`/api/members/me/sessions/${sessionId}`, { method: 'DELETE' })
+}
+
 // 액세스 토큰 재발급은 apiClient가 401을 만나면 자동으로 처리한다 — 화면에서 직접 부를 일이 없다

@@ -5,7 +5,13 @@ import com.pet.backend.common.ErrorCode;
 import com.pet.backend.common.ImageStorageClient;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import com.pet.backend.member.dto.KakaoLoginRequest;
+import com.pet.backend.member.dto.SessionResponse;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
@@ -56,14 +62,14 @@ public class MemberService {
      * 같은 AUTH_INVALID_CREDENTIALS로 응답한다 — 계정 존재 여부 노출 방지 (docs/api-spec.md 1절).
      */
     @Transactional
-    public LoginResult login(LoginRequest request) {
+    public LoginResult login(LoginRequest request, String priorRefreshToken, String deviceInfo) {
         Member member = memberRepository.findByEmailAndDeletedAtIsNull(request.email())
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
         // password가 NULL인 소셜 계정은 자체 로그인 불가
         if (member.getPassword() == null || !matchesSafely(request.password(), member.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
-        return issueLoginTokens(member);
+        return issueLoginTokens(member, priorRefreshToken, deviceInfo);
     }
 
     /**
@@ -80,13 +86,13 @@ public class MemberService {
      * 중간 실패로 남는 것은 "가입은 됐지만 토큰을 못 받은 계정"뿐이고, 다음 로그인이 그 행을
      * 그대로 찾아 이어받으므로 사용자에게는 재시도 한 번으로 끝난다.
      */
-    public LoginResult kakaoLogin(KakaoLoginRequest request) {
+    public LoginResult kakaoLogin(KakaoLoginRequest request, String priorRefreshToken, String deviceInfo) {
         KakaoOAuthClient.KakaoUserInfo userInfo =
                 kakaoOAuthClient.fetchUser(request.code(), request.redirectUri());
         Member member = memberRepository
                 .findByProviderAndProviderIdAndDeletedAtIsNull(Provider.KAKAO, userInfo.providerId())
                 .orElseGet(() -> registerKakaoMember(userInfo));
-        return issueLoginTokens(member);
+        return issueLoginTokens(member, priorRefreshToken, deviceInfo);
     }
 
     private Member registerKakaoMember(KakaoOAuthClient.KakaoUserInfo userInfo) {
@@ -130,10 +136,14 @@ public class MemberService {
         }
     }
 
-    // 로그인마다 새 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다
-    private LoginResult issueLoginTokens(Member member) {
+    // 로그인마다 새 세션의 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다
+    private LoginResult issueLoginTokens(Member member, String priorRefreshToken, String deviceInfo) {
+        // 요청 쿠키에 실려온 이전 토큰은 폐기한다 (리뷰 백로그 37번) — 곧 새 쿠키로 덮여
+        // 브라우저에서 도달 불가한 고아가 될 토큰이고, 남겨두면 기기 목록(5차)에 유령 기기로 잔존한다.
+        // 다른 계정의 토큰이어도 마찬가지다: 이 기기의 쿠키가 바뀌는 순간 어차피 죽은 토큰이다 (멱등, null 안전)
+        refreshTokenService.revokeReplacedByLogin(priorRefreshToken);
         String accessToken = jwtTokenProvider.createAccessToken(member.getId(), member.getRole());
-        String refreshToken = refreshTokenService.issue(member.getId());
+        String refreshToken = refreshTokenService.issue(member.getId(), deviceInfo);
         return new LoginResult(
                 LoginResponse.of(accessToken, jwtTokenProvider.expirationSeconds(), member),
                 refreshToken);
@@ -185,7 +195,7 @@ public class MemberService {
      * 같은 이유로 계정 유형을 노출하지 않는다.
      */
     @Transactional
-    public String changePassword(Long memberId, PasswordChangeRequest request) {
+    public String changePassword(Long memberId, PasswordChangeRequest request, String deviceInfo) {
         Member member = memberRepository.findById(memberId)
                 .filter(m -> !m.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -199,7 +209,50 @@ public class MemberService {
             throw new BusinessException(ErrorCode.AUTH_PASSWORD_UNCHANGED);
         }
         member.changePassword(passwordEncoder.encode(request.newPassword()));
-        return refreshTokenService.reissueAfterPasswordChange(memberId);
+        // 기존 세션 체인이 일괄 폐기로 끊기므로 새 세션으로 시작한다 (UA 재수집 — api-spec.md 1절 5차)
+        return refreshTokenService.reissueAfterPasswordChange(memberId, deviceInfo);
+    }
+
+    /**
+     * 로그인 기기(세션) 목록 (docs/api-spec.md 1절 5차). 활성 토큰 행을 세션으로 묶으면 그대로 기기 목록이다.
+     * rawRefreshToken은 현재 기기 판별용 — 쿠키가 없으면(LAN 등) 전부 current=false로 내려간다.
+     */
+    @Transactional(readOnly = true)
+    public List<SessionResponse> getSessions(Long memberId, String rawRefreshToken) {
+        findActiveMemberOrThrow(memberId);
+        UUID currentSessionId = refreshTokenService.findSessionIdOf(rawRefreshToken);
+        Map<UUID, List<RefreshToken>> chains = refreshTokenService.findActiveTokens(memberId).stream()
+                .filter(token -> !token.isExpired()) // 만료됐지만 폐기 안 된 행은 기기가 아니다 (정리 배치 전까지 잔존)
+                .collect(Collectors.groupingBy(RefreshToken::getSessionId));
+        return chains.entrySet().stream()
+                .map(entry -> SessionResponse.of(entry.getValue(), entry.getKey().equals(currentSessionId)))
+                .sorted(Comparator.comparing(SessionResponse::current, Comparator.reverseOrder())
+                        .thenComparing(SessionResponse::lastUsedAt, Comparator.reverseOrder()))
+                .toList();
+    }
+
+    /**
+     * 다른 기기 원격 로그아웃 (docs/api-spec.md 1절 5차). 현재 기기는 400으로 거부한다 —
+     * 프론트가 버튼을 숨기지만 버튼 숨김은 방어가 아니므로 서버가 최종 거부한다 (현재 기기 종료는 기존 로그아웃).
+     */
+    @Transactional
+    public void revokeSession(Long memberId, String rawSessionId, String rawRefreshToken) {
+        findActiveMemberOrThrow(memberId);
+        UUID sessionId;
+        try {
+            sessionId = UUID.fromString(rawSessionId);
+        } catch (IllegalArgumentException e) {
+            // 형식 오류도 404 — 존재 여부 비노출(5절 규칙)과 일치하고, 경로 타입 오류가 500이 되는
+            // 계열(백로그 13번)을 새로 만들지 않기 위해 UUID 파싱을 여기서 흡수한다
+            throw new BusinessException(ErrorCode.AUTH_SESSION_NOT_FOUND);
+        }
+        if (sessionId.equals(refreshTokenService.findSessionIdOf(rawRefreshToken))) {
+            throw new BusinessException(ErrorCode.AUTH_SESSION_CURRENT);
+        }
+        // memberId 조건이 쿼리에 있어 남의 세션은 0행 → 404 (존재 여부가 새지 않는다)
+        if (refreshTokenService.revokeSession(memberId, sessionId) == 0) {
+            throw new BusinessException(ErrorCode.AUTH_SESSION_NOT_FOUND);
+        }
     }
 
     /**

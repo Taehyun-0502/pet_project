@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -48,6 +49,19 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // 세션(=기기) 식별자 — 로그인 시 발급되고 회전 체인 전체가 이어받는다.
+    // "기기 로그아웃"의 폐기 단위이고, 활성 행의 세션 목록이 곧 로그인 중인 기기 목록이다 (api-spec.md 1절 5차)
+    @Column(name = "session_id", nullable = false)
+    private UUID sessionId;
+
+    // 로그인 시점 User-Agent 간단 파싱 결과 (예: "Chrome · Windows"). NULL = 매칭 실패 → 프론트가 "알 수 없는 기기" 표시
+    @Column(name = "device_info", length = 100)
+    private String deviceInfo;
+
+    // 세션 시작(최초 로그인) 시각 — 회전 시 새 행에 복사된다. createdAt은 이 행의 발급(회전) 시각이라 구분된다
+    @Column(name = "session_started_at", nullable = false)
+    private Instant sessionStartedAt;
+
     // NULL = 활성. 회전·로그아웃·재사용 감지 시 기록
     @Column(name = "revoked_at")
     private Instant revokedAt;
@@ -58,14 +72,20 @@ public class RefreshToken {
     @Column(name = "revoked_reason", length = 20)
     private RevokedReason revokedReason;
 
-    private RefreshToken(Long memberId, String tokenHash, Instant expiresAt) {
+    private RefreshToken(Long memberId, String tokenHash, Instant expiresAt,
+                         UUID sessionId, String deviceInfo, Instant sessionStartedAt) {
         this.memberId = memberId;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
+        this.sessionId = sessionId;
+        this.deviceInfo = deviceInfo;
+        this.sessionStartedAt = sessionStartedAt;
     }
 
-    public static RefreshToken issue(Long memberId, String tokenHash, Instant expiresAt) {
-        return new RefreshToken(memberId, tokenHash, expiresAt);
+    // 세션 필드는 호출자(RefreshTokenService)가 결정한다 — 새 세션이면 새 UUID·now, 회전이면 기존 체인 값 복사
+    public static RefreshToken issue(Long memberId, String tokenHash, Instant expiresAt,
+                                     UUID sessionId, String deviceInfo, Instant sessionStartedAt) {
+        return new RefreshToken(memberId, tokenHash, expiresAt, sessionId, deviceInfo, sessionStartedAt);
     }
 
     public void revoke(RevokedReason reason) {

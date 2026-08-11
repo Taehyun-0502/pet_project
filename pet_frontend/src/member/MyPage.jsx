@@ -1,10 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { resizeImage } from '../common/imageResize'
 import { useAuth } from './AuthContext'
-import { changePassword, updateMyName, uploadMyImage } from './memberApi'
+import { changePassword, getSessions, revokeSession, updateMyName, uploadMyImage } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
 import './member.css'
+
+// ISO 시각 → "2026. 8. 11. 오후 4:20" — 서버는 UTC(Z)로 주고 표시 변환은 프론트 몫 (백로그 10번 원칙)
+function formatTime(iso) {
+  return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
+}
 
 // 마이페이지 — 내 정보(이름 수정) + 비밀번호 변경 (docs/roadmap.md 3번의 3-1·3-2 덩어리)
 export default function MyPage() {
@@ -68,6 +73,33 @@ export default function MyPage() {
       setNameError(err.message)
     } finally {
       setNameSubmitting(false)
+    }
+  }
+
+  // 로그인된 기기 목록 (api-spec.md 1절 5차). null = 아직 로딩 안 됨
+  const [sessions, setSessions] = useState(null)
+  const [sessionsError, setSessionsError] = useState('')
+  const [revokingId, setRevokingId] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getSessions()
+      .then((list) => { if (!cancelled) setSessions(list) })
+      .catch((err) => { if (!cancelled) setSessionsError(err.message) })
+    return () => { cancelled = true }
+  }, [])
+
+  const onRevokeSession = async (sessionId) => {
+    setSessionsError('')
+    setRevokingId(sessionId)
+    try {
+      await revokeSession(sessionId)
+      // 폐기 후 재조회 — 로컬에서 지우는 대신 서버 상태를 다시 읽어 화면과 어긋나지 않게 한다
+      setSessions(await getSessions())
+    } catch (err) {
+      setSessionsError(err.message)
+    } finally {
+      setRevokingId(null)
     }
   }
 
@@ -207,6 +239,39 @@ export default function MyPage() {
         </form>
       </section>
       )}
+
+      <section>
+        <h2>로그인된 기기</h2>
+        {sessions === null && !sessionsError && <p className="muted-note">불러오는 중…</p>}
+        {sessionsError && <p className="submit-error">{sessionsError}</p>}
+        {sessions && (
+          <ul className="session-list">
+            {sessions.map((s) => (
+              <li key={s.sessionId}>
+                <div className="session-info">
+                  <span className="session-device">
+                    {s.deviceInfo ?? '알 수 없는 기기'}
+                    {s.current && <span className="session-current">현재 기기</span>}
+                  </span>
+                  <span className="session-times">
+                    로그인 {formatTime(s.loggedInAt)} · 마지막 사용 {formatTime(s.lastUsedAt)}
+                  </span>
+                </div>
+                {/* 현재 기기에는 버튼을 두지 않는다 — 종료는 기존 로그아웃 버튼 몫이고, 서버도 400으로 거부한다 */}
+                {!s.current && (
+                  <button
+                    type="button"
+                    onClick={() => onRevokeSession(s.sessionId)}
+                    disabled={revokingId !== null}
+                  >
+                    {revokingId === s.sessionId ? '로그아웃 중…' : '로그아웃'}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <p className="auth-switch">
         <Link to="/">← 홈으로</Link>

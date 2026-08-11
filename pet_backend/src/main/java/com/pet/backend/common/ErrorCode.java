@@ -21,6 +21,8 @@ public enum ErrorCode {
     AUTH_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다."),
     AUTH_INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
     AUTH_REFRESH_EXPIRED(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 만료되었습니다. 다시 로그인해 주세요."),
+    AUTH_SESSION_CURRENT(HttpStatus.BAD_REQUEST, "현재 사용 중인 기기는 여기서 로그아웃할 수 없습니다."),
+    AUTH_SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 기기를 찾을 수 없습니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
     CHAT_NOT_PARTICIPANT(HttpStatus.FORBIDDEN, "참여하지 않은 채팅방입니다."),
     CHAT_KICKED(HttpStatus.FORBIDDEN, "강퇴된 채팅방에는 다시 입장할 수 없습니다."),

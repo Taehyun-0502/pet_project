@@ -10,6 +10,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,19 +43,19 @@ public class RefreshTokenService {
     private final RefreshTokenReuseHandler reuseHandler;
 
     /**
-     * 새 토큰을 발급하고 해시만 저장한 뒤 **원문**을 돌려준다. 원문은 이 순간 이후 서버 어디에도 남지 않으며,
-     * 호출자가 쿠키로 내보내는 것 외에 쓸 곳이 없다.
+     * 새 세션(=기기)으로 토큰을 발급하고 해시만 저장한 뒤 **원문**을 돌려준다. 원문은 이 순간 이후
+     * 서버 어디에도 남지 않으며, 호출자가 쿠키로 내보내는 것 외에 쓸 곳이 없다.
+     * 로그인·비밀번호 변경 재발급이 쓴다 — 세션 id가 새로 나가고 기기 정보도 이 시점 것으로 저장된다.
      */
     @Transactional
-    public String issue(Long memberId) {
-        String rawToken = generateToken();
-        refreshTokenRepository.save(
-                RefreshToken.issue(memberId, hash(rawToken), Instant.now().plus(TOKEN_TTL)));
-        return rawToken;
+    public String issue(Long memberId, String deviceInfo) {
+        return persistNewToken(memberId, UUID.randomUUID(), deviceInfo, Instant.now());
     }
 
     /**
      * 회전(rotation): 받은 토큰을 폐기하고 새 토큰을 발급한다. 원문을 돌려준다.
+     * 새 행은 기존 토큰의 세션 정보(session_id·device_info·session_started_at)를 이어받는다 —
+     * 기기 목록에서 회전이 "같은 기기의 계속"으로 보이게 하는 근거다 (api-spec.md 1절 5차).
      *
      * <p>검증은 {@link #findUsableOrThrow}가 따로 담당한다 — 그 사이에 호출자가 회원 행을
      * 공유 잠금으로 읽고 `tokens_valid_from`을 확인해야 하기 때문이다 (리뷰 백로그 77번).
@@ -62,29 +64,83 @@ public class RefreshTokenService {
     @Transactional
     public String rotate(RefreshToken token) {
         token.revoke(RevokedReason.ROTATED);
-        return issue(token.getMemberId());
+        return persistNewToken(token.getMemberId(), token.getSessionId(),
+                token.getDeviceInfo(), token.getSessionStartedAt());
     }
 
     /**
      * 비밀번호 변경 — 그 회원의 활성 토큰을 **전부** 폐기하고(다른 기기 로그아웃, 유예 없음)
-     * 변경한 기기에만 새 토큰을 발급한다 (docs/api-spec.md 1절, a안).
-     * 폐기가 발급보다 먼저여야 한다 — 순서가 반대면 방금 발급한 토큰까지 일괄 UPDATE에 쓸려 나간다.
+     * 변경한 기기에만 새 토큰을 발급한다 (docs/api-spec.md 1절, a안). 기존 세션 체인이 방금 끊겼으므로
+     * 새 세션으로 시작한다. 폐기가 발급보다 먼저여야 한다 — 순서가 반대면 방금 발급한 토큰까지 쓸려 나간다.
      */
     @Transactional
-    public String reissueAfterPasswordChange(Long memberId) {
+    public String reissueAfterPasswordChange(Long memberId, String deviceInfo) {
         refreshTokenRepository.revokeAllByMemberId(memberId, Instant.now(), RevokedReason.PASSWORD_CHANGED);
-        return issue(memberId);
+        return persistNewToken(memberId, UUID.randomUUID(), deviceInfo, Instant.now());
+    }
+
+    // 트랜잭션 없는 공용 헬퍼 — rotate()가 같은 빈의 @Transactional issue()를 자기호출하던 패턴 제거 (백로그 39번).
+    // 프록시를 타지 않아 @Transactional이 무시되는 자리였고, 이 파일이 바로 그 이유로 ReuseHandler를 분리한 파일이다
+    private String persistNewToken(Long memberId, UUID sessionId, String deviceInfo, Instant sessionStartedAt) {
+        String rawToken = generateToken();
+        refreshTokenRepository.save(RefreshToken.issue(
+                memberId, hash(rawToken), Instant.now().plus(TOKEN_TTL),
+                sessionId, deviceInfo, sessionStartedAt));
+        return rawToken;
     }
 
     /** 로그아웃 — 해당 토큰만 폐기한다(다른 기기는 유지). 쿠키가 없거나 이미 죽은 토큰이어도 조용히 넘어간다(멱등). */
     @Transactional
     public void revoke(String rawToken) {
+        revokeIfActive(rawToken, RevokedReason.LOGOUT);
+    }
+
+    /**
+     * 재로그인이 쿠키의 이전 토큰을 대체 폐기 (백로그 37번 — 유령 기기 방지).
+     * LOGOUT과 사유를 구분하는 이유: 로그인 응답(Set-Cookie) 유실·탭 경합으로 이 토큰이 다시 제출될 수 있는데,
+     * 그때 재사용 감지(전체 폐기)가 발동하면 방금 로그인한 기기까지 끊긴다 — 단순 401로 끝나야 한다
+     * ({@link RevokedReason#exemptFromReuseDetection}).
+     */
+    @Transactional
+    public void revokeReplacedByLogin(String rawToken) {
+        revokeIfActive(rawToken, RevokedReason.REPLACED_BY_LOGIN);
+    }
+
+    private void revokeIfActive(String rawToken, RevokedReason reason) {
         if (rawToken == null || rawToken.isBlank()) {
             return;
         }
         refreshTokenRepository.findByTokenHash(hash(rawToken))
                 .filter(token -> !token.isRevoked())
-                .ifPresent(token -> token.revoke(RevokedReason.LOGOUT));
+                .ifPresent(token -> token.revoke(reason));
+    }
+
+    /** 쿠키 토큰이 속한 세션 id — 현재 기기 판별용. 쿠키가 없거나 DB에 없으면 null (폐기 여부는 따지지 않는다). */
+    @Transactional(readOnly = true)
+    public UUID findSessionIdOf(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return null;
+        }
+        return refreshTokenRepository.findByTokenHash(hash(rawToken))
+                .map(RefreshToken::getSessionId)
+                .orElse(null);
+    }
+
+    /** 회원의 활성(미폐기) 토큰 전부 — 기기 목록의 원천. 만료 필터링·세션 묶기는 호출자(MemberService) 몫. */
+    @Transactional(readOnly = true)
+    public List<RefreshToken> findActiveTokens(Long memberId) {
+        return refreshTokenRepository.findAllByMemberIdAndRevokedAtIsNull(memberId);
+    }
+
+    /**
+     * 기기(세션) 원격 로그아웃 — 그 세션의 활성 토큰을 **전부** 폐기한다 (api-spec.md 1절 5차).
+     * 세션 단위 폐기라 회전 유예 안의 직전 토큰·유예 중복 회전이 남긴 고아까지 함께 죽는다.
+     * 반환값은 폐기된 행 수 — 0이면 그 세션은 이 회원 것이 아니거나 이미 끊겨 있다.
+     */
+    @Transactional
+    public int revokeSession(Long memberId, UUID sessionId) {
+        return refreshTokenRepository.revokeAllBySession(
+                memberId, sessionId, Instant.now(), RevokedReason.DEVICE_REVOKED);
     }
 
     /**
@@ -107,11 +163,11 @@ public class RefreshTokenService {
             throw new BusinessException(ErrorCode.AUTH_REFRESH_EXPIRED);
         }
         if (token.isRevoked() && !token.isWithinRotationGrace(ROTATION_GRACE)) {
-            // 비밀번호 변경으로 끊긴 토큰의 재제출은 침해가 아니라 **보장된 정상 동작**이다 —
-            // 다른 기기는 변경 사실을 모르므로 다음 재발급(15분 안)에 반드시 이 경로로 들어온다.
-            // 재사용 감지로 취급하면 그 revokeAll이 변경한 기기의 새 토큰까지 죽여
-            // "현재 기기는 유지"(a안)가 무력화된다. 전체 폐기 없이 재로그인만 요구한다.
-            if (token.getRevokedReason() == RevokedReason.PASSWORD_CHANGED) {
+            // 폐기당한 쪽이 폐기 사실을 모른 채 재제출하는 것이 **보장된 정상 동작**인 사유들이 있다 —
+            // PASSWORD_CHANGED·DEVICE_REVOKED는 다른 기기의 자동 재발급, REPLACED_BY_LOGIN은
+            // 로그인 응답 유실·탭 경합. 재사용 감지로 취급하면 그 revokeAll이 정상 기기의 새 토큰까지 죽여
+            // "현재 기기는 유지"가 무력화된다. 전체 폐기 없이 재로그인만 요구한다 (RevokedReason 주석 참조).
+            if (token.getRevokedReason().exemptFromReuseDetection()) {
                 throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
             }
             // 유예를 넘긴 폐기 토큰 제출 — 정상 플로우에서는 나올 수 없다. 유출로 보고 세션을 전부 끊는다.
