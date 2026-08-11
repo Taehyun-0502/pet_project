@@ -2,13 +2,22 @@
 
 import { request } from '../common/apiClient'
 
-// 성공 시 { id, name, participantCount, createdAt } 배열
+// 성공 시 { id, name, category, description, participantCount, maxMembers, unreadCount, createdAt } 배열
 export function getRooms() {
   return request('/api/chat/rooms')
 }
 
-export function createRoom({ name }) {
-  return request('/api/chat/rooms', { method: 'POST', body: { name } })
+// category 필수(ROOM_CATEGORIES 값), description·maxMembers 선택(null 허용) — api-spec.md 7절 3차
+export function createRoom({ name, category, description, maxMembers }) {
+  return request('/api/chat/rooms', { method: 'POST', body: { name, category, description, maxMembers } })
+}
+
+// 방 정보 수정 — OWNER만. 생성과 같은 바디의 전체 교체(생략된 선택 항목은 지워진다)
+export function updateRoom(roomId, { name, category, description, maxMembers }) {
+  return request(`/api/chat/rooms/${roomId}`, {
+    method: 'PUT',
+    body: { name, category, description, maxMembers },
+  })
 }
 
 // 이미 참여 중이어도 성공(멱등) — 방 진입 전 항상 호출해도 안전

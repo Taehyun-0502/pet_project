@@ -6,8 +6,8 @@ import com.pet.backend.chat.dto.ChatMessageCreateRequest;
 import com.pet.backend.chat.dto.ChatMessageResponse;
 import com.pet.backend.chat.dto.ChatReadRequest;
 import com.pet.backend.chat.dto.ChatRoleChangeRequest;
-import com.pet.backend.chat.dto.ChatRoomCreateRequest;
 import com.pet.backend.chat.dto.ChatRoomResponse;
+import com.pet.backend.chat.dto.ChatRoomSaveRequest;
 import com.pet.backend.common.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -35,8 +35,16 @@ public class ChatController {
     @PostMapping("/api/chat/rooms")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ChatRoomResponse> createRoom(@AuthenticationPrincipal Long memberId,
-                                                    @Valid @RequestBody ChatRoomCreateRequest request) {
+                                                    @Valid @RequestBody ChatRoomSaveRequest request) {
         return ApiResponse.ok(chatService.createRoom(memberId, request));
+    }
+
+    // 방 정보 수정 — OWNER만. 생성과 같은 record의 전체 교체 (docs/api-spec.md 7절 3차)
+    @PutMapping("/api/chat/rooms/{roomId}")
+    public ApiResponse<ChatRoomResponse> updateRoom(@AuthenticationPrincipal Long memberId,
+                                                    @PathVariable Long roomId,
+                                                    @Valid @RequestBody ChatRoomSaveRequest request) {
+        return ApiResponse.ok(chatService.updateRoom(memberId, roomId, request));
     }
 
     // 방 목록 — unreadCount(안 읽은 수)는 내 참여 방에만 값이 있고 미참여 방은 null

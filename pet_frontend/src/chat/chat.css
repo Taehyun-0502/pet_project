@@ -14,18 +14,36 @@
   margin-bottom: 16px;
 }
 
+/* 3차: 방 프로필 필드가 늘어 세로 배치 (이름 / 카테고리+정원 / 소개 / 버튼) */
 .chat-create {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
 }
 
-.chat-create input {
-  flex: 1;
+.chat-create input,
+.chat-create select,
+.room-edit input,
+.room-edit select {
   padding: 10px 12px;
   font-size: 15px;
   border: 1px solid #ccc;
   border-radius: 6px;
+}
+
+/* 카테고리 select + 정원 input 한 줄 배치 (생성·수정 폼 공용) */
+.chat-create-row {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-create-row select {
+  flex: 1;
+}
+
+.chat-create-row input {
+  flex: 1;
 }
 
 .chat-room-list {
@@ -51,6 +69,67 @@
 .chat-room-list .count {
   color: #888;
   font-size: 14px;
+  white-space: nowrap;
+}
+
+/* 3차: 방 프로필 표시 (목록 카드 + 방 화면 헤더 아래) */
+.room-info {
+  text-align: left;
+  min-width: 0; /* 긴 소개가 카드 폭을 밀어내지 않게 */
+}
+
+.room-category {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 8px;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #2b6cb0;
+  font-size: 12px;
+}
+
+.room-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -8px 0 12px;
+  text-align: left;
+}
+
+.room-profile .room-desc {
+  margin: 0;
+  white-space: normal;
+}
+
+.room-capacity {
+  font-size: 12px;
+  color: #888;
+}
+
+/* 3차: 방 정보 수정 폼 (OWNER) */
+.room-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.room-edit-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* 채팅방 화면 (2덩어리에서 사용) */

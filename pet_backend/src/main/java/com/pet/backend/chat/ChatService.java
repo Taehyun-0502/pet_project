@@ -3,8 +3,8 @@ package com.pet.backend.chat;
 import com.pet.backend.chat.dto.ChatMemberResponse;
 import com.pet.backend.chat.dto.ChatMessageCreateRequest;
 import com.pet.backend.chat.dto.ChatMessageResponse;
-import com.pet.backend.chat.dto.ChatRoomCreateRequest;
 import com.pet.backend.chat.dto.ChatRoomResponse;
+import com.pet.backend.chat.dto.ChatRoomSaveRequest;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.Member;
@@ -35,11 +35,26 @@ public class ChatService {
 
     // 방 생성 + 생성자의 OWNER 참여를 한 트랜잭션으로 — 참여자 없는 방이 생기지 않게
     @Transactional
-    public ChatRoomResponse createRoom(Long memberId, ChatRoomCreateRequest request) {
-        ChatRoom room = ChatRoom.create(request.name().trim(), memberId);
+    public ChatRoomResponse createRoom(Long memberId, ChatRoomSaveRequest request) {
+        ChatRoom room = ChatRoom.create(request.name().trim(), memberId, request.category(),
+                normalizeDescription(request.description()), request.maxMembers());
         chatRoomRepository.save(room);
         chatRoomMemberRepository.save(ChatRoomMember.owner(room.getId(), memberId));
         return ChatRoomResponse.of(room, 1, 0L); // 방금 만든 방 — 안 읽은 메시지가 있을 수 없다
+    }
+
+    /**
+     * 방 정보 수정 — OWNER만, 생성과 같은 record의 전체 교체 (docs/api-spec.md 7절 3차).
+     * 정원을 현재 인원보다 작게 줄이는 것은 허용한다 — 기존 참여자는 유지되고 신규 입장만 차단된다.
+     */
+    @Transactional
+    public ChatRoomResponse updateRoom(Long actorId, Long roomId, ChatRoomSaveRequest request) {
+        ChatRoom room = getActiveRoom(roomId);
+        requireOwner(roomId, actorId);
+        room.updateProfile(request.name().trim(), request.category(),
+                normalizeDescription(request.description()), request.maxMembers());
+        // unreadCount는 목록 조회의 몫 — 이 응답은 방 정보 갱신용이라 계산하지 않는다(null)
+        return ChatRoomResponse.of(room, countActive(roomId), null);
     }
 
     @Transactional(readOnly = true)
@@ -81,6 +96,10 @@ public class ChatService {
      * 동시 입장 경쟁으로 DB 부분 UNIQUE가 INSERT를 거부해도 그 실패를
      * "이미 참여됨 = 성공"으로 흡수해야 하는데, 트랜잭션 안에서 제약 위반을 잡으면
      * 트랜잭션 전체가 롤백 전용으로 표시되어 이후 처리가 불가능하기 때문.
+     *
+     * <p>강퇴·정원 검사는 사전 검사 + **INSERT 후 재확인**의 2단이다 (7절 3차, 백로그 23번).
+     * 비트랜잭션이라 사전 검사 통과와 INSERT 커밋 사이에 강퇴·다른 입장이 커밋될 수 있고,
+     * 그 경쟁의 확정 판정은 INSERT가 끝난 뒤에만 가능하다 — {@link #revertIfJoinLost}.
      */
     public ChatRoomResponse join(Long memberId, Long roomId) {
         ChatRoom room = getActiveRoom(roomId);
@@ -90,6 +109,12 @@ public class ChatService {
             throw new BusinessException(ErrorCode.CHAT_KICKED);
         }
         if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
+            // 정원 사전 검사 — 가득 찬 방을 INSERT 없이 빠르게 거부. 이미 참여 중인 멱등 호출은
+            // 재입장이 아니므로 검사 대상이 아니다 (docs/api-spec.md 7절 3차)
+            if (room.getMaxMembers() != null && countActive(roomId) >= room.getMaxMembers()) {
+                throw new BusinessException(ErrorCode.CHAT_ROOM_FULL);
+            }
+            boolean inserted = false;
             try {
                 // 입장 전 메시지는 읽은 것으로 취급 — 입장 시점의 최신 메시지 id로 읽음 위치 초기화
                 // (없으면 null. 오래된 방 입장 직후 "안 읽음 수천 개" 배지를 막는다 — 2026-08-10 확정)
@@ -97,18 +122,49 @@ public class ChatService {
                         .map(ChatMessage::getId)
                         .orElse(null);
                 chatRoomMemberRepository.save(ChatRoomMember.join(roomId, memberId, latestMessageId));
-                // 실제로 새로 참여했을 때만 알린다 (이미 참여 중인 멱등 호출은 바뀐 게 없다)
-                eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
+                inserted = true;
             } catch (DataIntegrityViolationException e) {
                 // 동시 입장 경쟁 — 다른 요청이 먼저 참여시킴. 멱등 정책상 성공으로 취급
             }
+            if (inserted) {
+                revertIfJoinLost(room, memberId);
+                // 실제로 새로 참여했고 재확인까지 통과했을 때만 알린다
+                eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
+            }
         }
-        long count = chatRoomMemberRepository.countActiveByRoomIds(List.of(roomId)).stream()
+        // 입장 직후는 읽을 게 없는 상태다 (신규 입장은 최신 id로 초기화, 기존 참여자는 방 화면이 곧 보고)
+        return ChatRoomResponse.of(room, countActive(roomId), 0L);
+    }
+
+    /**
+     * join 사후 재확인 (docs/api-spec.md 7절 3차 — 백로그 23번과 정원 경쟁을 같은 자리에서 처리).
+     * 사전 검사 통과 → INSERT 커밋 사이에 ① 강퇴가 커밋되면 강퇴자가 활성 참여자로 남고(23번),
+     * ② 다른 입장이 커밋되면 정원이 초과된다. 걸리면 방금 넣은 행을 left 처리하고 거부한다.
+     * 정원 경계에서 경쟁이 겹치면 양쪽 다 되돌려 둘 다 409를 받을 수 있다 — 초과 입장을 허용하는 것보다
+     * 안전한 쪽을 택했다(재시도하면 남은 자리만큼만 들어간다).
+     */
+    private void revertIfJoinLost(ChatRoom room, Long memberId) {
+        boolean kickedRace = chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftReason(
+                room.getId(), memberId, ChatLeftReason.KICKED);
+        boolean overCapacity = room.getMaxMembers() != null
+                && countActive(room.getId()) > room.getMaxMembers();
+        if (!kickedRace && !overCapacity) {
+            return;
+        }
+        chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(room.getId(), memberId)
+                .ifPresent(joined -> {
+                    joined.leave();
+                    chatRoomMemberRepository.save(joined);
+                });
+        throw new BusinessException(kickedRace ? ErrorCode.CHAT_KICKED : ErrorCode.CHAT_ROOM_FULL);
+    }
+
+    // 방 하나의 참여 중 인원 (일괄 집계 쿼리 재사용)
+    private long countActive(Long roomId) {
+        return chatRoomMemberRepository.countActiveByRoomIds(List.of(roomId)).stream()
                 .mapToLong(ChatRoomMemberRepository.RoomParticipantCount::getParticipantCount)
                 .findFirst()
                 .orElse(0L);
-        // 입장 직후는 읽을 게 없는 상태다 (신규 입장은 최신 id로 초기화, 기존 참여자는 방 화면이 곧 보고)
-        return ChatRoomResponse.of(room, count, 0L);
     }
 
     @Transactional
@@ -285,6 +341,11 @@ public class ChatService {
     private ChatRoomMember getActiveMember(Long roomId, Long memberId) {
         return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MEMBER_NOT_FOUND));
+    }
+
+    // 빈 문자열("")로 온 선택 입력은 NULL로 통일 (pet의 normalizeBreed와 같은 원칙)
+    private String normalizeDescription(String description) {
+        return (description == null || description.isBlank()) ? null : description.trim();
     }
 
     // 없거나 소프트 삭제된 방은 동일하게 404 (docs/api-spec.md 5절의 존재 여부 은닉 규칙)

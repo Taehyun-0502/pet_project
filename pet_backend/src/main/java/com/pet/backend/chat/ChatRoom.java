@@ -2,6 +2,8 @@ package com.pet.backend.chat;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -33,6 +35,19 @@ public class ChatRoom {
     @Column(name = "member_id", nullable = false)
     private Long memberId;
 
+    // 방 프로필 (docs/api-spec.md 7절 3차, 2026-08-11)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ChatCategory category;
+
+    // 소개. NULL = 없음 (빈 문자열은 저장 전 Service가 NULL로 통일)
+    @Column(length = 200)
+    private String description;
+
+    // 정원. NULL = 무제한. 검사는 join 시점(Service) — 현 인원보다 작게 줄이는 것 허용(신규 입장만 차단)
+    @Column(name = "max_members")
+    private Integer maxMembers;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -45,14 +60,32 @@ public class ChatRoom {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    private ChatRoom(String name, Long memberId) {
+    private ChatRoom(String name, Long memberId, ChatCategory category,
+                     String description, Integer maxMembers) {
         this.name = name;
         this.memberId = memberId;
+        this.category = category;
+        this.description = description;
+        this.maxMembers = maxMembers;
     }
 
     // memberId = 생성자(방장)가 될 회원. 반드시 토큰에서 꺼낸 값이어야 한다
-    public static ChatRoom create(String name, Long memberId) {
-        return new ChatRoom(name, memberId);
+    public static ChatRoom create(String name, Long memberId, ChatCategory category,
+                                  String description, Integer maxMembers) {
+        return new ChatRoom(name, memberId, category, description, maxMembers);
+    }
+
+    /**
+     * 방 정보 수정 — 전체 교체 (docs/api-spec.md 7절 3차, Pet.update와 같은 의미론).
+     * description·maxMembers에 null이 오면 그대로 null — 값을 지우는 수단이기도 하다.
+     * OWNER 검증은 Service(requireOwner)가 담당한다.
+     */
+    public void updateProfile(String name, ChatCategory category,
+                              String description, Integer maxMembers) {
+        this.name = name;
+        this.category = category;
+        this.description = description;
+        this.maxMembers = maxMembers;
     }
 
     public boolean isDeleted() {

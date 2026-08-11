@@ -3,9 +3,10 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../member/AuthContext'
 import {
   changeMemberRole, delegateOwner, deleteRoom, getMessages, getRoomMembers,
-  joinRoom, kickMember, leaveRoom, markRead, sendMessage,
+  joinRoom, kickMember, leaveRoom, markRead, sendMessage, updateRoom,
 } from './chatApi'
 import { subscribeRoom } from './chatSocket'
+import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
 import './chat.css'
 
 // 방 내 role 표시명 (MEMBER는 배지 없음)
@@ -17,7 +18,10 @@ export default function ChatRoomPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
 
-  const roomName = location.state?.roomName ?? '채팅방'
+  // 방 객체 — 목록·생성에서 넘어올 때 state로 받는다 (3차 — 방 프로필 표시·수정용).
+  // 직접 URL 진입은 null: 프로필 표시·수정 없이 대화만 가능하다 (방 단건 조회 API는 아직 없음)
+  const [room, setRoom] = useState(location.state?.room ?? null)
+  const roomName = room?.name ?? location.state?.roomName ?? '채팅방'
   const [messages, setMessages] = useState([])
   const [content, setContent] = useState('')
   const [connected, setConnected] = useState(false) // 실시간 연결 상태 (끊기면 자동 재연결 중)
@@ -205,10 +209,59 @@ export default function ChatRoomPage() {
   // 직접 URL로 들어와 미참여(403)로 멈춘 경우 — 입장(멱등) 후 재연결
   const onJoin = async () => {
     try {
-      await joinRoom(roomId)
+      const joined = await joinRoom(roomId) // 정원이 가득 찼으면 409 CHAT_ROOM_FULL
+      setRoom(joined)
+      setFatalError(null)
       setRetryKey((key) => key + 1)
     } catch (err) {
       setFatalError(err)
+    }
+  }
+
+  // 방 정보 수정 (OWNER만, 3차 — docs/api-spec.md 7절). 생성과 같은 규칙의 전체 교체
+  const [editOpen, setEditOpen] = useState(false)
+  const [editForm, setEditForm] = useState(null)
+  const [savingRoom, setSavingRoom] = useState(false)
+
+  const openEdit = () => {
+    setEditForm({
+      name: room.name,
+      category: room.category,
+      description: room.description ?? '',
+      maxMembers: room.maxMembers ?? '',
+    })
+    setEditOpen(true)
+  }
+
+  const onEditChange = (e) => setEditForm({ ...editForm, [e.target.name]: e.target.value })
+
+  const onSaveRoom = async (e) => {
+    e.preventDefault()
+    setActionError('')
+    const name = editForm.name.trim()
+    if (!name) {
+      setActionError('방 이름을 입력해 주세요.')
+      return
+    }
+    const maxMembers = editForm.maxMembers === '' ? null : Number(editForm.maxMembers)
+    if (maxMembers !== null && (!Number.isInteger(maxMembers) || maxMembers < 2 || maxMembers > 100)) {
+      setActionError('정원은 2~100명 사이여야 합니다.')
+      return
+    }
+    setSavingRoom(true)
+    try {
+      const updated = await updateRoom(roomId, {
+        name,
+        category: editForm.category,
+        description: editForm.description.trim() || null,
+        maxMembers,
+      })
+      setRoom(updated)
+      setEditOpen(false)
+    } catch (err) {
+      setActionError(err.message) // OWNER 아님 403, 검증 400 등 — 서버 메시지 그대로
+    } finally {
+      setSavingRoom(false)
     }
   }
 
@@ -256,6 +309,15 @@ export default function ChatRoomPage() {
         <Link to="/chat">← 방 목록으로</Link>
       </header>
 
+      {/* 방 프로필 (3차) — 직접 URL 진입(room 없음)이면 표시하지 않는다 */}
+      {room && (
+        <div className="room-profile">
+          <span className="room-category">{categoryLabel(room.category)}</span>
+          {room.maxMembers && <span className="room-capacity">정원 {room.maxMembers}명</span>}
+          {room.description && <span className="room-desc">{room.description}</span>}
+        </div>
+      )}
+
       <div className="chat-toolbar">
         <button
           type="button"
@@ -268,12 +330,45 @@ export default function ChatRoomPage() {
           참여자{members ? ` ${members.length}` : ''}
         </button>
         <button type="button" onClick={onLeave}>나가기</button>
+        {myRole === 'OWNER' && room && (
+          <button type="button" onClick={() => (editOpen ? setEditOpen(false) : openEdit())}>
+            방 정보 수정
+          </button>
+        )}
         {myRole === 'OWNER' && (
           <button type="button" className="danger" onClick={onDeleteRoom}>방 삭제</button>
         )}
       </div>
 
       {actionError && <p className="submit-error">{actionError}</p>}
+
+      {editOpen && editForm && (
+        <form className="room-edit" onSubmit={onSaveRoom}>
+          <input
+            type="text" name="name" value={editForm.name} onChange={onEditChange}
+            placeholder="방 이름" maxLength={100}
+          />
+          <div className="chat-create-row">
+            <select name="category" value={editForm.category} onChange={onEditChange} aria-label="카테고리">
+              {ROOM_CATEGORIES.map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+            <input
+              type="number" name="maxMembers" value={editForm.maxMembers} onChange={onEditChange}
+              placeholder="정원 (선택)" min={2} max={100}
+            />
+          </div>
+          <input
+            type="text" name="description" value={editForm.description} onChange={onEditChange}
+            placeholder="소개 (선택, 200자 이내)" maxLength={200}
+          />
+          <div className="room-edit-actions">
+            <button type="submit" disabled={savingRoom}>{savingRoom ? '저장 중…' : '저장'}</button>
+            <button type="button" disabled={savingRoom} onClick={() => setEditOpen(false)}>취소</button>
+          </div>
+        </form>
+      )}
 
       {panelOpen && members && (
         <ul className="chat-members">
