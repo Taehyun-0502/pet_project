@@ -145,17 +145,29 @@ public class MemberService {
      */
     @Transactional
     public RefreshResult refresh(String rawRefreshToken) {
-        RefreshTokenService.Rotated rotated = refreshTokenService.rotate(rawRefreshToken);
-        // 발급 후 회원을 다시 읽는다 — 그 사이 탈퇴했거나 role이 바뀌었을 수 있다.
-        // 여기서 실패하면 같은 트랜잭션이라 회전도 함께 롤백되므로 토큰이 어중간하게 남지 않는다
-        Member member = memberRepository.findById(rotated.memberId())
+        RefreshToken token = refreshTokenService.findUsableOrThrow(rawRefreshToken);
+
+        // 회원을 **회전 전에, 공유 잠금으로** 읽는다 (리뷰 백로그 77번).
+        // 그 사이 탈퇴했거나 role이 바뀌었을 수 있어 어차피 필요한 조회이고, 잠금만 얹었다.
+        // 잠금이 없으면 "검사 통과 → 비밀번호 변경 커밋 → 새 토큰 INSERT" 순서가 성립해
+        // 일괄 폐기를 빠져나간 토큰이 14일 살아남는다. 유출 대응이 목적인 기능이라 그 창을 남기지 않는다
+        Member member = memberRepository.findByIdForShare(token.getMemberId())
                 .filter(m -> !m.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN));
 
+        // 비밀번호 변경 이전에 발급된 토큰은 거부한다. 일괄 폐기(revokeAllByMemberId)는
+        // "그 순간 살아 있던 행"만 잡기 때문에 **회전 유예(30초) 안이라 이미 ROTATED로 폐기돼 있던 토큰**을
+        // 건드리지 못한다 — 그 토큰은 유예 규칙상 재발급을 통과하므로, 이 검사가 없으면
+        // 비밀번호를 바꿔도 공격자가 새 토큰을 받아 간다
+        if (member.isTokenInvalidated(token.getCreatedAt())) {
+            throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+        }
+
+        String newRawToken = refreshTokenService.rotate(token);
         String accessToken = jwtTokenProvider.createAccessToken(member.getId(), member.getRole());
         return new RefreshResult(
                 TokenResponse.of(accessToken, jwtTokenProvider.expirationSeconds()),
-                rotated.rawToken());
+                newRawToken);
     }
 
     // 로그아웃 — 쿠키의 리프레시 토큰만 폐기한다 (쿠키가 없어도 성공, 멱등)
