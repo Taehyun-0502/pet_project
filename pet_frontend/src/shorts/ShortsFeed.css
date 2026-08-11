@@ -132,9 +132,29 @@
 
 .cs-list { list-style: none; margin: 0; padding: 0; }
 .cs-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 14px; }
-/* 대댓글은 들여쓰기로만 구분한다 (2단이라 더 깊은 단계가 없다) */
-.cs-reply { padding-left: 38px; }
+/* 대댓글은 들여쓰기로만 구분한다 (2단이라 더 깊은 단계가 없다).
+   들여쓰기 값은 부모의 아바타 폭에 맞춘 것 — 14(좌패딩) + 30(아바타) + 8(gap) */
+.cs-reply { padding-left: 52px; }
 .cs-reply .cs-content { color: #d1d5db; }
+
+/* 작성자 아바타 — 사진이 없으면 cs-avatar-empty가 placeholder를 담는다.
+   대댓글은 한 단계 작게 해서 부모와 구분된다 */
+.cs-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cs-avatar-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #3a3b45;
+  font-size: 16px;
+}
+.cs-reply .cs-avatar { width: 24px; height: 24px; }
+.cs-reply .cs-avatar-empty { font-size: 13px; }
 
 .cs-body { flex: 1; min-width: 0; }
 .cs-name { font-size: 13px; font-weight: 700; color: #f3f4f6; }
