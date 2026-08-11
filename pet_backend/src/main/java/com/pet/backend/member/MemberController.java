@@ -10,6 +10,7 @@ import com.pet.backend.member.dto.PasswordChangeRequest;
 import com.pet.backend.member.dto.SessionResponse;
 import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
+import com.pet.backend.member.dto.WithdrawRequest;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -125,6 +126,20 @@ public class MemberController {
         String refreshToken = memberService.changePassword(memberId, request, DeviceInfoParser.parse(userAgent));
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.create(refreshToken).toString())
+                .body(ApiResponse.ok());
+    }
+
+    /**
+     * 회원 탈퇴 (docs/api-spec.md 1절 6차). DELETE가 아닌 POST인 이유는 명세 참조(본인 확인 바디).
+     * 응답에서 쿠키를 지운다 — 서버 토큰은 Service가 이미 전부 폐기했다.
+     */
+    @PostMapping("/api/members/me/withdraw")
+    public ResponseEntity<ApiResponse<Void>> withdraw(
+            @AuthenticationPrincipal Long memberId,
+            @RequestBody WithdrawRequest request) {
+        memberService.withdraw(memberId, request);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, refreshTokenCookie.expire().toString())
                 .body(ApiResponse.ok());
     }
 

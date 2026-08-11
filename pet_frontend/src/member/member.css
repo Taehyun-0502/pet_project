@@ -233,3 +233,24 @@
   opacity: 0.6;
   cursor: default;
 }
+
+/* 마이페이지 — 회원 탈퇴 (위험 영역, api-spec.md 1절 6차) */
+.danger-zone {
+  border-top: 1px solid #ccc;
+  padding-top: 24px;
+}
+
+.danger-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #c0392b;
+  font-size: 14px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.auth-form button.danger {
+  background: #c0392b;
+  color: #fff;
+}

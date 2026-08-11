@@ -3,6 +3,7 @@ package com.pet.backend.pet;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
 import com.pet.backend.common.ImageStorageClient;
+import com.pet.backend.member.MemberRepository;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
@@ -17,10 +18,14 @@ public class PetService {
 
     private final PetRepository petRepository;
     private final ImageStorageClient imageStorageClient;
+    // 탈퇴 회원 차단용 (백로그 8번) — 탈퇴 후에도 액세스 토큰이 최대 15분 유효하므로
+    // 토큰만 믿으면 그동안 pet CRUD가 열린다. 모든 진입점이 requireActiveMember를 먼저 탄다
+    private final MemberRepository memberRepository;
 
     // memberId는 컨트롤러가 토큰에서 꺼내 넘긴 값 — 소유자 격리의 출발점 (docs/conventions.md 5절)
     @Transactional
     public PetResponse register(Long memberId, PetSaveRequest request) {
+        requireActiveMember(memberId);
         Pet pet = Pet.register(memberId, request.name().trim(),
                 normalizeBreed(request.breed()), request.birthDate());
         petRepository.save(pet);
@@ -29,6 +34,7 @@ public class PetService {
 
     @Transactional(readOnly = true)
     public List<PetResponse> getMyPets(Long memberId) {
+        requireActiveMember(memberId);
         return petRepository.findByMemberIdAndDeletedAtIsNullOrderByCreatedAtDesc(memberId)
                 .stream()
                 .map(PetResponse::from)
@@ -37,12 +43,14 @@ public class PetService {
 
     @Transactional(readOnly = true)
     public PetResponse getPet(Long memberId, Long petId) {
+        requireActiveMember(memberId);
         return PetResponse.from(getMyPetOrThrow(memberId, petId));
     }
 
     // 전체 교체 — 생략된 선택 항목은 null이 되어 값이 지워진다 (docs/api-spec.md 2절)
     @Transactional
     public PetResponse update(Long memberId, Long petId, PetSaveRequest request) {
+        requireActiveMember(memberId);
         Pet pet = getMyPetOrThrow(memberId, petId);
         pet.update(request.name().trim(), normalizeBreed(request.breed()), request.birthDate());
         return PetResponse.from(pet);
@@ -51,6 +59,7 @@ public class PetService {
     // 소프트 삭제 — 생체정보 테이블이 pet_id를 참조하므로 행은 남긴다
     @Transactional
     public void delete(Long memberId, Long petId) {
+        requireActiveMember(memberId);
         getMyPetOrThrow(memberId, petId).delete();
     }
 
@@ -64,6 +73,7 @@ public class PetService {
      */
     public PetResponse uploadProfileImage(Long memberId, Long petId, MultipartFile file) {
         imageStorageClient.validateImage(file); // 형식·용량 규칙은 회원 사진과 공유 (ImageStorageClient)
+        requireActiveMember(memberId);
         // 업로드 전에 소유자 확인 — 타인 pet 경로에 스토리지 쓰기가 일어나지 않게
         getMyPetOrThrow(memberId, petId);
 
@@ -81,6 +91,13 @@ public class PetService {
         pet.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
         petRepository.save(pet);
         return PetResponse.from(pet);
+    }
+
+    // 탈퇴(또는 없는) 회원의 접근 차단 — MemberService의 조회와 같은 404 USER_NOT_FOUND
+    private void requireActiveMember(Long memberId) {
+        if (!memberRepository.existsByIdAndDeletedAtIsNull(memberId)) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
     }
 
     /**

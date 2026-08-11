@@ -96,6 +96,16 @@ public class RefreshTokenService {
     }
 
     /**
+     * 회원 탈퇴 — 전 기기의 활성 토큰을 일괄 폐기한다 (docs/api-spec.md 1절 6차).
+     * 재발급이 없다는 점만 비밀번호 변경과 다르다. 일괄 UPDATE가 놓치는 토큰(회전 유예 안·발급 진행 중)은
+     * 호출자가 같은 트랜잭션에서 갱신하는 `tokens_valid_from`(Member.withdraw)이 차단한다.
+     */
+    @Transactional
+    public void revokeAllOnWithdraw(Long memberId) {
+        refreshTokenRepository.revokeAllByMemberId(memberId, Instant.now(), RevokedReason.WITHDRAWN);
+    }
+
+    /**
      * 재로그인이 쿠키의 이전 토큰을 대체 폐기 (백로그 37번 — 유령 기기 방지).
      * LOGOUT과 사유를 구분하는 이유: 로그인 응답(Set-Cookie) 유실·탭 경합으로 이 토큰이 다시 제출될 수 있는데,
      * 그때 재사용 감지(전체 폐기)가 발동하면 방금 로그인한 기기까지 끊긴다 — 단순 401로 끝나야 한다

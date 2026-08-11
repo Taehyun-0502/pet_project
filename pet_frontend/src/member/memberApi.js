@@ -61,4 +61,11 @@ export function revokeSession(sessionId) {
   return request(`/api/members/me/sessions/${sessionId}`, { method: 'DELETE' })
 }
 
+// 회원 탈퇴 (api-spec.md 1절 6차). LOCAL은 { password }, 카카오는 { confirmPhrase: '탈퇴합니다' }.
+// 성공 시 서버가 전 기기 토큰을 폐기하고 쿠키를 지운다 — 프론트는 로컬 상태만 정리하면 된다.
+// 방장인 채팅방이 있으면 409 WITHDRAW_CHAT_OWNER로 거부된다
+export function withdraw(body) {
+  return request('/api/members/me/withdraw', { method: 'POST', body })
+}
+
 // 액세스 토큰 재발급은 apiClient가 401을 만나면 자동으로 처리한다 — 화면에서 직접 부를 일이 없다

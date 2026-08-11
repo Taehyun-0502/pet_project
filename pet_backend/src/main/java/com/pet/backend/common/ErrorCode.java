@@ -36,6 +36,7 @@ public enum ErrorCode {
     DEVICE_SERIAL_DUPLICATED(HttpStatus.CONFLICT, "이미 등록된 시리얼 번호입니다."),
     DEVICE_ALREADY_MAPPED(HttpStatus.CONFLICT, "해당 반려동물에 이미 디바이스가 매핑되어 있습니다."),
     CHAT_OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "방장은 위임 후에만 나갈 수 있습니다."),
+    WITHDRAW_CHAT_OWNER(HttpStatus.CONFLICT, "방장인 채팅방이 있습니다. 위임하거나 방을 삭제한 뒤 탈퇴할 수 있습니다."),
     CONCURRENT_UPDATE(HttpStatus.CONFLICT, "다른 요청이 먼저 처리되었습니다. 새로고침 후 다시 시도해 주세요."),
 
     // ───── 숏츠(릴스) 파트 ─────

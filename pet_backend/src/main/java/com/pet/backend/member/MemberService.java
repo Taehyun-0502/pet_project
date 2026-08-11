@@ -1,5 +1,7 @@
 package com.pet.backend.member;
 
+import com.pet.backend.chat.ChatLeftReason;
+import com.pet.backend.chat.ChatRoomMemberRepository;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.ErrorCode;
 import com.pet.backend.common.ImageStorageClient;
@@ -12,6 +14,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.SessionResponse;
+import com.pet.backend.member.dto.WithdrawRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
 import com.pet.backend.member.dto.MemberResponse;
@@ -31,12 +34,19 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class MemberService {
 
+    // 소셜 계정의 탈퇴 확인 문구 — 프론트와 계약 (docs/api-spec.md 1절 6차)
+    static final String WITHDRAW_CONFIRM_PHRASE = "탈퇴합니다";
+
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
     private final KakaoOAuthClient kakaoOAuthClient;
     private final ImageStorageClient imageStorageClient;
+    // 도메인 경계를 넘는 유일한 의존 — 탈퇴가 "방장 방 검사 → 참여 방 정리"를 회원 삭제와
+    // **같은 트랜잭션**에서 해야 해서(중간 실패 시 함께 롤백) 이벤트로 분리할 수 없다.
+    // 서비스가 아니라 리포지토리를 물어 chat 도메인 규칙(권한 검증 등)은 끌어오지 않는다
+    private final ChatRoomMemberRepository chatRoomMemberRepository;
 
     @Transactional
     public MemberResponse signup(SignupRequest request) {
@@ -196,9 +206,7 @@ public class MemberService {
      */
     @Transactional
     public String changePassword(Long memberId, PasswordChangeRequest request, String deviceInfo) {
-        Member member = memberRepository.findById(memberId)
-                .filter(m -> !m.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Member member = findActiveMemberOrThrow(memberId);
         if (member.getPassword() == null
                 || !matchesSafely(request.currentPassword(), member.getPassword())) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
@@ -256,6 +264,47 @@ public class MemberService {
     }
 
     /**
+     * 회원 탈퇴 (docs/api-spec.md 1절 6차). 단일 트랜잭션 — 본인 확인 → 방장 방 검사(409) →
+     * 참여 방 일괄 나가기 → 소프트 삭제(+tokens_valid_from) → 전 토큰 폐기.
+     * 반려동물 데이터는 건드리지 않는다(소유자 격리로 접근 경로가 없고, 생체정보 테이블이 pet_id 참조).
+     */
+    @Transactional
+    public void withdraw(Long memberId, WithdrawRequest request) {
+        Member member = findActiveMemberOrThrow(memberId);
+        verifyWithdrawIdentity(member, request);
+        // 방장(OWNER)인 활성 방이 있으면 거부 — "방장은 위임 후에만 나가기"와 일관.
+        // 방치하면 위임·삭제가 영구 불가능한 방장 부재 방이 남는다 (2026-08-11 확정)
+        if (chatRoomMemberRepository.existsActiveOwnedRoom(memberId)) {
+            throw new BusinessException(ErrorCode.WITHDRAW_CHAT_OWNER);
+        }
+        // 엔티티 변경은 반드시 벌크 UPDATE들보다 **먼저** — 아래 벌크의 clearAutomatically가
+        // 영속성 컨텍스트를 비워 member가 detach되면, 그 뒤의 변경은 커밋에 반영되지 않고 유실된다
+        // (백로그 99번이 경고한 전염 사례 — 검증에서 실제로 소프트 삭제가 유실돼 순서를 못 박음).
+        // 이 변경 자체는 벌크의 flushAutomatically가 UPDATE로 함께 내보낸다
+        member.withdraw(); // deleted_at + tokens_valid_from (Member.withdraw 주석 참조)
+        chatRoomMemberRepository.leaveAllByMemberId(memberId, Instant.now(), ChatLeftReason.LEFT);
+        refreshTokenService.revokeAllOnWithdraw(memberId);
+    }
+
+    /**
+     * 탈퇴 본인 확인 — LOCAL은 현재 비밀번호, 소셜은 확인 문구 (2026-08-11 확정).
+     * 소셜 계정에는 password가 없어(NULL) 비밀번호 재입력이라는 확인 수단 자체가 성립하지 않는다.
+     */
+    private void verifyWithdrawIdentity(Member member, WithdrawRequest request) {
+        if (member.getProvider() == Provider.LOCAL) {
+            if (member.getPassword() == null
+                    || !matchesSafely(request.password(), member.getPassword())) {
+                throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+            }
+            return;
+        }
+        if (!WITHDRAW_CONFIRM_PHRASE.equals(request.confirmPhrase())) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "확인 문구가 일치하지 않습니다. \"" + WITHDRAW_CONFIRM_PHRASE + "\"를 입력해 주세요.");
+        }
+    }
+
+    /**
      * 비밀번호 대조. 로그인 요청은 길이를 제한하지 않으므로(형식 검증을 걸지 않는 정책 — LoginRequest 주석)
      * BCrypt 한계를 넘는 입력이 그대로 들어올 수 있다. 예외가 새면 로그인 실패가 500이 되고
      * 그 자체로 계정 존재 여부의 단서가 되므로 "불일치"로 흡수한다.
@@ -297,18 +346,16 @@ public class MemberService {
         return MemberResponse.from(member);
     }
 
+    // 활성 조건이 쿼리에 있는 조회로 통일 (백로그 95번 해소 — 이전에는 findById().filter 복붙이 4곳)
     private Member findActiveMemberOrThrow(Long memberId) {
-        return memberRepository.findById(memberId)
-                .filter(m -> !m.isDeleted())
+        return memberRepository.findByIdAndDeletedAtIsNull(memberId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 
     // 이름 수정 (docs/api-spec.md 1절). 검증 규칙은 가입과 동일, 저장 전 trim
     @Transactional
     public MemberResponse updateName(Long memberId, NameUpdateRequest request) {
-        Member member = memberRepository.findById(memberId)
-                .filter(m -> !m.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Member member = findActiveMemberOrThrow(memberId);
         member.changeName(request.name().trim());
         return MemberResponse.from(member);
     }
@@ -316,9 +363,7 @@ public class MemberService {
     // 토큰은 유효하지만 그 사이 탈퇴한 계정일 수 있으므로 활성 여부까지 확인한다
     @Transactional(readOnly = true)
     public MemberResponse getMyInfo(Long memberId) {
-        Member member = memberRepository.findById(memberId)
-                .filter(m -> !m.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Member member = findActiveMemberOrThrow(memberId);
         return MemberResponse.from(member);
     }
 }
