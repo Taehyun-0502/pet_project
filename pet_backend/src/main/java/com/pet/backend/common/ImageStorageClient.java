@@ -1,9 +1,10 @@
 package com.pet.backend.common;
 
+import java.time.Duration;
 import java.util.Set;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -21,7 +22,6 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ImageStorageClient {
 
     // 프로필 사진 공통 제약 (docs/api-spec.md 2절) — 회원·반려동물이 같은 규칙을 쓴다.
@@ -30,8 +30,22 @@ public class ImageStorageClient {
     private static final Set<String> ALLOWED_IMAGE_TYPES =
             Set.of("image/jpeg", "image/png", "image/webp");
 
+    // 타임아웃이 없으면 Supabase가 응답하지 않을 때 요청 스레드가 무한 점유된다 (리뷰 백로그 86번).
+    // read를 10초로 둔 것은 업로드 본문이 리사이징 후 수십 KB 수준이기 때문 (common/imageResize.js가 512px로 축소)
+    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
+    private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
+
     private final ImageStorageProperties properties;
-    private final RestClient.Builder restClientBuilder;
+    private final RestClient restClient;
+
+    // 클라이언트는 기동 시 한 번만 만든다 — 호출마다 build()하면 타임아웃 설정이 흩어지고 낭비다
+    ImageStorageClient(ImageStorageProperties properties, RestClient.Builder restClientBuilder) {
+        this.properties = properties;
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(CONNECT_TIMEOUT);
+        requestFactory.setReadTimeout(READ_TIMEOUT);
+        this.restClient = restClientBuilder.requestFactory(requestFactory).build();
+    }
 
     /** 형식·용량 검증 — 위반은 400. 업로드 호출 전에 반드시 거친다 */
     public void validateImage(MultipartFile file) {
@@ -65,8 +79,7 @@ public class ImageStorageClient {
         String objectUrl = "%s/storage/v1/object/%s/%s".formatted(baseUrl, properties.profilesBucket(), path);
 
         try {
-            restClientBuilder.build()
-                    .post()
+            restClient.post()
                     .uri(objectUrl)
                     // service-role 키는 apikey 헤더와 Bearer 토큰 양쪽에 모두 필요하다
                     .header("apikey", properties.serviceRoleKey())

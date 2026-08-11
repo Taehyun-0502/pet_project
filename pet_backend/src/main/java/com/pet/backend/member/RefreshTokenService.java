@@ -52,20 +52,17 @@ public class RefreshTokenService {
         return rawToken;
     }
 
-    // 회전 결과 — 누구의 토큰이었는지와 새로 발급한 원문
-    public record Rotated(Long memberId, String rawToken) {}
-
     /**
-     * 회전(rotation): 받은 토큰을 검증·폐기하고 새 토큰을 발급한다.
-     * 한 토큰은 한 번만 쓰이므로, 폐기된 토큰이 다시 오면 복사본이 돌아다닌다는 뜻으로 보고
-     * 그 회원의 활성 토큰을 전부 끊는다 (docs/api-spec.md 1절 재사용 감지).
+     * 회전(rotation): 받은 토큰을 폐기하고 새 토큰을 발급한다. 원문을 돌려준다.
+     *
+     * <p>검증은 {@link #findUsableOrThrow}가 따로 담당한다 — 그 사이에 호출자가 회원 행을
+     * 공유 잠금으로 읽고 `tokens_valid_from`을 확인해야 하기 때문이다 (리뷰 백로그 77번).
+     * 넘겨받는 token은 호출자 트랜잭션에서 조회한 **영속 상태**여야 폐기가 반영된다.
      */
     @Transactional
-    public Rotated rotate(String rawToken) {
-        RefreshToken token = findUsableOrThrow(rawToken);
+    public String rotate(RefreshToken token) {
         token.revoke(RevokedReason.ROTATED);
-        Long memberId = token.getMemberId();
-        return new Rotated(memberId, issue(memberId));
+        return issue(token.getMemberId());
     }
 
     /**
@@ -90,7 +87,15 @@ public class RefreshTokenService {
                 .ifPresent(token -> token.revoke(RevokedReason.LOGOUT));
     }
 
-    private RefreshToken findUsableOrThrow(String rawToken) {
+    /**
+     * 제출된 토큰을 찾아 "지금 쓸 수 있는가"까지 판정한다 (만료·폐기·재사용 감지).
+     * 한 토큰은 한 번만 쓰이므로, 폐기된 토큰이 다시 오면 복사본이 돌아다닌다는 뜻으로 보고
+     * 그 회원의 활성 토큰을 전부 끊는다 (docs/api-spec.md 1절 재사용 감지).
+     *
+     * <p>호출자(MemberService.refresh)의 트랜잭션 안에서 실행된다 — 여기서 돌려준 엔티티를
+     * 그 트랜잭션이 계속 쓰기 때문에 별도 트랜잭션으로 끊으면 안 된다.
+     */
+    RefreshToken findUsableOrThrow(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
             throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
         }

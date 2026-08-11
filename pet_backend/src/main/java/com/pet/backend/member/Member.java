@@ -69,6 +69,10 @@ public class Member {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    // 이 시각보다 먼저 발급된 리프레시 토큰은 무효. NULL = 제한 없음 (리뷰 백로그 77번)
+    @Column(name = "tokens_valid_from")
+    private Instant tokensValidFrom;
+
     private Member(String email, String password, String name,
                    Role role, Provider provider, String providerId) {
         this.email = email;
@@ -90,9 +94,25 @@ public class Member {
         return new Member(email, null, name, Role.MEMBER, Provider.KAKAO, providerId);
     }
 
-    // password는 반드시 BCrypt로 인코딩된 값이어야 한다 (createLocalMember와 같은 계약)
+    /**
+     * password는 반드시 BCrypt로 인코딩된 값이어야 한다 (createLocalMember와 같은 계약).
+     *
+     * <p>비밀번호 교체와 `tokensValidFrom` 갱신을 **한 메서드에 묶어 둔다** — 둘은 항상 함께 일어나야 하고,
+     * 호출부에서 따로 챙기게 두면 언젠가 한쪽이 빠진다. 이 시각 이전에 발급된 리프레시 토큰은
+     * 일괄 폐기 UPDATE가 놓치더라도 재발급 검사에서 거부된다 (리뷰 백로그 77번).
+     */
     public void changePassword(String encodedPassword) {
         this.password = encodedPassword;
+        this.tokensValidFrom = Instant.now();
+    }
+
+    /**
+     * 이 시각보다 **먼저** 발급된 토큰인가 — 즉 마지막 무효화 이전의 토큰인가.
+     * 같은 시각은 통과시킨다: 비밀번호 변경 직후 그 기기에 발급하는 새 토큰이
+     * 시계 해상도 때문에 자기 자신에게 걸리는 일이 없어야 한다.
+     */
+    public boolean isTokenInvalidated(Instant tokenCreatedAt) {
+        return tokensValidFrom != null && tokenCreatedAt.isBefore(tokensValidFrom);
     }
 
     public void changeName(String name) {
