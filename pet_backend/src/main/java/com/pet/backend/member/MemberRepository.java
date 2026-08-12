@@ -22,6 +22,14 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     // 카카오 로그인: 외부 식별자로 활성 계정 조회 (ux_pet_member_provider_active 인덱스 사용)
     Optional<Member> findByProviderAndProviderIdAndDeletedAtIsNull(Provider provider, String providerId);
 
+    // 활성 회원 조회 — 서비스 진입점의 공통 검증. 활성 조건이 쿼리에 있어
+    // findById().filter(!isDeleted()) 복붙(백로그 95번)이 필요 없다 (pet 리포지토리와 같은 방식)
+    Optional<Member> findByIdAndDeletedAtIsNull(Long id);
+
+    // 활성 회원 존재 검사 — 다른 도메인(pet 등) 진입점용. 탈퇴 후 액세스 토큰이 살아 있는
+    // 최대 15분 동안의 접근을 서비스 계층에서 차단한다 (백로그 8번, docs/api-spec.md 1절 6차)
+    boolean existsByIdAndDeletedAtIsNull(Long id);
+
     /**
      * 재발급 전용 — 회원 행을 **공유 잠금**으로 읽는다 (PostgreSQL `FOR SHARE`, 리뷰 백로그 77번).
      *

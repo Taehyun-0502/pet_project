@@ -127,7 +127,13 @@ public class Member {
         return deletedAt != null;
     }
 
+    /**
+     * 탈퇴(소프트 삭제). changePassword와 같은 이유로 `tokensValidFrom` 갱신을 한 메서드에 묶는다 —
+     * 일괄 폐기 UPDATE가 놓치는 토큰(회전 유예 안·발급 진행 중)까지 기준 시각으로 차단해야
+     * "탈퇴했는데 재발급이 살아 있는" 창이 없다 (docs/api-spec.md 1절 6차).
+     */
     public void withdraw() {
         this.deletedAt = Instant.now();
+        this.tokensValidFrom = Instant.now();
     }
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { registerPet } from './petApi'
 import { today, toPetRequest, validatePetForm } from './petForm'
-import '../member/member.css'
+import '../common/forms.css'
 import './pet.css'
 
 export default function PetCreatePage() {

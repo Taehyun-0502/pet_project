@@ -3,6 +3,7 @@ package com.pet.backend.chat.websocket;
 import com.pet.backend.chat.ChatMemberKickedEvent;
 import com.pet.backend.chat.ChatMembersChangedEvent;
 import com.pet.backend.chat.ChatMessageCreatedEvent;
+import com.pet.backend.chat.ChatPinChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -48,5 +49,11 @@ public class ChatBroadcaster {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onMembersChanged(ChatMembersChangedEvent event) {
         messagingTemplate.convertAndSend(roomTopic(event.roomId()), ChatEvent.membersChanged());
+    }
+
+    // 공지 핀 변경 신호 (3차). 핀 API는 전부 @Transactional이라 fallbackExecution이 필요 없다
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onPinChanged(ChatPinChangedEvent event) {
+        messagingTemplate.convertAndSend(roomTopic(event.roomId()), ChatEvent.pinChanged());
     }
 }

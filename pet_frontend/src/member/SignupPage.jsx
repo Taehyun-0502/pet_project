@@ -29,14 +29,18 @@ function validate(form) {
 
 export default function SignupPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, login } = useAuth()
   const [form, setForm] = useState({ email: '', password: '', passwordConfirm: '', name: '' })
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // 방금 이 화면에서 가입해 자동 로그인이 진행 중인지.
+  // 이게 없으면 로그인으로 user가 채워지는 순간 아래 가드가 먼저 홈으로 보내버려
+  // 온보딩 화면(/welcome)에 닿지 못한다
+  const [signedUp, setSignedUp] = useState(false)
 
   // 이미 로그인한 상태면 가입 화면 대신 홈으로
-  if (user) return <Navigate to="/" replace />
+  if (user && !signedUp) return <Navigate to="/" replace />
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
@@ -48,15 +52,25 @@ export default function SignupPage() {
     if (Object.keys(nextErrors).length > 0) return
 
     setSubmitting(true)
+    const email = form.email.trim()
     try {
-      await signup({ email: form.email.trim(), password: form.password, name: form.name.trim() })
-      // 가입 응답에는 토큰이 없으므로(명세) 자동 로그인 없이 로그인 화면으로
-      navigate('/login', { state: { signupEmail: form.email.trim() } })
+      await signup({ email, password: form.password, name: form.name.trim() })
     } catch (err) {
       if (err.code === 'AUTH_EMAIL_DUPLICATED') setErrors({ email: err.message })
       else setSubmitError(err.message)
-    } finally {
       setSubmitting(false)
+      return
+    }
+
+    // 가입 성공. 온보딩 화면에서 바로 반려동물을 등록하려면 토큰이 있어야 하는데
+    // 가입 응답에는 토큰이 없으므로(명세) 방금 입력한 자격 증명으로 로그인을 이어서 호출한다
+    setSignedUp(true)
+    try {
+      await login({ email, password: form.password })
+      navigate('/welcome', { replace: true, state: { fromSignup: true } })
+    } catch {
+      // 가입 자체는 이미 성공했으니 되돌리지 않고 로그인 화면으로 안내한다
+      navigate('/login', { replace: true, state: { signupEmail: email } })
     }
   }
 

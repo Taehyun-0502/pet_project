@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getPet, updatePet } from './petApi'
 import { today, toPetRequest, validatePetForm } from './petForm'
-import '../member/member.css'
+import '../common/forms.css'
 import './pet.css'
 
 /**
@@ -101,7 +101,7 @@ export default function PetEditPage() {
           />
           {errors.birthDate && <p className="field-error">{errors.birthDate}</p>}
         </label>
-        <p className="notice">비워 두면 그 항목은 지워집니다.</p>
+        <p className="muted-note">비워 두면 그 항목은 지워집니다.</p>
         {submitError && <p className="submit-error">{submitError}</p>}
         <button type="submit" disabled={submitting}>
           {submitting ? '저장 중…' : '저장하기'}

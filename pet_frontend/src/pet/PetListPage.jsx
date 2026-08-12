@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../member/AuthContext'
 import { getMyPets } from './petApi'
+import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './pet.css'
 
 // 내 반려동물 목록 — 앱의 홈 화면 (구 HomePage 자리)
