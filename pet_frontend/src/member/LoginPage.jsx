@@ -11,6 +11,8 @@ export default function LoginPage() {
 
   // 회원가입 직후 넘어온 경우 이메일을 미리 채워준다
   const signupEmail = location.state?.signupEmail
+  // RequireLogin이 넘긴 원래 목적지 — 로그인 후 그리로 되돌아간다 (백로그 47번)
+  const from = location.state?.from ?? '/'
   const [form, setForm] = useState({ email: signupEmail ?? '', password: '' })
   const [errors, setErrors] = useState({})
   const [submitError, setSubmitError] = useState('')
@@ -18,8 +20,8 @@ export default function LoginPage() {
 
   const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
 
-  // 이미 로그인한 상태면 로그인 화면 대신 홈으로
-  if (user) return <Navigate to="/" replace />
+  // 이미 로그인한 상태면 로그인 화면 대신 목적지(없으면 홈)로
+  if (user) return <Navigate to={from} replace />
 
   const onSubmit = async (e) => {
     e.preventDefault()
@@ -33,7 +35,7 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       await login({ email: form.email.trim(), password: form.password })
-      navigate('/', { replace: true })
+      navigate(from, { replace: true })
     } catch (err) {
       // AUTH_INVALID_CREDENTIALS 등 — 서버 메시지를 그대로 안내
       setSubmitError(err.message)

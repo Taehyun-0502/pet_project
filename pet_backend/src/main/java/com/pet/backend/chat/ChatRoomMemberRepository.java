@@ -60,6 +60,32 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     }
 
     /**
+     * 활성 방의 OWNER인 참여 행이 있는가 — 회원 탈퇴 차단 검사 (docs/api-spec.md 1절 6차).
+     * 삭제된 방의 참여 행은 설계상 활성으로 남으므로(조회 필터 방식) 방 활성을 exists로 함께 확인한다 —
+     * 이미 삭제한 방의 방장이었다는 이유로 탈퇴가 막히면 안 된다.
+     */
+    @Query("""
+            select count(crm) > 0 from ChatRoomMember crm
+            where crm.memberId = :memberId and crm.role = com.pet.backend.chat.ChatRole.OWNER
+              and crm.leftAt is null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    boolean existsActiveOwnedRoom(@Param("memberId") Long memberId);
+
+    /**
+     * 회원 탈퇴 시 참여 방 일괄 나가기 (docs/api-spec.md 1절 6차) — 탈퇴 회원이 참여자 목록에 남지 않게.
+     * 벌크 UPDATE인 이유는 markRead와 같다(@Version 미충돌 + 왕복 1회). MEMBERS_CHANGED 신호는
+     * 보내지 않는다 — 열려 있는 참여자 패널은 다음 재조회에 반영된다(명세에 기록된 감수 사항).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update ChatRoomMember crm set crm.leftAt = :now, crm.leftReason = :reason
+            where crm.memberId = :memberId and crm.leftAt is null
+            """)
+    int leaveAllByMemberId(@Param("memberId") Long memberId, @Param("now") java.time.Instant now,
+                           @Param("reason") ChatLeftReason reason);
+
+    /**
      * 내가 참여 중인 모든 방의 안 읽은 메시지 수를 쿼리 한 번으로 집계 (ix_chat_message_room 사용).
      * 내가 보낸 메시지는 세지 않는다 — 보낸 직후 읽음 보고가 도착하기 전에도 배지가 뜨지 않게.
      * left join이라 안 읽은 메시지가 없는 방도 0으로 돌아온다.

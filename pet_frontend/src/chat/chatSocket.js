@@ -40,11 +40,12 @@ const ERROR_MESSAGE = {
  * @param roomId            구독할 방
  * @param onMessage         새 메시지 1건 (서버 이벤트 봉투의 data)
  * @param onMembersChanged  참여자 구성이 바뀜 — 내용은 없고 "다시 읽어라" 신호다
+ * @param onPinChanged      공지 핀이 바뀜 — 같은 신호 방식, 받은 쪽이 GET /pin으로 다시 읽는다 (3차)
  * @param onReady           연결·구독이 선 직후 — 여기서 놓친 메시지를 REST로 복구한다
  * @param onFatal           재시도해도 소용없는 오류 { code, message } — 연결을 접은 뒤 호출된다
  * @param onStatus          연결 상태 변화 (true=연결됨)
  */
-export function subscribeRoom(roomId, { onMessage, onMembersChanged, onReady, onFatal, onStatus }) {
+export function subscribeRoom(roomId, { onMessage, onMembersChanged, onPinChanged, onReady, onFatal, onStatus }) {
   // 만료 때문에 재발급을 시도한 적이 있는지 — 새 토큰으로도 만료가 나오면 더 시도하지 않는다(무한 재연결 방지)
   let refreshed = false
 
@@ -85,6 +86,8 @@ export function subscribeRoom(roomId, { onMessage, onMembersChanged, onReady, on
           onMessage(event.data)
         } else if (event.type === 'MEMBERS_CHANGED') {
           onMembersChanged()
+        } else if (event.type === 'PIN_CHANGED') {
+          onPinChanged?.()
         }
         // 알 수 없는 type은 무시 — 서버가 이벤트를 추가해도 화면이 깨지지 않는다
       })

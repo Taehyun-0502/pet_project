@@ -8,8 +8,24 @@ package com.pet.backend.member;
  * 반면 로그아웃으로 끊은 토큰이 다시 오는 것은 유예할 이유가 없다.
  */
 public enum RevokedReason {
-    ROTATED,         // 재발급으로 회전됨 — 짧은 유예 동안 재제출을 정상으로 취급
-    LOGOUT,          // 로그아웃으로 폐기 — 유예 없음
-    REUSE_DETECTED,  // 재사용 감지로 일괄 폐기됨
-    PASSWORD_CHANGED // 비밀번호 변경으로 전 기기 일괄 폐기 — 유출 대응이 목적이므로 유예 없음
+    ROTATED,           // 재발급으로 회전됨 — 짧은 유예 동안 재제출을 정상으로 취급
+    LOGOUT,            // 로그아웃으로 폐기 — 유예 없음
+    REUSE_DETECTED,    // 재사용 감지로 일괄 폐기됨
+    PASSWORD_CHANGED,  // 비밀번호 변경으로 전 기기 일괄 폐기 — 유출 대응이 목적이므로 유예 없음
+    REPLACED_BY_LOGIN, // 재로그인으로 대체됨 (백로그 37번) — 새 쿠키로 덮여 도달 불가가 될 토큰의 선제 폐기
+    DEVICE_REVOKED,    // 기기 관리 화면의 원격 로그아웃 (api-spec.md 1절 5차)
+    WITHDRAWN;         // 회원 탈퇴로 전 기기 일괄 폐기 (api-spec.md 1절 6차)
+
+    /**
+     * 이 사유로 폐기된 토큰의 재제출을 침해(재사용 감지 → 전체 폐기)로 판정하지 않고 단순 401로 끝낼지.
+     * 전부 "폐기당한 쪽이 폐기 사실을 모른 채 다음 재발급 때 반드시 그 토큰을 제출하는" 경로가 있다 —
+     * PASSWORD_CHANGED·DEVICE_REVOKED·WITHDRAWN은 다른 기기의 자동 재발급(보장된 정상 동작),
+     * REPLACED_BY_LOGIN은 로그인 응답(Set-Cookie) 유실·탭 경합. 전체 폐기로 응수하면
+     * 정상 사용자의 전 기기가 로그아웃된다 (2026-08-10 비밀번호 변경 검증에서 실측한 그 결함과 동일 계열).
+     * (WITHDRAWN은 어차피 전 토큰이 폐기된 뒤라 실해는 없지만, 침해 WARN 로그가 남지 않게 같은 취급)
+     */
+    public boolean exemptFromReuseDetection() {
+        return this == PASSWORD_CHANGED || this == REPLACED_BY_LOGIN
+                || this == DEVICE_REVOKED || this == WITHDRAWN;
+    }
 }

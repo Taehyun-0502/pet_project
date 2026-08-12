@@ -167,9 +167,5 @@
   border-color: #c0392b;
 }
 
-/* 수정 화면의 안내 문구 — 오류가 아니라 설명이라 눈에 덜 띄게 */
-.notice {
-  margin: 0;
-  font-size: 13px;
-  color: #888;
-}
+/* .notice(회색) 정의는 삭제 (2026-08-11, 백로그 100번) — 공용 .notice(초록, common/forms.css)와
+   전역 충돌해 성공 안내가 회색으로 보이던 실버그. 회색 보조 설명은 공용 .muted-note를 쓴다 */

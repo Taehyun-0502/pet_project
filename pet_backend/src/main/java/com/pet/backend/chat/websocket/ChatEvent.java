@@ -17,4 +17,9 @@ public record ChatEvent<T>(String type, T data) {
     public static ChatEvent<Void> membersChanged() {
         return new ChatEvent<>("MEMBERS_CHANGED", null);
     }
+
+    // 공지 핀이 바뀌었다는 신호만 — 받은 쪽이 GET /pin으로 다시 읽는다 (같은 이유의 신호+재조회, 3차)
+    public static ChatEvent<Void> pinChanged() {
+        return new ChatEvent<>("PIN_CHANGED", null);
+    }
 }

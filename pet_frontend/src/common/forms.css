@@ -1,0 +1,98 @@
+/* 도메인 공용 폼·안내 스타일 (2026-08-11 백로그 54·100번 정리로 member.css에서 추출).
+   member·pet·chat·shorts 화면이 함께 쓴다 — 클래스명은 역사적 이유로 auth-* 접두어를 유지한다
+   (개명하면 전 도메인 jsx + 타 슬라이스까지 일괄 수정 — 이름보다 단일 출처가 중요).
+   규칙: 이 파일에는 "두 도메인 이상이 쓰는 것"만 둔다. 도메인 전용은 각 도메인 css로. */
+
+/* 폼 페이지 공용 레이아웃 (로그인·가입·마이페이지·pet 등록/수정·숏츠 업로드) */
+.auth-page {
+  max-width: 400px;
+  margin: 60px auto;
+  padding: 0 16px;
+}
+
+.auth-page h1 {
+  margin-bottom: 24px;
+}
+
+/* 섹션이 있는 폼 페이지 (마이페이지 등) */
+.auth-page section {
+  margin-bottom: 32px;
+  text-align: left;
+}
+
+.auth-page section h2 {
+  font-size: 18px;
+  margin-bottom: 12px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  text-align: left;
+}
+
+.auth-form input {
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.auth-form input[aria-invalid='true'] {
+  border-color: #d33;
+}
+
+.auth-form button {
+  padding: 12px;
+  font-size: 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.auth-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* 필드별 검증 오류 */
+.field-error {
+  color: #d33;
+  font-size: 13px;
+  margin: 0;
+}
+
+/* 제출·요청 오류 */
+.submit-error {
+  color: #d33;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 성공 안내 — 초록 하나로 통일. 회색 보조 설명은 .muted-note를 쓴다
+   (과거 pet.css가 .notice를 회색으로 재정의해 성공 안내가 회색으로 보이던 충돌 — 백로그 100번) */
+.notice {
+  color: #2a7;
+  font-size: 14px;
+}
+
+/* 보조 설명 문구 — 오류가 아니라 설명이라 눈에 덜 띄게 */
+.muted-note {
+  color: #888;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 페이지 하단의 전환 링크 (로그인 ↔ 가입, ← 홈으로 등) */
+.auth-switch {
+  margin-top: 16px;
+  font-size: 14px;
+}

@@ -14,18 +14,100 @@
   margin-bottom: 16px;
 }
 
+/* 3차: 방 프로필 필드가 늘어 세로 배치 (이름 / 카테고리+정원 / 소개 / 버튼) */
 .chat-create {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
 }
 
-.chat-create input {
-  flex: 1;
+.chat-create input,
+.chat-create select,
+.room-edit input,
+.room-edit select {
   padding: 10px 12px;
   font-size: 15px;
   border: 1px solid #ccc;
   border-radius: 6px;
+}
+
+/* 카테고리 select + 정원 input 한 줄 배치 (생성·수정 폼 공용) */
+.chat-create-row {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-create-row select {
+  flex: 1;
+}
+
+.chat-create-row input {
+  flex: 1;
+}
+
+/* 목록 → 생성 페이지 진입 버튼 (생성 폼은 /chat/new로 분리 — 2026-08-11) */
+.chat-new-link {
+  display: block;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #2b6cb0;
+  border-radius: 6px;
+  color: #2b6cb0;
+  font-size: 15px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.chat-new-link:hover {
+  background: #eef4ff;
+}
+
+/* 3차: 검색·필터 (검색창 + 카테고리 칩 + 정렬 토글) */
+.chat-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chat-filter input {
+  padding: 10px 12px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+.chat-filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chat-chip {
+  padding: 4px 12px;
+  border: 1px solid #ccc;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chat-chip.active {
+  background: #2b6cb0;
+  border-color: #2b6cb0;
+  color: #fff;
+}
+
+.chat-sort {
+  margin-left: auto;
+  padding: 4px 10px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
 }
 
 .chat-room-list {
@@ -51,6 +133,67 @@
 .chat-room-list .count {
   color: #888;
   font-size: 14px;
+  white-space: nowrap;
+}
+
+/* 3차: 방 프로필 표시 (목록 카드 + 방 화면 헤더 아래) */
+.room-info {
+  text-align: left;
+  min-width: 0; /* 긴 소개가 카드 폭을 밀어내지 않게 */
+}
+
+.room-category {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: 8px;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: #2b6cb0;
+  font-size: 12px;
+}
+
+.room-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -8px 0 12px;
+  text-align: left;
+}
+
+.room-profile .room-desc {
+  margin: 0;
+  white-space: normal;
+}
+
+.room-capacity {
+  font-size: 12px;
+  color: #888;
+}
+
+/* 3차: 방 정보 수정 폼 (OWNER) */
+.room-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+}
+
+.room-edit-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* 채팅방 화면 (2덩어리에서 사용) */
@@ -139,6 +282,46 @@
   font-size: 15px;
   border: 1px solid #ccc;
   border-radius: 6px;
+}
+
+/* 3차: 공지 핀 — 배너 + 말풍선의 고정 버튼 */
+.pin-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #f0d264;
+  border-radius: 8px;
+  background: #fff8dc;
+  font-size: 13px;
+  text-align: left;
+}
+
+.pin-banner .pin-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-banner button {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pin-button {
+  margin-left: 6px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.pin-button:hover {
+  opacity: 1;
 }
 
 /* 실시간 연결 상태 안내 — 오류가 아니라 진행 중 표시라 눈에 덜 띄게 */
