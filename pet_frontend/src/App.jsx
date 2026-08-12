@@ -5,6 +5,9 @@ import ChatRoomPage from './chat/ChatRoomPage'
 import KakaoCallbackPage from './member/KakaoCallbackPage'
 import LoginPage from './member/LoginPage'
 import MyPage from './member/MyPage'
+import MyPageProfile from './member/MyPageProfile'
+import MyPageSecurity from './member/MyPageSecurity'
+import MyPageWithdraw from './member/MyPageWithdraw'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import WelcomePage from './member/WelcomePage'
@@ -46,7 +49,12 @@ function App() {
           <Route path="/pets/new" element={<PetCreatePage />} />
           <Route path="/pets/:petId" element={<PetDetailPage />} />
           <Route path="/pets/:petId/edit" element={<PetEditPage />} />
-          <Route path="/mypage" element={<MyPage />} />
+          {/* 마이페이지 — 탭이 곧 URL인 중첩 라우트 (MyPage.jsx가 탭 네비 + Outlet 레이아웃) */}
+          <Route path="/mypage" element={<MyPage />}>
+            <Route index element={<MyPageProfile />} />
+            <Route path="security" element={<MyPageSecurity />} />
+            <Route path="withdraw" element={<MyPageWithdraw />} />
+          </Route>
           <Route path="/chat" element={<ChatRoomListPage />} />
           <Route path="/chat/rooms/:roomId" element={<ChatRoomPage />} />
           <Route path="/shorts/new" element={<ShortsUploadPage />} />
