@@ -13,13 +13,19 @@
  *
  * 마커 클릭 시 카카오맵으로 이동시키지 않고, 이 컴포넌트 내부 공통
  * **하단 바텀시트**(2026-08-06 모바일 퍼스트 리디자인 — 기존 중앙 모달 폐기)로
- * 이름/카테고리 배지·상세/주소와 [전화 걸기]/[카카오맵에서 보기] 액션 버튼을
- * 보여준다. `phone`이 없으면 전화 버튼 자체를 숨긴다. 시트는 화면 하단에
+ * 카테고리 배지(닫기 버튼과 같은 헤더 한 줄)/이름/주소/전화번호/내 위치 기준
+ * 거리(`currentLocation`이 있을 때만)와 [전화 걸기] 액션 버튼을 보여준다.
+ * `phone`이 없으면 전화번호 표시·버튼 모두 숨긴다. 카테고리 상세
+ * (`categoryDetail`)는 2026-08-07 사용자 결정으로 시트에서 제거 — 필드 자체는
+ * 스키마에 유지되므로 다른 사용처에서 쓸 수 있다. "카카오맵에서 보기" 링크는 2026-08-07 사용자 결정으로
+ * 삭제 — 영업시간·리뷰·사진은 카카오 API 미제공이라 서비스 내 표시 불가
+ * 항목으로 남는다(크롤링은 약관 위반). 시트는 화면 하단에
  * 고정되고 지도 위쪽은 계속 보인다(전체 화면을 가리는 배경 없음, 얕은 스크림만).
- * `position: fixed`라 mini 모드(작은 컨테이너)에서도 화면 전체 기준 바텀시트로
- * 뜬다 — PetMap의 조상 요소들이 transform/filter 등으로 새 containing block을
- * 만들지 않는 한(현재 MapPage 등 사용처에 없음) 정상 동작한다. 데스크톱
- * (`min-width: 768px`)에서는 시트 너비가 520px로 제한되고 가로 중앙 정렬된다.
+ * 시트는 `createPortal`로 document.body에 렌더링된다(2026-08-07 — .pet-map의
+ * z-index:0 격리 컨텍스트 안에 두면 페이지 오버레이가 시트를 가리는 버그 수정).
+ * 덕분에 mini 모드(작은 컨테이너)에서도, 조상에 transform/filter가 있어도 항상
+ * 뷰포트 기준 하단 바텀시트로 뜬다. 시트는 화면 폭과 무관하게 모바일 레이아웃
+ * 하나만 쓴다 (2026-08-07 PC 대응 제외 확정).
  * 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4/N-5): 열릴 때 시트로
  * 포커스 이동 + Tab 트랩 + ESC로 닫기, 닫힐 때 이전 포커스로 복귀, 열려 있는
  * 동안 배경 스크롤 잠금. `places`가 교체되거나 카테고리 토글로 선택된 장소가
@@ -41,8 +47,10 @@
  * `onMapMoved`가 주어지면, 사용자가 드래그/스크롤 줌 등으로 지도를 직접
  * 움직였을 때(카카오 `idle` 이벤트) 현재 중심 좌표를 전달한다. 이 컴포넌트
  * 자신이 마커 범위에 맞추기 위해 수행하는 프로그래밍적 이동(장소 목록 변경 시
- * 범위 맞춤, 현위치 이동, 카테고리 토글 등)은 내부에서 구분해 걸러내므로
- * 호출되지 않는다 — "사용자가 실제로 지도를 움직였다"는 신호로만 쓰면 된다.
+ * 범위 맞춤, 카테고리 토글 등)은 내부에서 구분해 걸러내므로 호출되지 않는다
+ * — "사용자가 실제로 지도를 움직였다"는 신호로만 쓰면 된다. 단 "내 위치로 이동"
+ * 버튼에 의한 이동은 사용자가 직접 일으킨 것이므로 **호출된다** (2026-08-07
+ * 사용자 결정 — 다른 지역 재검색 후 내 위치로 돌아오면 재검색 버튼이 뜨도록).
  * "이 지역에서 재검색" 버튼처럼 사용처가 원할 때만 쓰는 선택 기능이라,
  * 넘기지 않아도(mini 모드 등) 무해하다.
  *
@@ -100,8 +108,8 @@
  * - onLocateClick?: () => void — "내 위치로 이동" 버튼을 눌렀는데
  *     `currentLocation`이 아직 없을 때 호출된다(위치 획득 위임).
  * - onMapMoved?: ({ lat: number, lng: number }) => void — 사용자가 지도를
- *     직접 움직였을 때(드래그/줌 등) 호출된다. 이 컴포넌트의 자체 프로그래밍적
- *     이동은 걸러지므로 호출되지 않는다.
+ *     직접 움직였을 때(드래그/줌, "내 위치로 이동" 버튼 포함) 호출된다.
+ *     이 컴포넌트의 자체 프로그래밍적 이동(범위 맞춤 등)은 걸러지므로 호출되지 않는다.
  * - onCenterChanged?: ({ lat: number, lng: number }) => void — 지도 중심이
  *     바뀔 때마다(이동 주체 무관 — 프로그래밍적 이동 포함) + 최초 생성 직후에
  *     현재 중심을 알린다. AI 검색이 "현재 보고 있는 지도" 기준으로 동작하기
@@ -127,7 +135,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { loadKakaoMaps } from './kakaoMapLoader';
-import { distanceMeters } from '../common/geo';
+import { CATEGORY_META } from './categoryMeta';
+import { distanceMeters, formatDistanceLabel } from '../common/geo';
 import { buildRegionLabel } from '../common/regionLabel';
 import './PetMap.css';
 
@@ -135,11 +144,6 @@ const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY;
 
 // 카테고리별 마커 색 — 루트 CLAUDE.md 118행 기준(병원=빨강/카페=파랑/호텔=초록).
 // design-agent의 디자인 토큰이 확정되면 이 상수를 토큰 참조로 교체한다.
-const CATEGORY_META = {
-  HOSPITAL: { label: '병원', color: '#e53e3e' },
-  CAFE: { label: '카페', color: '#3b82f6' },
-  HOTEL: { label: '호텔', color: '#22c55e' },
-};
 
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // 서울시청 — 위치 정보가 전혀 없을 때의 기본 중심
 
@@ -521,7 +525,10 @@ function PetMap({
 
   const handleLocateClick = () => {
     if (currentLocation && mapRef.current && kakaoRef.current) {
-      programmaticMoveRef.current = true;
+      // 프로그래밍적 이동으로 표시하지 않는다(programmaticMoveRef 미설정) — "내 위치로 이동"은
+      // 사용자가 버튼으로 직접 일으킨 이동이므로 onMapMoved를 발화시켜, 마지막 조회 지점에서
+      // 충분히 멀면 "이 지역에서 재검색" 버튼이 뜨게 한다 (2026-08-07 사용자 결정:
+      // 다른 지역 재검색 후 내 위치로 돌아왔을 때 재검색 버튼 노출).
       mapRef.current.panTo(new kakaoRef.current.maps.LatLng(currentLocation.lat, currentLocation.lng));
       return;
     }
@@ -646,7 +653,13 @@ function PetMap({
         </svg>
       </button>
 
-      {selectedPlace && (
+      {/* 상세 시트는 document.body로 포털 (2026-08-07 버그 수정): .pet-map이
+          z-index:0 격리 스태킹 컨텍스트라, 시트를 이 안에 두면 z-index:1000이어도
+          형제 오버레이(예: MapPage의 "목록 보기" z-index:1)가 위에 그려져 시트를
+          가린다. body로 빼면 페이지 오버레이들과 같은 최상위 컨텍스트에서 비교되어
+          항상 위에 뜬다. position:fixed의 조상 containing block 이슈(transform 등)도
+          함께 사라진다. */}
+      {selectedPlace && createPortal(
         <div className="pet-map__sheet-backdrop" onMouseDown={handleBackdropClick}>
           <div
             ref={sheetPanelRef}
@@ -659,30 +672,26 @@ function PetMap({
           >
             <span className="pet-map__sheet-handle" aria-hidden="true" />
 
-            <button
-              type="button"
-              className="pet-map__sheet-close"
-              onClick={() => setSelectedPlace(null)}
-              aria-label="닫기"
-            >
-              ×
-            </button>
-
-            {(selectedMeta || selectedPlace.categoryDetail) && (
-              <div className="pet-map__sheet-badge-row">
-                {selectedMeta && (
-                  <span
-                    className="pet-map__sheet-badge"
-                    style={{ '--chip-color': selectedMeta.color }}
-                  >
-                    {selectedMeta.label}
-                  </span>
-                )}
-                {selectedPlace.categoryDetail && (
-                  <span className="pet-map__sheet-category-detail">{selectedPlace.categoryDetail}</span>
-                )}
-              </div>
-            )}
+            {/* 헤더 한 줄: 좌측 카테고리 배지 + 우측 닫기 (2026-08-07 사용자 결정 —
+                카테고리 상세(카카오 category_name) 텍스트는 시트에서 제거) */}
+            <div className="pet-map__sheet-header">
+              {selectedMeta && (
+                <span
+                  className="pet-map__sheet-badge"
+                  style={{ '--chip-color': selectedMeta.color }}
+                >
+                  {selectedMeta.label}
+                </span>
+              )}
+              <button
+                type="button"
+                className="pet-map__sheet-close"
+                onClick={() => setSelectedPlace(null)}
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
 
             <h3 className="pet-map__sheet-title">{selectedPlace.name}</h3>
 
@@ -690,30 +699,37 @@ function PetMap({
               <p className="pet-map__sheet-address">{selectedPlace.address}</p>
             )}
 
-            {(selectedPlace.phone || selectedPlace.placeUrl) && (
+            {(selectedPlace.phone || currentLocation) && (
+              <p className="pet-map__sheet-meta">
+                {[
+                  selectedPlace.phone,
+                  currentLocation
+                    ? `내 위치에서 약 ${formatDistanceLabel(
+                        distanceMeters(currentLocation, {
+                          lat: selectedPlace.lat,
+                          lng: selectedPlace.lng,
+                        }),
+                      )}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            )}
+
+            {selectedPlace.phone && (
               <div className="pet-map__sheet-actions">
-                {selectedPlace.phone && (
-                  <a
-                    className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
-                    href={`tel:${selectedPlace.phone}`}
-                  >
-                    전화 걸기
-                  </a>
-                )}
-                {selectedPlace.placeUrl && (
-                  <a
-                    className="pet-map__sheet-action-btn"
-                    href={selectedPlace.placeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    카카오맵에서 보기
-                  </a>
-                )}
+                <a
+                  className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
+                  href={`tel:${selectedPlace.phone}`}
+                >
+                  전화 걸기
+                </a>
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

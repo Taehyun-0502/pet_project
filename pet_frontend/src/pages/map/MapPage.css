@@ -12,8 +12,8 @@
 /* 검색바 + 카테고리 토글 칩 — 지도 위 오버레이 (2026-08-06 — 기준점은 토글 쪽:
    검색바가 지도 위로). 우측은 줌 컨트롤(우상단 36px + 여백)을 피해 60px 비워둔다.
    PetMap(z-index:0)보다 DOM상 앞에 있으므로 z-index로 위에 올린다.
-   모바일 퍼스트(360px 기준): 검색바 전폭 한 줄 + 칩 가로 스크롤 한 줄(세로 스택).
-   데스크톱(768px+)은 아래 미디어쿼리에서 한 줄 가로 배치로 확장. */
+   모바일 단일 사이즈(360px 기준): 검색바 전폭 한 줄 + 칩 가로 스크롤 한 줄(세로 스택).
+   데스크톱 확장 없음 — PC 대응 제외 (2026-08-07 사용자 확정). */
 .map-page__overlay-header {
   position: absolute;
   z-index: 2;
@@ -30,11 +30,19 @@
   min-width: 0;
 }
 
-/* 칩 줄 — 한 줄 가로 스크롤 (줄바꿈 없음), 스크롤바는 숨김 */
+/* 칩 줄 — 한 줄 가로 스크롤 (줄바꿈 없음), 스크롤바는 숨김.
+   opacity 전환은 목록 시트 모션(아래 --fading)과 닫힘 시 칩 복귀 페이드인 공용. */
 .map-page__toggle-slot {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  transition: opacity 260ms ease; /* = MapPage.jsx CHIP_FADE_MS */
+}
+
+/* 목록 시트가 열리는 동안 지도 위 칩을 서서히 비노출 (2026-08-07 목업 승인 모션) */
+.map-page__toggle-slot--fading {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .map-page__toggle-slot::-webkit-scrollbar {
@@ -47,22 +55,8 @@
   width: max-content;
 }
 
-@media (min-width: 768px) {
-  .map-page__overlay-header {
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .map-page__search-row {
-    flex: 1 1 280px;
-    min-width: 240px;
-  }
-
-  .map-page__toggle-slot {
-    overflow: visible;
-  }
-}
+/* 데스크톱 확장 미디어쿼리 없음 — PC 대응 제외, 모바일 레이아웃 하나만 유지
+   (2026-08-07 사용자 확정. 화면 폭과 무관하게 360px 기준 배치 그대로 렌더링) */
 
 .map-page__map-wrap {
   position: relative;
@@ -77,7 +71,7 @@
 .map-page__research-btn {
   position: absolute;
   z-index: 1;
-  /* 모바일 base: 검색바(32px)+칩(30px)+간격을 지나 ~94px부터. 데스크톱은 아래 미디어쿼리 */
+  /* 검색바(32px)+칩(30px)+간격을 지나 ~94px부터 (모바일 단일 레이아웃) */
   top: 94px;
   left: 50%;
   transform: translateX(-50%);
@@ -122,13 +116,6 @@
   box-shadow: var(--shadow);
 }
 
-@media (min-width: 768px) {
-  .map-page__research-btn,
-  .map-page__banner {
-    top: 52px;
-  }
-}
-
 .map-page__banner--loading {
   background: var(--accent-bg);
   color: var(--text-h);
@@ -156,6 +143,12 @@
 .map-page__sheet {
   position: relative;
   width: 100%;
+  /* position:fixed 시트라 #root의 360px 컬럼 제약 밖 — PetMap 장소 상세 시트와
+     동일하게 컬럼 폭으로 직접 제한 (index.css #root max-width와 같은 값 유지). */
+  max-width: 360px;
+  /* border-box 필수 — 없으면 패딩·테두리가 360px 밖으로 더해져 컬럼(#root)보다
+     넓어진다(실렌더 402px 확인). PetMap 시트도 동일하게 border-box. */
+  box-sizing: border-box;
   max-height: 45vh;
   overflow-y: auto;
   padding: 8px 20px 20px;
@@ -207,10 +200,200 @@
   outline-offset: 2px;
 }
 
-@media (min-width: 768px) {
-  .map-page__sheet {
-    max-width: 520px;
+/* 지도 하단 중앙 "목록 보기" 버튼 (2026-08-07) — 재검색 버튼과 같은 필 스타일.
+   좌하단 카카오 로고, 우하단 내 위치 버튼(44px)을 피해 중앙 배치. */
+.map-page__list-btn {
+  position: absolute;
+  z-index: 1;
+  /* 12px이면 좌하단 카카오 로고·축척 라인과 겹침(실렌더 확인) — 로고 위로 띄운다 */
+  bottom: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.map-page__list-btn:hover {
+  background: var(--accent-bg);
+}
+
+/* 목록 시트가 열리는 동안 버튼도 칩과 같은 속도로 페이드아웃 */
+.map-page__list-btn {
+  transition: opacity 260ms ease; /* = CHIP_FADE_MS */
+}
+
+.map-page__list-btn--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.map-page__list-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 장소 목록 바텀시트 (2026-08-07) — AI 답변 시트와 같은 시각 언어, 목록이라 조금 높게 */
+.map-page__sheet--list {
+  max-height: 60vh;
+}
+
+/* 목록 시트 열림/닫힘 모션 (2026-08-07 목업 승인) — 하단 슬라이드업 + 배경 페이드,
+   닫힐 때 역재생. 재생 시간(340ms)은 MapPage.jsx SHEET_MOTION_MS와 반드시 일치.
+   감속 곡선 cubic-bezier(0.22,1,0.36,1): 빠르게 올라와 부드럽게 멈추는 시트 느낌. */
+@keyframes map-page-sheet-in {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes map-page-sheet-out {
+  from { transform: translateY(0); }
+  to { transform: translateY(105%); }
+}
+
+@keyframes map-page-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes map-page-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.map-page__sheet-backdrop--animated {
+  animation: map-page-backdrop-in 340ms ease both;
+}
+
+.map-page__sheet-backdrop--closing {
+  animation: map-page-backdrop-out 340ms ease both;
+}
+
+.map-page__sheet--animated {
+  animation: map-page-sheet-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.map-page__sheet--closing {
+  animation: map-page-sheet-out 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 모션 최소화 설정 사용자는 애니메이션을 즉시 완료 상태로 */
+@media (prefers-reduced-motion: reduce) {
+  .map-page__sheet-backdrop--animated,
+  .map-page__sheet-backdrop--closing,
+  .map-page__sheet--animated,
+  .map-page__sheet--closing {
+    animation-duration: 1ms;
   }
+
+  .map-page__toggle-slot,
+  .map-page__list-btn,
+  .map-page__list-toggle-slot {
+    transition-duration: 1ms;
+  }
+}
+
+/* 헤더 한 줄: 제목 좌측 + 닫기 우측 (마커 상세 시트의 한 줄 배치 원칙과 동일) */
+.map-page__list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.map-page__list-title {
+  color: var(--text-h);
+  font-size: 15px;
+}
+
+/* 답변 시트의 절대 위치 닫기 버튼을 헤더 줄 안의 in-flow 버튼으로 전환 */
+.map-page__sheet-close--inline {
+  position: static;
+  margin-left: auto;
+}
+
+/* 목록 시트 안 토글 칩 줄 — 지도 헤더 칩 줄과 같은 가로 스크롤 한 줄.
+   지도 칩 페이드아웃이 끝난 뒤(--visible) 칩이 포털되며 페이드인한다. */
+.map-page__list-toggle-slot {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  margin-bottom: 8px;
+  /* 칩은 CHIP_FADE_MS 뒤에 포털되어 들어온다 — 빈 동안에도 칩 줄 높이를 미리
+     확보해 목록이 아래로 밀리는 레이아웃 점프를 막는다 (칩 높이 ~30px) */
+  min-height: 30px;
+  opacity: 0;
+  transition: opacity 260ms ease; /* = CHIP_FADE_MS */
+}
+
+.map-page__list-toggle-slot::-webkit-scrollbar {
+  display: none;
+}
+
+.map-page__list-toggle-slot--visible {
+  opacity: 1;
+}
+
+.map-page__list-toggle-slot .pet-map__toggle-list {
+  flex-wrap: nowrap;
+  width: max-content;
+}
+
+.map-page__place-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: left; /* #root 전역 text-align:center 상쇄 */
+}
+
+.map-page__place-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.map-page__place-item:first-child {
+  border-top: none;
+}
+
+/* 마커 색과 동일한 카테고리 점 (PetMap CATEGORY_META 색 공유) */
+.map-page__place-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+  margin-top: 5px;
+}
+
+.map-page__place-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-page__place-name {
+  color: var(--text-h);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.map-page__place-address {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.map-page__place-info {
+  color: var(--text);
+  font-size: 12px;
 }
 
 /* "검색 결과 없음" 센터 팝업 (2026-08-06 사용자 결정 — 토스트에서 변경).

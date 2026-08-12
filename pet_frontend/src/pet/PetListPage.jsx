@@ -45,6 +45,8 @@ export default function PetListPage() {
         <span className="pet-nav-links">
           <Link to="/shorts">숏츠 →</Link>
           <Link to="/chat">오픈채팅 →</Link>
+          <Link to="/map">지도 →</Link>
+          <Link to="/aisearch">AI 검색 →</Link>
         </span>
       </nav>
 

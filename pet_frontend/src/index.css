@@ -15,7 +15,8 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
+  /* 모바일 단일 사이즈(2026-08-07 재확정)에 따라 화면 폭 분기 없이 모바일 값 하나로 통일 */
+  font: 16px/145% var(--sans);
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
@@ -24,10 +25,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -54,9 +51,14 @@ body {
   margin: 0;
 }
 
+/* 서비스 전체를 모바일 사이즈 하나로만 렌더링 (2026-08-07 사용자 재확정 — map만
+   모바일로 뒀던 스코프 방식에서 전역 적용으로 복귀). PC 등 넓은 화면에서는 360px
+   컬럼이 중앙에 뜨고(양옆 테두리가 폰 프레임 역할), 모바일 기기는 전체 폭을 쓴다.
+   주의: 지도 바텀시트들(MapPage.css·PetMap.css)의 max-width: 360px는 이 값과
+   일치를 유지해야 한다. 쇼츠는 #root:has(.sf-feed)로 이 제약을 스스로 푼다. */
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: 100%;
+  max-width: 360px;
   margin: 0 auto;
   text-align: center;
   border-inline: 1px solid var(--border);
@@ -73,23 +75,17 @@ h2 {
   color: var(--text-h);
 }
 
+/* h1/h2도 화면 폭 분기 없이 모바일 값 하나로 통일 (2026-08-07 재확정) */
 h1 {
-  font-size: 56px;
+  font-size: 36px;
   letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+  margin: 20px 0;
 }
 h2 {
-  font-size: 24px;
+  font-size: 20px;
   line-height: 118%;
   letter-spacing: -0.24px;
   margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
 }
 p {
   margin: 0;

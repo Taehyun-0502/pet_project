@@ -106,6 +106,17 @@ function App() {
           </RequireLogin>
         }
       />
+      {/* AI 검색 진입 경로 — 검색 통합 Phase(루트 CLAUDE.md): AI 검색은 챗봇(지도)
+          페이지가 담당하므로 MapPage를 그대로 렌더링한다(별도 페이지 없음).
+          추후 ?q= 쿼리 파라미터 수신 시 자동 검색 실행 예정(미구현) */}
+      <Route
+        path="/aisearch"
+        element={
+          <RequireLogin>
+            <MapPage />
+          </RequireLogin>
+        }
+      />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       {/* 카카오 인가 리다이렉트 수신 — 공개 경로 (로그인 전 상태에서 진입한다) */}
