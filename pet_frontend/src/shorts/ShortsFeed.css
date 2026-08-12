@@ -89,6 +89,32 @@
 .sf-actions svg { width: 33px; height: 33px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
 .sf-actions button.sf-liked svg { fill: #ff2d55; stroke: #ff2d55; }
 
+/* 탭으로 정지·재생했을 때 가운데에 잠깐 떴다 사라지는 표시.
+   pointer-events:none — 떠 있는 동안 연달아 탭해도 카드가 그대로 받아야 한다.
+   z-index 3은 스크림(2) 위, 정보·액션(4) 아래 — 가운데라 겹칠 일은 없지만 순서는 맞춘다.
+   가운데 정렬을 transform이 아니라 음수 margin으로 하는 이유: transform은 아래
+   애니메이션이 쓰고 있어서 같이 쓰면 서로 덮어쓴다.
+   지속시간은 ShortsFeed.jsx의 TAP_HINT_MS와 맞춰야 한다 (둘 중 하나만 바꾸면 어긋난다) */
+.sf-tap-hint {
+  position: absolute; top: 50%; left: 50%;
+  z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  width: 76px; height: 76px;
+  margin: -38px 0 0 -38px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.45);
+  pointer-events: none;
+  animation: sf-tap-hint .6s ease-out forwards;
+}
+.sf-tap-hint svg { width: 38px; height: 38px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.45)); }
+
+/* 떴다가 살짝 커지며 사라진다 — 정지 상태를 계속 덮고 있지 않게 끝에서 완전히 투명 */
+@keyframes sf-tap-hint {
+  0%   { opacity: 0; transform: scale(.7); }
+  20%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.25); }
+}
+
 .sf-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 5; background: rgba(255,255,255,.2); }
 .sf-progress > i { display: block; height: 100%; width: 0%; background: #fff; }
 
@@ -132,9 +158,29 @@
 
 .cs-list { list-style: none; margin: 0; padding: 0; }
 .cs-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 14px; }
-/* 대댓글은 들여쓰기로만 구분한다 (2단이라 더 깊은 단계가 없다) */
-.cs-reply { padding-left: 38px; }
+/* 대댓글은 들여쓰기로만 구분한다 (2단이라 더 깊은 단계가 없다).
+   들여쓰기 값은 부모의 아바타 폭에 맞춘 것 — 14(좌패딩) + 30(아바타) + 8(gap) */
+.cs-reply { padding-left: 52px; }
 .cs-reply .cs-content { color: #d1d5db; }
+
+/* 작성자 아바타 — 사진이 없으면 cs-avatar-empty가 placeholder를 담는다.
+   대댓글은 한 단계 작게 해서 부모와 구분된다 */
+.cs-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.cs-avatar-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #3a3b45;
+  font-size: 16px;
+}
+.cs-reply .cs-avatar { width: 24px; height: 24px; }
+.cs-reply .cs-avatar-empty { font-size: 13px; }
 
 .cs-body { flex: 1; min-width: 0; }
 .cs-name { font-size: 13px; font-weight: 700; color: #f3f4f6; }

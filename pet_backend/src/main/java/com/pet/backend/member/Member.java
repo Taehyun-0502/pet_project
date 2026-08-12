@@ -13,6 +13,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
@@ -22,6 +23,10 @@ import org.hibernate.annotations.UpdateTimestamp;
  */
 @Entity
 @Table(name = "pet_member")
+// 변경된 컬럼만 UPDATE 문에 담는다 (리뷰 백로그 80번).
+// 이 엔티티에는 @Version이 없어서, 전 컬럼 UPDATE는 동시에 커밋된 password·tokens_valid_from을
+// 조용히 옛 값으로 되돌릴 수 있었다 — 77번이 끊어낸 토큰이 되살아나는 경로다.
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member {

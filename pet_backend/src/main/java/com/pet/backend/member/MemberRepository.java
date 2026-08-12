@@ -13,11 +13,22 @@ import org.springframework.data.repository.query.Param;
  */
 public interface MemberRepository extends JpaRepository<Member, Long> {
 
-    // 로그인: 활성 회원을 이메일로 조회
-    Optional<Member> findByEmailAndDeletedAtIsNull(String email);
+    /**
+     * 로그인: 활성 회원을 이메일로 조회 (리뷰 백로그 2번 — 대소문자 무시).
+     *
+     * <p>**파라미터는 이미 정규화된(소문자) 값이어야 한다** — {@code MemberService.normalizeEmail}을 거칠 것.
+     * 원문을 그대로 넘기면 대문자가 섞인 입력이 조용히 조회 실패한다.
+     *
+     * <p>비교를 `lower(email)`로 하는 이유는 두 가지다. ① 저장값 정규화 이전에 만들어진 행(대문자 포함)도
+     * 로그인이 되어야 한다. ② 부분 UNIQUE 인덱스가 `lower(email)` 식 인덱스라 조건을 같은 형태로 써야
+     * 인덱스를 탄다(`email = ?`로 쓰면 못 탄다).
+     */
+    @Query("select m from Member m where lower(m.email) = :normalizedEmail and m.deletedAt is null")
+    Optional<Member> findActiveByNormalizedEmail(@Param("normalizedEmail") String normalizedEmail);
 
-    // 회원가입: 이메일 중복 여부 (활성 회원 기준 — 최종 차단은 DB 부분 UNIQUE 인덱스)
-    boolean existsByEmailAndDeletedAtIsNull(String email);
+    /** 회원가입: 이메일 중복 여부 (활성 회원 기준 — 최종 차단은 DB 부분 UNIQUE 인덱스). 위와 같은 정규화 규약. */
+    @Query("select count(m) > 0 from Member m where lower(m.email) = :normalizedEmail and m.deletedAt is null")
+    boolean existsActiveByNormalizedEmail(@Param("normalizedEmail") String normalizedEmail);
 
     // 카카오 로그인: 외부 식별자로 활성 계정 조회 (ux_pet_member_provider_active 인덱스 사용)
     Optional<Member> findByProviderAndProviderIdAndDeletedAtIsNull(Provider provider, String providerId);

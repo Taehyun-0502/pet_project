@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import Field from '../common/Field'
+import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { signup } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
@@ -27,92 +29,61 @@ function validate(form) {
   return errors
 }
 
+// 이메일 중복은 필드 오류다 — 폼 하단이 아니라 이메일 입력 아래에 붙여야 어디를 고칠지 보인다
+function mapError(err) {
+  return err.code === 'AUTH_EMAIL_DUPLICATED' ? { email: err.message } : null
+}
+
 export default function SignupPage() {
   const navigate = useNavigate()
   const { user, login } = useAuth()
-  const [form, setForm] = useState({ email: '', password: '', passwordConfirm: '', name: '' })
-  const [errors, setErrors] = useState({})
-  const [submitError, setSubmitError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   // 방금 이 화면에서 가입해 자동 로그인이 진행 중인지.
   // 이게 없으면 로그인으로 user가 채워지는 순간 아래 가드가 먼저 홈으로 보내버려
   // 온보딩 화면(/welcome)에 닿지 못한다
   const [signedUp, setSignedUp] = useState(false)
 
-  // 이미 로그인한 상태면 가입 화면 대신 홈으로
+  const form = useForm({
+    initialValues: { email: '', password: '', passwordConfirm: '', name: '' },
+    validate,
+    mapError,
+    onSubmit: async (values) => {
+      const email = values.email.trim()
+      await signup({ email, password: values.password, name: values.name.trim() })
+
+      // 가입 성공. 온보딩 화면에서 바로 반려동물을 등록하려면 토큰이 있어야 하는데
+      // 가입 응답에는 토큰이 없으므로(명세) 방금 입력한 자격 증명으로 로그인을 이어서 호출한다.
+      // 여기부터의 실패는 폼 오류가 아니므로 useForm의 catch에 맡기지 않고 직접 처리한다
+      setSignedUp(true)
+      try {
+        await login({ email, password: values.password })
+        navigate('/welcome', { replace: true, state: { fromSignup: true } })
+      } catch {
+        // 가입 자체는 이미 성공했으니 되돌리지 않고 로그인 화면으로 안내한다
+        navigate('/login', { replace: true, state: { signupEmail: email } })
+      }
+    },
+  })
+
+  // 이미 로그인한 상태면 가입 화면 대신 홈으로 (훅 호출 뒤에 둔다)
   if (user && !signedUp) return <Navigate to="/" replace />
-
-  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
-
-  const onSubmit = async (e) => {
-    e.preventDefault()
-    setSubmitError('')
-    const nextErrors = validate(form)
-    setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
-
-    setSubmitting(true)
-    const email = form.email.trim()
-    try {
-      await signup({ email, password: form.password, name: form.name.trim() })
-    } catch (err) {
-      if (err.code === 'AUTH_EMAIL_DUPLICATED') setErrors({ email: err.message })
-      else setSubmitError(err.message)
-      setSubmitting(false)
-      return
-    }
-
-    // 가입 성공. 온보딩 화면에서 바로 반려동물을 등록하려면 토큰이 있어야 하는데
-    // 가입 응답에는 토큰이 없으므로(명세) 방금 입력한 자격 증명으로 로그인을 이어서 호출한다
-    setSignedUp(true)
-    try {
-      await login({ email, password: form.password })
-      navigate('/welcome', { replace: true, state: { fromSignup: true } })
-    } catch {
-      // 가입 자체는 이미 성공했으니 되돌리지 않고 로그인 화면으로 안내한다
-      navigate('/login', { replace: true, state: { signupEmail: email } })
-    }
-  }
 
   return (
     <main className="auth-page">
       <h1>회원가입</h1>
-      <form className="auth-form" onSubmit={onSubmit} noValidate>
-        <label>
-          이메일
-          <input
-            type="email" name="email" value={form.email} onChange={onChange}
-            aria-invalid={Boolean(errors.email)} autoComplete="email"
-          />
-          {errors.email && <p className="field-error">{errors.email}</p>}
-        </label>
-        <label>
-          비밀번호 ({PASSWORD_RULE_LABEL})
-          <input
-            type="password" name="password" value={form.password} onChange={onChange}
-            aria-invalid={Boolean(errors.password)} autoComplete="new-password"
-          />
-          {errors.password && <p className="field-error">{errors.password}</p>}
-        </label>
-        <label>
-          비밀번호 확인
-          <input
-            type="password" name="passwordConfirm" value={form.passwordConfirm} onChange={onChange}
-            aria-invalid={Boolean(errors.passwordConfirm)} autoComplete="new-password"
-          />
-          {errors.passwordConfirm && <p className="field-error">{errors.passwordConfirm}</p>}
-        </label>
-        <label>
-          이름
-          <input
-            type="text" name="name" value={form.name} onChange={onChange}
-            aria-invalid={Boolean(errors.name)} autoComplete="name"
-          />
-          {errors.name && <p className="field-error">{errors.name}</p>}
-        </label>
-        {submitError && <p className="submit-error">{submitError}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? '가입 중…' : '가입하기'}
+      <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
+        <Field form={form} name="email" label="이메일" type="email" autoComplete="email" />
+        <Field
+          form={form} name="password" label={`비밀번호 (${PASSWORD_RULE_LABEL})`}
+          type="password" autoComplete="new-password"
+        />
+        <Field
+          form={form} name="passwordConfirm" label="비밀번호 확인"
+          type="password" autoComplete="new-password"
+        />
+        <Field form={form} name="name" label="이름" type="text" autoComplete="name" />
+        {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
+        <button type="submit" disabled={form.submitting}>
+          {form.submitting ? '가입 중…' : '가입하기'}
         </button>
       </form>
       <p className="auth-switch">

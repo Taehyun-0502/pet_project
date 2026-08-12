@@ -28,6 +28,14 @@ const HeartSmall = ({ filled }) => (
 function CommentRow({ comment, isReply, onReply, onLike }) {
   return (
     <li className={isReply ? 'cs-item cs-reply' : 'cs-item'}>
+      {/* 프로필 사진이 없는 회원은 null로 오므로 placeholder를 대신 놓는다 (채팅과 같은 규칙) */}
+      {comment.memberProfileImageUrl ? (
+        <img className="cs-avatar" src={comment.memberProfileImageUrl} alt="" />
+      ) : (
+        <span className="cs-avatar cs-avatar-empty" aria-hidden="true">
+          👤
+        </span>
+      )}
       <div className="cs-body">
         <span className="cs-name">@{comment.memberName}</span>
         <span className="cs-time">{timeAgo(comment.createdAt)}</span>

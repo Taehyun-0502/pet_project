@@ -14,6 +14,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 
 /**
  * 방 참여 관계 + 방 내 권한.
@@ -23,6 +24,11 @@ import org.hibernate.annotations.CreationTimestamp;
  */
 @Entity
 @Table(name = "chat_room_member")
+// 변경된 컬럼만 UPDATE 문에 담는다 (리뷰 백로그 82번).
+// last_read_message_id는 벌크 UPDATE(markRead) 전용이라 @Version이 올라가지 않는다 —
+// 전 컬럼 UPDATE라면 지명·위임이 자기 스냅샷의 옛 읽음 위치를 다시 써서 배지를 되살리는데,
+// version이 그대로라 낙관적 잠금도 이 충돌을 잡지 못했다. 이제 role 변경 문에 그 컬럼이 아예 없다
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatRoomMember {
@@ -60,6 +66,8 @@ public class ChatRoomMember {
      * NULL은 "메시지가 없던 방에 입장" 상태이며 집계에서 0으로 취급(coalesce)한다.
      * 갱신은 엔티티가 아니라 벌크 UPDATE(markRead)로만 한다 — 읽음 보고가 @Version을 올리면
      * 권한 변경(위임·강퇴)과 불필요한 409 충돌을 만들기 때문.
+     * 그 대가로 이 컬럼은 낙관적 잠금의 보호를 받지 못하므로, 클래스의 @DynamicUpdate가
+     * "권한 변경 UPDATE에는 이 컬럼을 넣지 않는다"로 반대편을 막는다 (백로그 82번).
      */
     @Column(name = "last_read_message_id")
     private Long lastReadMessageId;

@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -43,6 +44,8 @@ public class MemberService {
     private final RefreshTokenService refreshTokenService;
     private final KakaoOAuthClient kakaoOAuthClient;
     private final ImageStorageClient imageStorageClient;
+    // 사진 URL 저장만 담당하는 짧은 트랜잭션 (백로그 80번 — 클래스 주석 참고)
+    private final MemberProfileImageUpdater memberProfileImageUpdater;
     // 도메인 경계를 넘는 유일한 의존 — 탈퇴가 "방장 방 검사 → 참여 방 정리"를 회원 삭제와
     // **같은 트랜잭션**에서 해야 해서(중간 실패 시 함께 롤백) 이벤트로 분리할 수 없다.
     // 서비스가 아니라 리포지토리를 물어 chat 도메인 규칙(권한 검증 등)은 끌어오지 않는다
@@ -50,11 +53,12 @@ public class MemberService {
 
     @Transactional
     public MemberResponse signup(SignupRequest request) {
-        if (memberRepository.existsByEmailAndDeletedAtIsNull(request.email())) {
+        String email = normalizeEmail(request.email());
+        if (memberRepository.existsActiveByNormalizedEmail(email)) {
             throw new BusinessException(ErrorCode.AUTH_EMAIL_DUPLICATED);
         }
         Member member = Member.createLocalMember(
-                request.email(),
+                email,
                 passwordEncoder.encode(request.password()),
                 request.name());
         try {
@@ -73,7 +77,7 @@ public class MemberService {
      */
     @Transactional
     public LoginResult login(LoginRequest request, String priorRefreshToken, String deviceInfo) {
-        Member member = memberRepository.findByEmailAndDeletedAtIsNull(request.email())
+        Member member = memberRepository.findActiveByNormalizedEmail(normalizeEmail(request.email()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
         // password가 NULL인 소셜 계정은 자체 로그인 불가
         if (member.getPassword() == null || !matchesSafely(request.password(), member.getPassword())) {
@@ -108,12 +112,12 @@ public class MemberService {
     private Member registerKakaoMember(KakaoOAuthClient.KakaoUserInfo userInfo) {
         // 이메일은 카카오의 선택 동의 항목이라 없을 수 있다 — 미제공이면 null로 가입한다
         // (2026-08-10 개정, docs/api-spec.md 1절 4차. placeholder 이메일은 채우지 않는다)
-        String email = (userInfo.email() == null || userInfo.email().isBlank())
-                ? null
-                : userInfo.email();
+        // 자체 가입과 같은 규칙으로 정규화한다 — 안 하면 카카오가 준 대문자 이메일이
+        // 소문자로 저장된 자체 계정과 다른 값이 되어 아래 충돌 검사를 그냥 통과한다 (백로그 2번)
+        String email = normalizeEmail(userInfo.email());
         // 같은 이메일의 자체 가입 계정이 있으면 자동 연결하지 않고 거부한다 —
         // 카카오 이메일 검증을 신뢰하면 계정 탈취 벡터가 되고, 한 계정 = 한 provider 스키마와도 맞지 않는다
-        if (email != null && memberRepository.existsByEmailAndDeletedAtIsNull(email)) {
+        if (email != null && memberRepository.existsActiveByNormalizedEmail(email)) {
             throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
         }
         String name = (userInfo.nickname() == null || userInfo.nickname().isBlank())
@@ -138,7 +142,7 @@ public class MemberService {
                         // 카카오 계정 인덱스 충돌이 아니었다. 사전 검사와 INSERT 사이에 같은 이메일이
                         // 먼저 가입한 경우만 409로 안내하고, 그 밖의 제약 위반(예: provider 무결성 CHECK)은
                         // 원인을 "이메일 충돌"로 덮어쓰지 않고 그대로 올린다
-                        if (email != null && memberRepository.existsByEmailAndDeletedAtIsNull(email)) {
+                        if (email != null && memberRepository.existsActiveByNormalizedEmail(email)) {
                             throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
                         }
                         throw e;
@@ -324,7 +328,8 @@ public class MemberService {
     /**
      * 프로필 사진 업로드 (docs/api-spec.md 1절). PetService.uploadProfileImage와 같은 구조 —
      * Storage 업로드(외부 HTTP) 동안 커넥션을 점유하지 않도록 의도적으로 비트랜잭션이고,
-     * 저장은 save()가 자체 트랜잭션으로 처리한다.
+     * 저장만 {@link MemberProfileImageUpdater}의 짧은 트랜잭션에 맡긴다 (리뷰 백로그 80번 —
+     * 저장까지 트랜잭션 밖에 두면 detached merge가 password·tokens_valid_from까지 옛 값으로 되돌린다).
      */
     public MemberResponse uploadProfileImage(Long memberId, MultipartFile file) {
         imageStorageClient.validateImage(file);
@@ -340,10 +345,32 @@ public class MemberService {
         // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지 (ImageStorageClient 주석)
         String url = imageStorageClient.upload("member-" + memberId, bytes, file.getContentType());
 
-        Member member = findActiveMemberOrThrow(memberId);
-        member.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
-        memberRepository.save(member);
+        Member member = memberProfileImageUpdater.apply(
+                memberId, url + "?v=" + Instant.now().toEpochMilli());
         return MemberResponse.from(member);
+    }
+
+    /**
+     * 이메일 정규화 — 저장·조회의 단일 규칙 (리뷰 백로그 2번).
+     *
+     * <p>정규화 전에는 앱 검사와 DB UNIQUE 인덱스가 모두 대소문자를 구분해
+     * {@code Test@a.com}과 {@code test@a.com}이 **별개 계정**으로 가입됐고,
+     * 로그인도 가입 때 쓴 대소문자와 정확히 같아야 성공했다.
+     * "이메일 1개 = 활성 계정 1개"(erd.md)라는 전제를 지키려면 한 곳에서만 규칙을 정해야 한다.
+     *
+     * <p>{@code Locale.ROOT}를 쓰는 이유: 기본 로케일 기반 {@code toLowerCase()}는 터키어 환경에서
+     * {@code I}를 {@code ı}(점 없는 i)로 바꿔, 서버 로케일에 따라 같은 이메일이 다른 값이 된다.
+     *
+     * <p>도메인만 소문자로 바꾸는 방식(로컬파트는 RFC상 대소문자 구분)은 택하지 않았다 —
+     * 실제 메일 서비스가 로컬파트를 구분하지 않고, 사용자가 겪는 문제는 "대문자로 쳤더니 로그인 실패"다.
+     *
+     * @return 소문자로 정규화한 이메일. 입력이 null이거나 공백뿐이면 null (카카오 이메일 미제공 경로)
+     */
+    private String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     // 활성 조건이 쿼리에 있는 조회로 통일 (백로그 95번 해소 — 이전에는 findById().filter 복붙이 4곳)

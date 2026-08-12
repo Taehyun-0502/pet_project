@@ -1,7 +1,29 @@
 import { useEffect, useState } from 'react'
+import Field from '../common/Field'
+import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { changePassword, getSessions, revokeSession } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
+
+// 서버(PasswordChangeRequest)와 같은 규칙 — 가입 폼과 passwordRules 모듈을 공유한다
+function validate(values) {
+  const errors = {}
+  if (!values.currentPassword) errors.currentPassword = '현재 비밀번호는 필수입니다.'
+  if (!values.newPassword) {
+    errors.newPassword = '새 비밀번호는 필수입니다.'
+  } else {
+    const ruleError = passwordRuleError(values.newPassword)
+    if (ruleError) errors.newPassword = ruleError
+    // 같은 값 입력은 서버까지 안 가고 여기서 거른다 — 최종 판정은 서버(BCrypt 대조)가 한다
+    else if (values.newPassword === values.currentPassword)
+      errors.newPassword = '새 비밀번호는 현재 비밀번호와 달라야 합니다.'
+  }
+  if (values.newPasswordConfirm !== values.newPassword)
+    errors.newPasswordConfirm = '비밀번호가 일치하지 않습니다.'
+  return errors
+}
+
+const EMPTY_PASSWORD_FORM = { currentPassword: '', newPassword: '', newPasswordConfirm: '' }
 
 // ISO 시각 → "2026. 8. 11. 오후 4:20" — 서버는 UTC(Z)로 주고 표시 변환은 프론트 몫 (백로그 10번 원칙)
 function formatTime(iso) {
@@ -13,47 +35,31 @@ function formatTime(iso) {
 export default function MyPageSecurity() {
   const { user } = useAuth()
 
-  const [form, setForm] = useState({ currentPassword: '', newPassword: '', newPasswordConfirm: '' })
-  const [errors, setErrors] = useState({})
-  const [submitError, setSubmitError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
 
-  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
-
-  const onSubmit = async (e) => {
-    e.preventDefault()
-    setSubmitError('')
-    setSuccess(false)
-    const nextErrors = {}
-    if (!form.currentPassword) nextErrors.currentPassword = '현재 비밀번호는 필수입니다.'
-    if (!form.newPassword) {
-      nextErrors.newPassword = '새 비밀번호는 필수입니다.'
-    } else {
-      const ruleError = passwordRuleError(form.newPassword)
-      if (ruleError) nextErrors.newPassword = ruleError
-      // 같은 값 입력은 서버까지 안 가고 여기서 거른다 — 최종 판정은 서버(BCrypt 대조)가 한다
-      else if (form.newPassword === form.currentPassword)
-        nextErrors.newPassword = '새 비밀번호는 현재 비밀번호와 달라야 합니다.'
-    }
-    if (form.newPasswordConfirm !== form.newPassword)
-      nextErrors.newPasswordConfirm = '비밀번호가 일치하지 않습니다.'
-    setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
-
-    setSubmitting(true)
-    try {
-      await changePassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
+  const form = useForm({
+    initialValues: EMPTY_PASSWORD_FORM,
+    validate,
+    // 현재 비밀번호 불일치는 그 입력의 문제다 — 폼 하단이 아니라 해당 칸에 붙인다.
+    // 서버가 이 경우 details를 주지 않으므로(업무 오류라 검증 실패가 아니다) 코드로 매핑한다.
+    // 문구는 서버 메시지를 그대로 쓰지 않는다 — AUTH_INVALID_CREDENTIALS는 로그인과 공용이라
+    // "이메일 또는 비밀번호가…"인데, 이메일을 입력하지도 않는 이 화면에서는 혼란만 준다
+    mapError: (err) => (
+      err.code === 'AUTH_INVALID_CREDENTIALS'
+        ? { currentPassword: '현재 비밀번호가 올바르지 않습니다.' }
+        : null
+    ),
+    onSubmit: async (values) => {
+      setSuccess(false)
+      await changePassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      })
       // 성공 — 다른 기기 세션은 서버가 끊었고, 이 기기는 새 쿠키로 로그인 유지
-      setForm({ currentPassword: '', newPassword: '', newPasswordConfirm: '' })
+      form.reset(EMPTY_PASSWORD_FORM)
       setSuccess(true)
-    } catch (err) {
-      // AUTH_INVALID_CREDENTIALS(현재 비밀번호 불일치)·AUTH_PASSWORD_UNCHANGED 등 — 서버 메시지를 그대로 안내
-      setSubmitError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
+    },
+  })
 
   // 로그인된 기기 목록 (api-spec.md 1절 5차). null = 아직 로딩 안 됨
   const [sessions, setSessions] = useState(null)
@@ -95,40 +101,27 @@ export default function MyPageSecurity() {
       {user.provider === 'LOCAL' && (
       <section>
         <h2>비밀번호 변경</h2>
-        <form className="auth-form" onSubmit={onSubmit} noValidate>
-          <label>
-            현재 비밀번호
-            <input
-              type="password" name="currentPassword" value={form.currentPassword}
-              onChange={onChange} aria-invalid={Boolean(errors.currentPassword)}
-              autoComplete="current-password"
-            />
-            {errors.currentPassword && <p className="field-error">{errors.currentPassword}</p>}
-          </label>
-          <label>
-            새 비밀번호 ({PASSWORD_RULE_LABEL})
-            <input
-              type="password" name="newPassword" value={form.newPassword}
-              onChange={onChange} aria-invalid={Boolean(errors.newPassword)}
-              autoComplete="new-password"
-            />
-            {errors.newPassword && <p className="field-error">{errors.newPassword}</p>}
-          </label>
-          <label>
-            새 비밀번호 확인
-            <input
-              type="password" name="newPasswordConfirm" value={form.newPasswordConfirm}
-              onChange={onChange} aria-invalid={Boolean(errors.newPasswordConfirm)}
-              autoComplete="new-password"
-            />
-            {errors.newPasswordConfirm && <p className="field-error">{errors.newPasswordConfirm}</p>}
-          </label>
-          {submitError && <p className="submit-error">{submitError}</p>}
+        <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
+          <Field
+            form={form} name="currentPassword" label="현재 비밀번호"
+            type="password" autoComplete="current-password"
+          />
+          <Field
+            form={form} name="newPassword" label={`새 비밀번호 (${PASSWORD_RULE_LABEL})`}
+            type="password" autoComplete="new-password"
+          />
+          <Field
+            form={form} name="newPasswordConfirm" label="새 비밀번호 확인"
+            type="password" autoComplete="new-password"
+          />
+          {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
           {success && (
-            <p className="notice">비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.</p>
+            <p className="notice" role="status">
+              비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.
+            </p>
           )}
-          <button type="submit" disabled={submitting}>
-            {submitting ? '변경 중…' : '비밀번호 변경'}
+          <button type="submit" disabled={form.submitting}>
+            {form.submitting ? '변경 중…' : '비밀번호 변경'}
           </button>
         </form>
       </section>
@@ -137,7 +130,7 @@ export default function MyPageSecurity() {
       <section>
         <h2>로그인된 기기</h2>
         {sessions === null && !sessionsError && <p className="muted-note">불러오는 중…</p>}
-        {sessionsError && <p className="submit-error">{sessionsError}</p>}
+        {sessionsError && <p className="submit-error" role="alert">{sessionsError}</p>}
         {sessions && (
           <ul className="session-list">
             {sessions.map((s) => (
