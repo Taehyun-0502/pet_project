@@ -71,6 +71,30 @@
   color: rgba(0, 0, 0, 0.85);
 }
 
+/* 가입 직후 온보딩 — 선택지 두 개를 세로로 쌓는다 (.auth-form과 같은 폭·간격) */
+.onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.onboarding-actions button {
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* 권장 선택지 — 색으로 "지금 등록하기"를 먼저 읽히게 한다 */
+.onboarding-actions .primary {
+  background: #2a7;
+  border-color: #2a7;
+  color: #fff;
+}
+
 .auth-switch {
   margin-top: 16px;
   font-size: 14px;

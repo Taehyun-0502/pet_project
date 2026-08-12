@@ -6,6 +6,7 @@ import LoginPage from './member/LoginPage'
 import MyPage from './member/MyPage'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
+import WelcomePage from './member/WelcomePage'
 import MapPage from './pages/map/MapPage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetDetailPage from './pet/PetDetailPage'
@@ -106,14 +107,13 @@ function App() {
           </RequireLogin>
         }
       />
-      {/* AI 검색 진입 경로 — 검색 통합 Phase(루트 CLAUDE.md): AI 검색은 챗봇(지도)
-          페이지가 담당하므로 MapPage를 그대로 렌더링한다(별도 페이지 없음).
-          추후 ?q= 쿼리 파라미터 수신 시 자동 검색 실행 예정(미구현) */}
+      {/* 가입 직후 온보딩 — 여기서 바로 등록하려면 로그인 상태여야 하므로 보호 경로다.
+          진입은 SignupPage가 넘긴 state로만 허용한다 (WelcomePage 내부 처리) */}
       <Route
-        path="/aisearch"
+        path="/welcome"
         element={
           <RequireLogin>
-            <MapPage />
+            <WelcomePage />
           </RequireLogin>
         }
       />
