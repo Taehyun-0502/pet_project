@@ -1,69 +1,7 @@
-/* 회원 도메인 화면(가입·로그인·마이페이지) 공용 스타일 */
-
-.auth-page {
-  max-width: 400px;
-  margin: 60px auto;
-  padding: 0 16px;
-}
-
-.auth-page h1 {
-  margin-bottom: 24px;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.auth-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
-  text-align: left;
-}
-
-.auth-form input {
-  padding: 10px 12px;
-  font-size: 16px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.auth-form input[aria-invalid='true'] {
-  border-color: #d33;
-}
-
-.field-error {
-  color: #d33;
-  font-size: 13px;
-  margin: 0;
-}
-
-.submit-error {
-  color: #d33;
-  font-size: 14px;
-  margin: 0;
-}
-
-.notice {
-  color: #2a7;
-  font-size: 14px;
-}
-
-.auth-form button {
-  padding: 12px;
-  font-size: 16px;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.auth-form button:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
+/* 회원 도메인 전용 스타일. 공용 폼·안내 계열은 common/forms.css로 이동했다 (2026-08-11, 백로그 54번).
+   아래 @import는 하위 호환 브리지 — 이 파일만 import하던 화면(특히 shorts/ShortsUploadPage — 타 슬라이스)이
+   깨지지 않게 유지한다. 새 화면은 common/forms.css를 직접 import할 것 (담당 팀원에게 전환 권고 예정). */
+@import '../common/forms.css';
 
 /* 카카오 로그인 — 카카오 디자인 가이드의 컨테이너 색상(#FEE500) + 검정 라벨 */
 .auth-form .kakao-login {
@@ -95,22 +33,31 @@
   color: #fff;
 }
 
-.auth-switch {
-  margin-top: 16px;
+/* 마이페이지 — 탭 네비 (URL 연동 중첩 라우트, MyPage.jsx 주석 참조) */
+.mypage-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #ccc;
+}
+
+.mypage-tabs a {
+  padding: 8px 14px;
   font-size: 14px;
+  color: #555;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+/* NavLink가 현재 탭에 자동으로 붙이는 클래스 */
+.mypage-tabs a.active {
+  color: inherit;
+  font-weight: 600;
+  border-bottom-color: #2a7;
 }
 
 /* 마이페이지 — 내 정보 표시 */
-.auth-page section {
-  margin-bottom: 32px;
-  text-align: left;
-}
-
-.auth-page section h2 {
-  font-size: 18px;
-  margin-bottom: 12px;
-}
-
 .my-info dl {
   margin: 0 0 16px;
   display: flex;
@@ -130,13 +77,6 @@
 }
 
 .my-info dd {
-  margin: 0;
-}
-
-/* 소셜 계정 안내 등 보조 설명 문구 */
-.muted-note {
-  color: #888;
-  font-size: 14px;
   margin: 0;
 }
 

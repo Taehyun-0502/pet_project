@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { resizeImage } from '../common/imageResize'
 import { deletePet, getPet, uploadPetImage } from './petApi'
+import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './pet.css'
 
 // 반려동물 상세 — 수정 진입점·삭제·프로필 사진 업로드를 담당한다 (docs/api-spec.md 2절)

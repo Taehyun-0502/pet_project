@@ -46,6 +46,23 @@
   flex: 1;
 }
 
+/* 목록 → 생성 페이지 진입 버튼 (생성 폼은 /chat/new로 분리 — 2026-08-11) */
+.chat-new-link {
+  display: block;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px solid #2b6cb0;
+  border-radius: 6px;
+  color: #2b6cb0;
+  font-size: 15px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.chat-new-link:hover {
+  background: #eef4ff;
+}
+
 /* 3차: 검색·필터 (검색창 + 카테고리 칩 + 정렬 토글) */
 .chat-filter {
   display: flex;

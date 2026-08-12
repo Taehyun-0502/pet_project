@@ -76,20 +76,20 @@ public class SecurityConfig {
                 return http.build();
         }
 
-        /**
-         * 개발용 CORS: Vite 개발 서버(localhost:5173)에서의 요청 허용.
-         * allowCredentials는 2차 리프레시 토큰 쿠키 대비 — credentials와 와일드카드 오리진(*)은
-         * 함께 쓸 수 없으므로 오리진을 명시한다 (docs/api-spec.md 6절). 배포 오리진은 확정 시 추가.
-         */
-        @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration config = new CorsConfiguration();
-                config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174"));
-                config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-                config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-                config.setAllowCredentials(true);
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/api/**", config);
-                return source;
-        }
+    /**
+     * 개발용 CORS: Vite 개발 서버(localhost:5173)에서의 요청 허용.
+     * allowCredentials는 2차 리프레시 토큰 쿠키 대비 — credentials와 와일드카드 오리진(*)은
+     * 함께 쓸 수 없으므로 오리진을 명시한다 (docs/api-spec.md 6절). 배포 오리진은 확정 시 추가.
+     */
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174","http://192.168.0.9:5173","http://192.168.0.20:5173","http://192.168.0.18:5173","http://192.168.0.7:5173"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        config.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", config);
+        return source;
+    }
 }
