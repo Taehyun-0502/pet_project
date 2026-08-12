@@ -16,7 +16,7 @@ public interface ShortsCommentRepository extends JpaRepository<ShortsComment, Lo
      */
     @Query("""
             select new com.pet.backend.shorts.ShortsCommentRow(
-                c.id, c.parentId, m.name, c.content, c.likeCount, c.createdAt)
+                c.id, c.parentId, m.name, m.profileImageUrl, c.content, c.likeCount, c.createdAt)
             from ShortsComment c
             join com.pet.backend.member.Member m on m.id = c.memberId
             where c.shortId = :shortId
