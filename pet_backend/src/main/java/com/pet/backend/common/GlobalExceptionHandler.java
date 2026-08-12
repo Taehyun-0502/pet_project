@@ -2,6 +2,8 @@ package com.pet.backend.common;
 
 import jakarta.validation.ConstraintViolationException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.convert.ConversionFailedException;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.validation.FieldError;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -33,13 +36,28 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.fail(code.name(), e.getMessage()));
     }
 
+    /**
+     * 요청 바디 검증 실패. `message`(사람이 읽는 한 줄)와 함께 **필드별 사유 맵**을 내려준다 —
+     * 프론트가 각 입력 아래에 붙일 수 있게 하기 위한 것이다 (리뷰 백로그 51번).
+     * 맵 키는 DTO 필드명이라 폼 필드명과 1:1로 맞춰 두면 그대로 꽂힌다.
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
-        String message = e.getBindingResult().getFieldErrors().stream()
-                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+        // 한 필드에 제약이 여러 개 걸려 함께 실패하면 먼저 온 사유만 남긴다 —
+        // 입력 하나에 오류 문구를 여러 줄 붙이는 것보다 고칠 것을 하나씩 보여주는 편이 낫다
+        Map<String, String> details = e.getBindingResult().getFieldErrors().stream()
+                .collect(Collectors.toMap(
+                        FieldError::getField,
+                        error -> error.getDefaultMessage() == null
+                                ? ErrorCode.VALIDATION_ERROR.getDefaultMessage()
+                                : error.getDefaultMessage(),
+                        (first, ignored) -> first,
+                        LinkedHashMap::new));
+        String message = details.entrySet().stream()
+                .map(entry -> entry.getKey() + ": " + entry.getValue())
                 .collect(Collectors.joining(", "));
         return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), message));
+                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), message, details));
     }
 
     // @RequestParam/@RequestBody 없이 쿼리 파라미터 자체에 붙인 Bean Validation 제약 위반

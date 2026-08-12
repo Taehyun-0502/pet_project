@@ -1,8 +1,16 @@
-import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import Field from '../common/Field'
+import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { startKakaoLogin } from './kakaoOAuth'
 import './member.css'
+
+function validate(values) {
+  const errors = {}
+  if (!values.email.trim()) errors.email = '이메일은 필수입니다.'
+  if (!values.password) errors.password = '비밀번호는 필수입니다.'
+  return errors
+}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -13,36 +21,19 @@ export default function LoginPage() {
   const signupEmail = location.state?.signupEmail
   // RequireLogin이 넘긴 원래 목적지 — 로그인 후 그리로 되돌아간다 (백로그 47번)
   const from = location.state?.from ?? '/'
-  const [form, setForm] = useState({ email: signupEmail ?? '', password: '' })
-  const [errors, setErrors] = useState({})
-  const [submitError, setSubmitError] = useState('')
-  const [submitting, setSubmitting] = useState(false)
 
-  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value })
-
-  // 이미 로그인한 상태면 로그인 화면 대신 목적지(없으면 홈)로
-  if (user) return <Navigate to={from} replace />
-
-  const onSubmit = async (e) => {
-    e.preventDefault()
-    setSubmitError('')
-    const nextErrors = {}
-    if (!form.email.trim()) nextErrors.email = '이메일은 필수입니다.'
-    if (!form.password) nextErrors.password = '비밀번호는 필수입니다.'
-    setErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return
-
-    setSubmitting(true)
-    try {
-      await login({ email: form.email.trim(), password: form.password })
+  const form = useForm({
+    initialValues: { email: signupEmail ?? '', password: '' },
+    validate,
+    onSubmit: async (values) => {
+      await login({ email: values.email.trim(), password: values.password })
       navigate(from, { replace: true })
-    } catch (err) {
-      // AUTH_INVALID_CREDENTIALS 등 — 서버 메시지를 그대로 안내
-      setSubmitError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
+    },
+  })
+
+  // 이미 로그인한 상태면 로그인 화면 대신 목적지(없으면 홈)로.
+  // 훅 호출 뒤에 둬야 조건부 훅이 되지 않는다
+  if (user) return <Navigate to={from} replace />
 
   return (
     <main className="auth-page">
@@ -50,26 +41,16 @@ export default function LoginPage() {
       {signupEmail && (
         <p className="notice">가입이 완료되었습니다. 로그인해 주세요.</p>
       )}
-      <form className="auth-form" onSubmit={onSubmit} noValidate>
-        <label>
-          이메일
-          <input
-            type="email" name="email" value={form.email} onChange={onChange}
-            aria-invalid={Boolean(errors.email)} autoComplete="email"
-          />
-          {errors.email && <p className="field-error">{errors.email}</p>}
-        </label>
-        <label>
-          비밀번호
-          <input
-            type="password" name="password" value={form.password} onChange={onChange}
-            aria-invalid={Boolean(errors.password)} autoComplete="current-password"
-          />
-          {errors.password && <p className="field-error">{errors.password}</p>}
-        </label>
-        {submitError && <p className="submit-error">{submitError}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? '로그인 중…' : '로그인'}
+      <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
+        <Field form={form} name="email" label="이메일" type="email" autoComplete="email" />
+        <Field
+          form={form} name="password" label="비밀번호"
+          type="password" autoComplete="current-password"
+        />
+        {/* role="alert"이라 로그인 실패가 스크린리더에도 읽힌다 (백로그 52번) */}
+        {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
+        <button type="submit" disabled={form.submitting}>
+          {form.submitting ? '로그인 중…' : '로그인'}
         </button>
         {/* 인가 페이지로 이동하므로 submit이 아니라 일반 버튼 — 폼 검증을 타면 안 된다 */}
         <button type="button" className="kakao-login" onClick={startKakaoLogin}>

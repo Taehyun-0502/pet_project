@@ -18,13 +18,15 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-// 서버의 ApiResponse.error(code, message)를 담는 예외.
-// 화면에서는 err.code로 분기하고 err.message를 기본 안내문으로 쓴다
+// 서버의 ApiResponse.error(code, message, details)를 담는 예외.
+// 화면에서는 err.code로 분기하고 err.message를 기본 안내문으로 쓴다.
+// details는 검증 실패에만 실리는 { 필드명: 사유 } 맵 — useForm이 해당 입력 아래에 꽂는다 (백로그 51번)
 export class ApiError extends Error {
-  constructor(code, message, status) {
+  constructor(code, message, status, details) {
     super(message)
     this.code = code
     this.status = status
+    this.details = details ?? null
   }
 }
 
@@ -116,7 +118,9 @@ export async function request(path, options = {}) {
     throw new ApiError('INVALID_RESPONSE', '서버 응답을 해석할 수 없습니다.', response.status)
   }
   if (!payload.success) {
-    throw new ApiError(payload.error.code, payload.error.message, response.status)
+    throw new ApiError(
+      payload.error.code, payload.error.message, response.status, payload.error.details,
+    )
   }
   return payload.data
 }
