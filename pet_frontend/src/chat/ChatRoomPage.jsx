@@ -7,6 +7,7 @@ import {
 } from './chatApi'
 import { subscribeRoom } from './chatSocket'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
+import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './chat.css'
 
 // 방 내 role 표시명 (MEMBER는 배지 없음)

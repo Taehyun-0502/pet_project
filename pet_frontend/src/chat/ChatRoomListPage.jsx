@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { createRoom, getRooms, joinRoom } from './chatApi'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
+import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './chat.css'
 
 // 오픈채팅 방 목록 + 생성. 방 클릭 = 입장(join, 멱등) 후 채팅방으로 이동
