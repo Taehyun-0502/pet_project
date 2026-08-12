@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { resizeImage } from '../common/imageResize'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { deletePet, getPet, uploadPetImage } from './petApi'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './pet.css'
@@ -9,31 +9,30 @@ import './pet.css'
 export default function PetDetailPage() {
   const { petId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [pet, setPet] = useState(null)       // null = 불러오는 중
   const [loadError, setLoadError] = useState(null) // 조회 실패 (ApiError)
-  const [actionError, setActionError] = useState('')
+  // 등록 화면에서 "정보는 등록됐지만 사진만 실패"로 넘어온 경우 그 안내를 이어받는다 (PetCreatePage)
+  const [actionError, setActionError] = useState(location.state?.photoError ?? '')
   const [deleting, setDeleting] = useState(false)
   const [uploading, setUploading] = useState(false)
+
+  // 넘겨받은 안내는 1회성 — 지우지 않으면 새로고침·뒤로가기에서 되살아난다 (백로그 63번과 같은 계열)
+  useEffect(() => {
+    if (location.state?.photoError) window.history.replaceState({}, '')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const onImageChange = async (e) => {
     const file = e.target.files[0]
     e.target.value = '' // 같은 파일을 다시 골라도 change 이벤트가 나도록 초기화
     if (!file) return
     setActionError('')
-    // 서버(PetService.validateImage)와 같은 규칙의 1차 검증 — 5MB 파일을 보내고 나서 거절당하지 않게
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setActionError('jpeg·png·webp 이미지만 업로드할 수 있습니다.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setActionError('이미지는 5MB 이하여야 합니다.')
-      return
-    }
     setUploading(true)
     try {
-      // 업로드 전 512px 축소 — 원본이 아바타·썸네일 조회마다 내려가는 것을 막는다 (imageResize.js)
-      const resized = await resizeImage(file)
-      setPet(await uploadPetImage(petId, resized)) // 응답의 ?v= 덕에 즉시 새 이미지로 갱신된다
+      // 형식·용량 검증 + 512px 축소 (common/imageUpload — 등록·마이페이지와 같은 규칙)
+      const prepared = await prepareImage(file)
+      setPet(await uploadPetImage(petId, prepared)) // 응답의 ?v= 덕에 즉시 새 이미지로 갱신된다
     } catch (err) {
       setActionError(err.message)
     } finally {
@@ -104,7 +103,7 @@ export default function PetDetailPage() {
         <label className="pet-photo-upload">
           {uploading ? '업로드 중…' : pet.profileImageUrl ? '사진 변경' : '사진 등록'}
           <input
-            type="file" accept="image/jpeg,image/png,image/webp"
+            type="file" accept={IMAGE_ACCEPT}
             onChange={onImageChange} disabled={uploading}
           />
         </label>

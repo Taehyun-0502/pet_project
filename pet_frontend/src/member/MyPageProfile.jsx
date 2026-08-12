@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { resizeImage } from '../common/imageResize'
+import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { useAuth } from './AuthContext'
 import { updateMyName, uploadMyImage } from './memberApi'
 
@@ -16,19 +16,11 @@ export default function MyPageProfile() {
     e.target.value = '' // 같은 파일을 다시 골라도 change 이벤트가 나도록 초기화
     if (!file) return
     setPhotoError('')
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setPhotoError('jpeg·png·webp 이미지만 업로드할 수 있습니다.')
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setPhotoError('이미지는 5MB 이하여야 합니다.')
-      return
-    }
     setPhotoUploading(true)
     try {
-      // 업로드 전 512px 축소 — 원본이 아바타·썸네일 조회마다 내려가는 것을 막는다 (imageResize.js)
-      const resized = await resizeImage(file)
-      updateUser(await uploadMyImage(resized)) // 전역 user 갱신 — ?v= 덕에 즉시 새 이미지
+      // 형식·용량 검증 + 512px 축소 (common/imageUpload — pet 화면들과 같은 규칙)
+      const prepared = await prepareImage(file)
+      updateUser(await uploadMyImage(prepared)) // 전역 user 갱신 — ?v= 덕에 즉시 새 이미지
     } catch (err) {
       setPhotoError(err.message)
     } finally {
@@ -80,7 +72,7 @@ export default function MyPageProfile() {
         <label className="profile-photo-upload">
           {photoUploading ? '업로드 중…' : user.profileImageUrl ? '사진 변경' : '사진 등록'}
           <input
-            type="file" accept="image/jpeg,image/png,image/webp"
+            type="file" accept={IMAGE_ACCEPT}
             onChange={onPhotoChange} disabled={photoUploading}
           />
         </label>
