@@ -113,13 +113,33 @@
 }
 
 .pet-photo-upload {
+  position: relative;
   cursor: pointer;
   font-size: 14px;
   text-decoration: underline;
 }
 
+/* file input은 **화면에서만** 숨긴다 (visually-hidden).
+   display:none / visibility:hidden으로 감추면 input이 포커스 트리에서 빠지고,
+   label도 포커스를 받지 못해 마우스 없이는 사진을 등록할 방법이 사라진다 (리뷰 백로그 84번).
+   member.css의 .profile-photo-upload도 같은 이유로 같은 규칙을 쓴다 — 한쪽만 바꾸지 말 것 */
 .pet-photo-upload input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* 숨긴 input이 포커스를 받았을 때 label에 포커스 링을 그린다 — 키보드 사용자가 현재 위치를 볼 수 있게 */
+.pet-photo-upload:focus-within {
+  outline: 2px solid #4a90d9;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* 상세 화면 */

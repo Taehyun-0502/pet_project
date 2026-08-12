@@ -99,7 +99,8 @@ export default function PetDetailPage() {
         ) : (
           <div className="pet-photo-placeholder" aria-hidden="true">🐶</div>
         )}
-        {/* label이 숨긴 file input을 연다 — 버튼처럼 보이지만 키보드 접근도 된다 */}
+        {/* label이 file input을 연다. 키보드 접근은 input을 pet.css에서 visually-hidden으로만
+            숨기기 때문에 성립한다 — display:none으로 바꾸면 Tab으로 도달할 수 없게 된다 (백로그 84번) */}
         <label className="pet-photo-upload">
           {uploading ? '업로드 중…' : pet.profileImageUrl ? '사진 변경' : '사진 등록'}
           <input

@@ -166,7 +166,14 @@ public class ChatService {
                 chatRoomMemberRepository.save(ChatRoomMember.join(roomId, memberId, latestMessageId));
                 inserted = true;
             } catch (DataIntegrityViolationException e) {
-                // 동시 입장 경쟁 — 다른 요청이 먼저 참여시킴. 멱등 정책상 성공으로 취급
+                // 흡수해도 되는 것은 **중복 입장**(ux_chat_room_member_active 위반)뿐이다 —
+                // 다른 요청이 먼저 참여시킨 경우라 멱등 정책상 성공으로 취급한다.
+                // FK·CHECK 위반까지 성공으로 처리하면 참여 행이 없는데 200 + participantCount를 돌려주고
+                // 직후 메시지 API가 403이 되는 모순 상태가 된다 — 참여 행을 확인해 구분한다 (백로그 11번).
+                // 되던진 예외는 공용 핸들러가 409 + ERROR 로그로 남긴다(백로그 66번) — 조용히 사라지지 않는다
+                if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
+                    throw e;
+                }
             }
             if (inserted) {
                 revertIfJoinLost(room, memberId);

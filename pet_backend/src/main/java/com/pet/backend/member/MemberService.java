@@ -43,6 +43,8 @@ public class MemberService {
     private final RefreshTokenService refreshTokenService;
     private final KakaoOAuthClient kakaoOAuthClient;
     private final ImageStorageClient imageStorageClient;
+    // 사진 URL 저장만 담당하는 짧은 트랜잭션 (백로그 80번 — 클래스 주석 참고)
+    private final MemberProfileImageUpdater memberProfileImageUpdater;
     // 도메인 경계를 넘는 유일한 의존 — 탈퇴가 "방장 방 검사 → 참여 방 정리"를 회원 삭제와
     // **같은 트랜잭션**에서 해야 해서(중간 실패 시 함께 롤백) 이벤트로 분리할 수 없다.
     // 서비스가 아니라 리포지토리를 물어 chat 도메인 규칙(권한 검증 등)은 끌어오지 않는다
@@ -324,7 +326,8 @@ public class MemberService {
     /**
      * 프로필 사진 업로드 (docs/api-spec.md 1절). PetService.uploadProfileImage와 같은 구조 —
      * Storage 업로드(외부 HTTP) 동안 커넥션을 점유하지 않도록 의도적으로 비트랜잭션이고,
-     * 저장은 save()가 자체 트랜잭션으로 처리한다.
+     * 저장만 {@link MemberProfileImageUpdater}의 짧은 트랜잭션에 맡긴다 (리뷰 백로그 80번 —
+     * 저장까지 트랜잭션 밖에 두면 detached merge가 password·tokens_valid_from까지 옛 값으로 되돌린다).
      */
     public MemberResponse uploadProfileImage(Long memberId, MultipartFile file) {
         imageStorageClient.validateImage(file);
@@ -340,9 +343,8 @@ public class MemberService {
         // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지 (ImageStorageClient 주석)
         String url = imageStorageClient.upload("member-" + memberId, bytes, file.getContentType());
 
-        Member member = findActiveMemberOrThrow(memberId);
-        member.changeProfileImage(url + "?v=" + Instant.now().toEpochMilli());
-        memberRepository.save(member);
+        Member member = memberProfileImageUpdater.apply(
+                memberId, url + "?v=" + Instant.now().toEpochMilli());
         return MemberResponse.from(member);
     }
 
