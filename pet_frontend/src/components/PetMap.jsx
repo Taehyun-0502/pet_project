@@ -130,6 +130,32 @@
  *     맞춘다. 생략하면 매번(기존 동작) 맞춘다.
  * - toggleSlot?: HTMLElement | null — 주어지면 카테고리 토글 칩을 지도 위
  *     오버레이 대신 이 DOM 노드 안에 포털로 렌더링한다.
+ * - categories?: Array<'HOSPITAL'|'CAFE'|'HOTEL'> | null — 이 지도가 다루는
+ *     카테고리를 제한한다 (2026-08-12 — 병원 전용 지도 등 단일 카테고리 사용처).
+ *     목록 밖 카테고리는 "비활성화"가 아니라 **아예 노출하지 않는다**: 마커도
+ *     그리지 않고 토글 칩도 렌더링하지 않으며, 특히 1개만 지정하면 토글 칩 줄
+ *     자체가 사라진다(선택할 게 없으므로). 미전달(null)이면 전체 카테고리(기존
+ *     동작과 동일). 별도 페이지·별도 컴포넌트를 만들지 말고 이 prop으로 쓸 것:
+ *     예) 병원 리스트 페이지에서
+ *       `<PetMap places={hospitalPlaces} categories={['HOSPITAL']} />`
+ *     — 데이터 조회도 `getNearbyPlaces(lat, lng, ['HOSPITAL'])`(mapApi)가
+ *     categories 파라미터를 이미 지원하므로 병원만 받아 넘기면 된다.
+ *     **빈 배열(`categories={[]}`)을 넘기면 마커·토글 칩이 전부 비노출된다**
+ *     (2026-08-12 산책 Phase에서 실사용·확인 — allowedCategories가 빈 배열이 되어
+ *     아래 필터 로직이 자연히 처리하므로 별도 분기 코드가 필요하지 않았다). 장소
+ *     마커 없이 경로 폴리라인만 그리는 화면(예: 산책 페이지)에서
+ *     `<PetMap places={[]} categories={[]} path={walkPath} />`처럼 쓴다.
+ * - path?: Array<{ lat: number, lng: number }> | null — 주어지면 카카오
+ *     `Polyline`으로 경로선을 그린다(strokeWeight 5, 파랑 계열, strokeOpacity 0.85).
+ *     **공용 컴포넌트 신규 prop — 팀 공유 필요(규칙 3)** (2026-08-12 산책 Phase 신규
+ *     — GPS 산책 트래킹 경로 표시용). 값이 바뀌면(좌표 배열 갱신) 선을 다시
+ *     그리고, `null`이거나 빈 배열이면 지도에서 제거한다. 언마운트 시에도 지도
+ *     인스턴스와 함께 정리된다. 추적 중 최신 좌표를 따라 지도 중심을 옮기는 것은
+ *     이 컴포넌트의 책임이 아니다 — 사용처가 `currentLocation`을 갱신하고
+ *     `fitBoundsKey`를 함께 올리면(예: 새 좌표가 수신될 때마다 증가) 기존
+ *     fitBoundsKey 메커니즘이 그대로 재사용되어 지도를 그 지점으로 다시
+ *     맞춘다(별도 "따라가기" API를 새로 만들지 않음 — WalkPage.jsx 참고).
+ *     미전달 시 기존 동작과 완전히 동일.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -138,14 +164,15 @@ import { loadKakaoMaps } from './kakaoMapLoader';
 import { CATEGORY_META } from './categoryMeta';
 import { distanceMeters, formatDistanceLabel } from '../common/geo';
 import { buildRegionLabel } from '../common/regionLabel';
+import { DEFAULT_CENTER } from '../common/mapDefaults';
 import './PetMap.css';
 
 const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY;
 
 // 카테고리별 마커 색 — 루트 CLAUDE.md 118행 기준(병원=빨강/카페=파랑/호텔=초록).
 // design-agent의 디자인 토큰이 확정되면 이 상수를 토큰 참조로 교체한다.
-
-const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // 서울시청 — 위치 정보가 전혀 없을 때의 기본 중심
+// DEFAULT_CENTER(서울시청)는 common/mapDefaults.js로 승격됨 (QA F-5, 2026-08-12
+// 산책 Phase — MapPage.jsx·WalkPage.jsx와 값 공유, 동작 변경 없음).
 
 const MIN_LEVEL = 1;
 const MAX_LEVEL = 14;
@@ -183,6 +210,8 @@ function PetMap({
   onRegionChanged,
   fitBoundsKey,
   toggleSlot = null,
+  categories = null,
+  path = null,
 }) {
   const containerRef = useRef(null);
   const kakaoRef = useRef(null);
@@ -191,6 +220,7 @@ function PetMap({
   const markerImagesRef = useRef({});
   const placeMarkersRef = useRef([]);
   const currentMarkerRef = useRef(null);
+  const polylineRef = useRef(null); // 산책 경로(path prop) Polyline 인스턴스 — 2026-08-12 산책 Phase 신규
   const pendingPanRef = useRef(false);
   const sheetPanelRef = useRef(null);
   const previousFocusRef = useRef(null); // 시트 열기 전 포커스였던 요소 — 닫을 때 복귀시킨다
@@ -261,6 +291,21 @@ function PetMap({
       onRegionChangedRef.current?.(buildRegionLabel(result));
     });
   };
+
+  // 노출 대상 카테고리 (2026-08-12 — 병원 전용 지도 등 카테고리 제한 사용처 지원):
+  // categories prop이 주어지면 그 목록의 카테고리만 마커·토글 칩 대상이 되고,
+  // 나머지는 "비활성화"가 아니라 아예 렌더링하지 않는다. 특히 1개만 남으면
+  // 토글 칩 UI 자체를 그리지 않는다(선택할 게 없으므로 — 아래 showToggles).
+  // 미전달(null)이면 전체 카테고리로 기존 동작과 완전히 동일하다.
+  // 호출부가 매 렌더 새 배열을 넘겨도 이펙트가 헛돌지 않게 정렬·직렬화 키로 메모한다.
+  const allowedKey = categories ? [...categories].sort().join(',') : null;
+  const allowedCategories = useMemo(
+    () =>
+      allowedKey === null
+        ? Object.keys(CATEGORY_META)
+        : allowedKey.split(',').filter((category) => CATEGORY_META[category]),
+    [allowedKey],
+  );
 
   const categoryCounts = useMemo(() => {
     const counts = { HOSPITAL: 0, CAFE: 0, HOTEL: 0 };
@@ -371,6 +416,13 @@ function PetMap({
       // 증가시켜두면, 언마운트 이후 도착하는 콜백이 "더 최신 요청이 이미 발생"
       // 가드에 걸려 폐기되고 부모 setState(onRegionChanged)를 호출하지 않는다.
       regionRequestIdRef.current += 1;
+
+      // 산책 경로 폴리라인(path prop)도 지도와 함께 정리한다 (2026-08-12 산책 Phase
+      // 신규 — "언마운트 시 제거" 요구사항). 아래 path 렌더링 이펙트도 path가
+      // null/빈 배열이 되면 스스로 제거하지만, 언마운트 시엔 그 이펙트가 다시
+      // 실행되지 않으므로 여기서 명시적으로 처리한다.
+      polylineRef.current?.setMap(null);
+      polylineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 지도 인스턴스는 마운트당 1회만 생성
   }, []);
@@ -387,7 +439,9 @@ function PetMap({
     }
     placeMarkersRef.current = [];
 
-    const visiblePlaces = places.filter((place) => visibleCategories[place.category]);
+    const visiblePlaces = places.filter(
+      (place) => allowedCategories.includes(place.category) && visibleCategories[place.category],
+    );
 
     for (const place of visiblePlaces) {
       const position = new kakao.maps.LatLng(place.lat, place.lng);
@@ -433,7 +487,7 @@ function PetMap({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- currentLocation은 범위 계산에만 참고, 별도 이펙트에서 마커 관리
-  }, [places, visibleCategories, sdkStatus, fitBoundsKey]);
+  }, [places, visibleCategories, allowedCategories, sdkStatus, fitBoundsKey]);
 
   // 현위치 마커 렌더링/갱신
   useEffect(() => {
@@ -467,6 +521,38 @@ function PetMap({
       pendingPanRef.current = false;
     }
   }, [currentLocation, sdkStatus]);
+
+  // 산책 경로 폴리라인 렌더링/갱신 (path prop, 2026-08-12 산책 Phase 신규).
+  // path가 없거나 빈 배열이면 지도에서 제거하고, 있으면 생성 또는 setPath로 갱신한다.
+  // "지금 보이는 지도를 path/currentLocation에 맞춰 다시 옮길지"는 이 이펙트의
+  // 책임이 아니다 — 기존 fitBoundsKey 메커니즘을 사용처가 그대로 재사용한다
+  // (예: 추적 중 새 좌표마다 fitBoundsKey를 올려 "따라가기" 구현 — WalkPage.jsx).
+  useEffect(() => {
+    const kakao = kakaoRef.current;
+    const map = mapRef.current;
+    if (sdkStatus !== 'ready' || !kakao || !map) return;
+
+    if (!path || path.length === 0) {
+      polylineRef.current?.setMap(null);
+      polylineRef.current = null;
+      return;
+    }
+
+    const linePath = path.map((point) => new kakao.maps.LatLng(point.lat, point.lng));
+
+    if (!polylineRef.current) {
+      polylineRef.current = new kakao.maps.Polyline({
+        path: linePath,
+        strokeWeight: 5,
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.85,
+        strokeStyle: 'solid',
+      });
+      polylineRef.current.setMap(map);
+    } else {
+      polylineRef.current.setPath(linePath);
+    }
+  }, [path, sdkStatus]);
 
   // 장소 상세 시트 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4): 열릴 때 패널로
   // 포커스 이동 + Tab 트랩(패널 안에서만 순환) + ESC로 닫기 + 배경 스크롤 잠금,
@@ -519,9 +605,12 @@ function PetMap({
   // 화면에서 사라지면 시트가 낡은(stale) 장소를 계속 띄우고 있지 않도록 닫는다(QA N-5).
   useEffect(() => {
     if (!selectedPlace) return;
-    const stillVisible = places.includes(selectedPlace) && visibleCategories[selectedPlace.category];
+    const stillVisible =
+      places.includes(selectedPlace) &&
+      allowedCategories.includes(selectedPlace.category) &&
+      visibleCategories[selectedPlace.category];
     if (!stillVisible) setSelectedPlace(null);
-  }, [places, visibleCategories, selectedPlace]);
+  }, [places, visibleCategories, allowedCategories, selectedPlace]);
 
   const handleLocateClick = () => {
     if (currentLocation && mapRef.current && kakaoRef.current) {
@@ -577,13 +666,18 @@ function PetMap({
 
   // 토글 칩 마크업/상태/핸들러는 전부 여기(PetMap) 소유 — toggleSlot이 주어지면
   // 그리는 "위치"만 그 DOM 노드로 포털한다(내부 구현을 MapPage 등으로 옮기지 않음).
+  // categories prop으로 제한된 경우 허용 카테고리의 칩만 그리고, 1개 이하면
+  // 토글 UI 자체를 렌더링하지 않는다(비활성화가 아니라 비노출 — 2026-08-12 확정).
+  const showToggles = allowedCategories.length > 1;
   const toggleChips = (
     <div
       className={`pet-map__toggle-list${toggleSlot ? '' : ' pet-map__toggle-list--floating'}`}
       role="group"
       aria-label="장소 카테고리 표시 전환"
     >
-      {Object.entries(CATEGORY_META).map(([category, meta]) => (
+      {Object.entries(CATEGORY_META)
+        .filter(([category]) => allowedCategories.includes(category))
+        .map(([category, meta]) => (
         <button
           key={category}
           type="button"
@@ -606,7 +700,7 @@ function PetMap({
     <div className={`pet-map pet-map--${size}`}>
       <div ref={containerRef} className="pet-map__canvas" />
 
-      {toggleSlot ? createPortal(toggleChips, toggleSlot) : toggleChips}
+      {showToggles && (toggleSlot ? createPortal(toggleChips, toggleSlot) : toggleChips)}
 
       <div className="pet-map__zoom-control" role="group" aria-label="지도 확대/축소">
         <button

@@ -60,13 +60,14 @@ import PetMap from '../../components/PetMap'
 import { CATEGORY_META } from '../../components/categoryMeta'
 import SearchBar from '../../components/SearchBar'
 import { distanceMeters, formatDistanceLabel } from '../../common/geo'
+import { DEFAULT_CENTER } from '../../common/mapDefaults'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import { askChat, getNearbyPlaces } from './mapApi'
 import './MapPage.css'
 
-// PetMap.jsx의 DEFAULT_CENTER(서울시청)와 동일한 값 — 위치 권한이 없을 때
-// 초기 마커 조회에 쓸 기본 좌표. PetMap은 수정 대상이 아니므로 값만 그대로 미러링한다.
-const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }
+// DEFAULT_CENTER(서울시청)는 common/mapDefaults.js 공용 상수로 승격됨 (QA F-5,
+// 2026-08-12 산책 Phase — 이전엔 PetMap.jsx와 이 파일에 같은 값이 각각
+// 하드코딩돼 있었다. WalkPage.jsx도 동일 상수를 쓴다).
 
 // "이 지역에서 재검색" 버튼을 띄울 최소 이동 거리(대략). distanceMeters(하버사인)
 // 근사로 충분하다는 판단 — 재검색 여부를 가리는 용도일 뿐 정밀한 지리 계산이
