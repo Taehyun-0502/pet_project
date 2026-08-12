@@ -7,6 +7,7 @@ import MyPage from './member/MyPage'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import WelcomePage from './member/WelcomePage'
+import AiSearchPage from './pages/aisearch/AiSearchPage'
 import MapPage from './pages/map/MapPage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetDetailPage from './pet/PetDetailPage'
@@ -104,6 +105,17 @@ function App() {
         element={
           <RequireLogin>
             <MapPage />
+          </RequireLogin>
+        }
+      />
+      {/* AI 검색 페이지(루트 CLAUDE.md "Phase: 검색 통합 — AI 챗봇 검색"). 지도/AI검색
+          계열 라우트는 병합 시 유실 이력 3회(App.jsx 위 /map 주석 참고) — 병합 해결 시
+          diff로 /map·/aisearch 존재를 반드시 확인할 것 (QA F-4) */}
+      <Route
+        path="/aisearch"
+        element={
+          <RequireLogin>
+            <AiSearchPage />
           </RequireLogin>
         }
       />

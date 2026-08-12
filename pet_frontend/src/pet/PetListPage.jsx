@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../member/AuthContext'
 import { getMyPets } from './petApi'
+// AI 검색 진입 버튼의 시각(둥근 검색바 모양)을 SearchBar 공용 컴포넌트와 맞추기 위해
+// 클래스만 재사용한다(.search-bar) — 컴포넌트 자체는 쓰지 않는다(아래 주석 참고).
+import '../components/SearchBar.css'
 import './pet.css'
 
 // 내 반려동물 목록 — 앱의 홈 화면 (구 HomePage 자리)
@@ -36,6 +39,23 @@ export default function PetListPage() {
           </button>
         </div>
       </header>
+
+      {/* AI 검색 진입 — 루트(홈)에서는 직접 타이핑하지 않고, 누르거나 포커스하는
+          즉시 검색 홈(/aisearch)으로 이동한다(검색 입력은 그 페이지에서 시작).
+          실제 SearchBar 컴포넌트 대신 시각만 동일한 버튼으로 구현했다 — <input>을
+          포함한 SearchBar를 여기 두면 버튼 성격의 이 진입점과 이중 포커스 대상이
+          생겨 접근성상 바람직하지 않다(SearchBar는 수정하지 않음). */}
+      <button
+        type="button"
+        className="pet-search-entry search-bar"
+        onClick={() => navigate('/aisearch')}
+        aria-label="AI 검색으로 이동"
+      >
+        <span className="search-bar__ai-toggle" aria-hidden="true">
+          AI
+        </span>
+        <span className="pet-search-entry__placeholder">AI에게 검색해보세요</span>
+      </button>
 
       <nav className="pet-nav">
         <Link className="pet-add" to="/pets/new">

@@ -1,0 +1,160 @@
+/* AI 검색 페이지 레이아웃 — 모바일 단일 사이즈(360px) 기준, 데스크톱 분기 없음
+   (루트 CLAUDE.md 2026-08-07 확정: PC 대응 제외). 임시 스타일 — design-agent 확정 전. */
+
+.aisearch-page {
+  padding: 16px;
+  box-sizing: border-box;
+  text-align: left; /* #root 전역 text-align:center 상쇄 (MapPage.css 목록과 동일 원칙) */
+}
+
+.aisearch-page__title {
+  margin: 0 0 12px;
+}
+
+.aisearch-page__search-bar {
+  margin-bottom: 20px;
+}
+
+.aisearch-page__section {
+  margin-bottom: 24px;
+}
+
+.aisearch-page__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.aisearch-page__section-header h2 {
+  margin: 0;
+}
+
+.aisearch-page__clear-btn {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.aisearch-page__clear-btn:hover {
+  color: var(--text-h);
+}
+
+.aisearch-page__clear-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.aisearch-page__empty {
+  color: var(--text);
+  font-size: 13px;
+}
+
+/* 최근/인기 검색어 — 가로 스크롤 칩 한 줄 (지도 카테고리 토글 칩과 같은 원칙) */
+.aisearch-page__chip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aisearch-page__chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.aisearch-page__chip--popular {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.aisearch-page__chip-label {
+  border: none;
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 4px 6px 12px;
+  cursor: pointer;
+}
+
+.aisearch-page__chip--popular .aisearch-page__chip-label {
+  padding-right: 12px;
+}
+
+.aisearch-page__chip-label:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.aisearch-page__chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px 12px 6px 4px;
+  cursor: pointer;
+}
+
+.aisearch-page__chip-remove:hover {
+  color: var(--text-h);
+}
+
+.aisearch-page__chip-remove:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 광고 자리 — 실제 광고 연동 전 플레이스홀더 */
+.aisearch-page__ad {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 72px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text);
+}
+
+.aisearch-page__ad-label {
+  font-size: 13px;
+}
+
+/* 결과 뷰 */
+.aisearch-page__current-query {
+  margin-bottom: 16px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.aisearch-page__current-query strong {
+  color: var(--text-h);
+}
+
+.aisearch-page__status {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.aisearch-page__status--error {
+  color: var(--text-h);
+}
+
+.aisearch-page__answer-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-h);
+  white-space: pre-wrap;
+}
