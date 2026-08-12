@@ -1,84 +1,134 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
 
-// 고정 가이드 텍스트 상수는 외부에 선언하여 useState 최소화
-const PAGE_TITLE = '🩺 펫 스마트 문진 & 하이브리드 AI 종합 건강 검진'
-const PAGE_SUBTITLE = '반려동물의 기본 정보와 바이오 센서 측정치, 그리고 보호자님의 증상 메모를 종합 분석하여 건강 상태를 진단합니다.'
+// 페이지 타이틀 상수를 외부에 선언하여 useState 최소화
+const PAGE_TITLE = '🩺 펫 스마트 문진 & AI 검진'
 
-// 주요 증상 체크박스 칩 항목 리스트
+// 페이지 안내 서브 타이틀 상수
+const PAGE_SUBTITLE = '기본 수치, 바이오 센서 측정값 및 보호자 증상 메모를 종합 분석합니다.'
+
+// 주요 증상 체크박스 옵션 리스트
 const SYMPTOM_OPTIONS = [
-  '구토', '설사/혈변', '식욕 부진',
-  '기력 저하', '다리 절음/관절 통증',
-  '눈곱/안구 이상', '피오줌/탁한 소변', '피부 가려움/핥음'
+  '구토',
+  '설사/혈변',
+  '식욕 부진',
+  '기력 저하',
+  '다리 절음/관절 통증',
+  '눈곱/안구 이상',
+  '피오줌/탁한 소변',
+  '피부 가려움/핥음',
 ]
 
 export default function HybridDiagnosisPage() {
-  // 반려동물 기본 수치 정보 상태 (나이는 정수로 관리)
+  // 라우트 전달 객체 수신을 위한 useLocation 훅
+  const location = useLocation()
+
+  // 반려동물 나이 수치 상태 (초기값 '2')
   const [age, setAge] = useState('2')
+
+  // 반려동물 체중 수치 상태 (초기값 '5.8')
   const [weight, setWeight] = useState('5.8')
 
-  // 바이오 센서 수치 상태 (건강한 정상 기준 기본값 세팅)
+  // CRP 급성 염증 바이오센서 수치 상태 (정상 기준 0 ~ 2.0 mg/L)
   const [crp, setCrp] = useState(0.5)
+
+  // IgG 면역 항체 바이오센서 수치 상태 (정상 기준 0 ~ 3.5 mg/dL)
   const [igg, setIgg] = useState(2.5)
+
+  // IL-6 전신 염증 바이오센서 수치 상태 (정상 기준 0 ~ 2.5 pg/mL)
   const [il6, setIl6] = useState(1.2)
 
-  // 선택된 증상 칩 상태 및 상세 증상 메인 메모 텍스트
+  // 선택된 주요 증상 체크박스 목록 상태
   const [selectedSymptoms, setSelectedSymptoms] = useState([])
+
+  // 보호자 상세 증상 작성 텍스트 메모 상태
   const [textPrompt, setTextPrompt] = useState('')
 
-  // 툴팁 활성화 상태
+  // 활성화된 바이오센서 툴팁 상태
   const [activeTooltip, setActiveTooltip] = useState(null)
 
-  // 진단 요청 및 결과 상태
+  // AI 분석 요청 중 로딩 상태
   const [loading, setLoading] = useState(false)
+
+  // AI 종합 건강 진단 결과 상태
   const [result, setResult] = useState(null)
+
+  // 통신 에러 메시지 상태
   const [error, setError] = useState(null)
 
-  // 증상 체크박스 클릭 시 상세 메모 텍스트 자동 연동 및 토글 처리 핸들러
-  const handleSymptomToggle = (symptom) => {
-    const isSelected = selectedSymptoms.includes(symptom)
-    let newSymptoms = []
-
-    if (isSelected) {
-      newSymptoms = selectedSymptoms.filter((s) => s !== symptom)
-    } else {
-      newSymptoms = [...selectedSymptoms, symptom]
-    }
-    setSelectedSymptoms(newSymptoms)
-
-    // 상세 증상 메모 텍스트 동기화 업데이트
-    if (!isSelected) {
-      if (!textPrompt.includes(symptom)) {
-        setTextPrompt((prev) => (prev ? `${prev}, ${symptom}` : symptom))
+  // 전달된 반려동물 프로필(location.state) 수신 시 자동 동기화 효과
+  useEffect(() => {
+    if (location.state?.pet) {
+      if (location.state.pet.age !== undefined && location.state.pet.age !== null) {
+        setAge(String(location.state.pet.age))
+      }
+      if (location.state.pet.weight !== undefined && location.state.pet.weight !== null) {
+        setWeight(String(location.state.pet.weight))
       }
     } else {
-      // 선택 해제 시 텍스트에서 콤마 포함 깔끔하게 제거
-      const regex = new RegExp(`,\\s*${symptom}|${symptom},?\\s*`, 'g')
-      const updatedPrompt = textPrompt.replace(regex, '').trim()
-      setTextPrompt(updatedPrompt)
+      if (location.state?.age !== undefined) setAge(String(location.state.age))
+      if (location.state?.weight !== undefined) setWeight(String(location.state.weight))
+    }
+  }, [location.state])
+
+  // 증상 체크박스 선택/해제 핸들러 (텍스트 입력창에는 추가하지 않음)
+  const handleSymptomToggle = (symptom) => {
+    const isSelected = selectedSymptoms.includes(symptom)
+    if (isSelected) {
+      setSelectedSymptoms(selectedSymptoms.filter((s) => s !== symptom))
+    } else {
+      setSelectedSymptoms([...selectedSymptoms, symptom])
     }
   }
 
-  // 디바이스 바이오 센서 정상/이상 무작위 교차 시뮬레이션 새로고침 핸들러
+  // AI 제출 시 선택된 체크박스 목록과 텍스트 입력창 메모를 합성하는 헬퍼 함수
+  const getCombinedTextPrompt = () => {
+    const trimmedMemo = textPrompt.trim()
+    const selectedStr = selectedSymptoms.length > 0 ? selectedSymptoms.join(', ') : ''
+
+    if (selectedStr && trimmedMemo) {
+      return `주요 증상: ${selectedStr}. 상세 메모: ${trimmedMemo}`
+    }
+    if (selectedStr) {
+      return `주요 증상: ${selectedStr}`
+    }
+    return trimmedMemo || '특이 증상 없음'
+  }
+
+  // 바이오센서 시뮬레이션 데이터 갱신 이벤트 핸들러
   const handleRefreshBiosensors = () => {
     const isNormalSet = Math.random() > 0.4
     if (isNormalSet) {
       setCrp(parseFloat((Math.random() * 1.2 + 0.3).toFixed(2)))
-      setIgg(parseFloat((Math.random() * 1.5 + 2.0).toFixed(2)))
-      setIl6(parseFloat((Math.random() * 1.3 + 0.8).toFixed(2)))
+      setIgg(parseFloat((Math.random() * 1.0 + 2.0).toFixed(2)))
+      setIl6(parseFloat((Math.random() * 1.0 + 0.8).toFixed(2)))
     } else {
-      setCrp(parseFloat((Math.random() * 2.5 + 2.2).toFixed(2)))
-      setIgg(parseFloat((Math.random() * 2.0 + 3.0).toFixed(2)))
-      setIl6(parseFloat((Math.random() * 2.5 + 3.6).toFixed(2)))
+      // 3가지 수치 중 무작위 상승 시뮬레이션
+      const randType = Math.floor(Math.random() * 3)
+      if (randType === 0) {
+        setCrp(parseFloat((Math.random() * 2.5 + 2.2).toFixed(2)))
+      } else if (randType === 1) {
+        setIgg(parseFloat((Math.random() * 2.0 + 3.8).toFixed(2)))
+      } else {
+        setIl6(parseFloat((Math.random() * 2.5 + 2.8).toFixed(2)))
+      }
     }
   }
 
-  // 백엔드로 하이브리드 AI 진단 요청 제출 핸들러 (POST /api/v1/hybrid/diagnosis)
+  // 바이오센서 툴팁 토글 이벤트 핸들러
+  const handleTooltipToggle = (sensorKey) => {
+    setActiveTooltip((prev) => (prev === sensorKey ? null : sensorKey))
+  }
+
+  // 하이브리드 AI 진단 요청 제출 이벤트 핸들러
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     setResult(null)
+
+    const finalPrompt = getCombinedTextPrompt()
 
     const payload = {
       age: parseInt(age, 10) || 0,
@@ -86,31 +136,49 @@ export default function HybridDiagnosisPage() {
       crp: parseFloat(crp) || 0,
       igg: parseFloat(igg) || 0,
       il6: parseFloat(il6) || 0,
-      text_prompt: textPrompt || '특이 증상 없음'
+      text_prompt: finalPrompt,
     }
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 4000)
+
     try {
+      // Spring Boot 백엔드 → 파이썬 PyTorch AI 서버 통신 (4초 타임아웃 안전장치)
       const response = await fetch(`${BACKEND_URL}/api/v1/hybrid/diagnosis`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal,
       })
 
+      clearTimeout(timeoutId)
       if (!response.ok) throw new Error('AI 종합 건강 진단 중 오류가 발생했습니다.')
       const data = await response.json()
+      // 파이썬 PyTorch 모델의 실제 응답 반환
       setResult(data)
     } catch (err) {
-      // 프론트엔드 자체 로컬 안전 추론 시뮬레이션 (Fallback)
-      const hasSevereSymptom = selectedSymptoms.some((s) => ['구토', '설사/혈변', '피오줌/탁한 소변'].includes(s))
-      const isAbnormal = crp > 2.0 || il6 > 3.5 || hasSevereSymptom
-      
+      clearTimeout(timeoutId)
+      // 백엔드 미기동 또는 타임아웃 시 프론트엔드 자체 Fallback 로직 (3종 수치 이상, 통증/4대증상 응급 키워드 또는 지속성 문진 소견 시 ABN)
+      const isAbnormalBiomarker = crp > 2.0 || igg > 3.5 || il6 > 2.5
+      const cleanPrompt = textPrompt ? textPrompt.replace(/\s+/g, '') : ''
+      const emergencyKeywords = [
+        '혈변', '피오줌', '아예안딛', '안딛', '못딛', '부음', '부어', '비명', '낑낑', '아파함', '아파해',
+        '진물', '발적', '붉어짐', '피낢', '피남', '피나', '피날', '피가나', '피가남', '피가날', '탈모', '털빠짐', '딱지', '밤새긁', '계속핥',
+        '충혈', '노란눈곱', '초록눈곱', '눈못뜸', '눈부음', '눈긁', '혼탁', '하얗게',
+        '2회이상', '연속구토', '피섞인', '혈토', '초록색토', '이물질', '족족토',
+        '안움직', '의식', '숨가쁨', '호흡곤란', '물도안', '안일어'
+      ]
+      const hasEmergencySymptom = selectedSymptoms.some((s) => ['설사/혈변', '피오줌/탁한 소변'].includes(s)) || (cleanPrompt && emergencyKeywords.some((kw) => cleanPrompt.includes(kw)))
+      const hasPersistentKeyword = cleanPrompt && (cleanPrompt.includes('하루이상') || cleanPrompt.includes('하루') || cleanPrompt.includes('24시간') || cleanPrompt.includes('이틀') || cleanPrompt.includes('며칠') || cleanPrompt.includes('지속') || cleanPrompt.includes('계속') || cleanPrompt.includes('사흘'))
+      const isAbnormal = isAbnormalBiomarker || hasEmergencySymptom || hasPersistentKeyword || selectedSymptoms.length >= 2
+
       setResult({
         success: true,
         status: isAbnormal ? 'ABN' : 'NOR',
         is_normal: !isAbnormal,
         details: isAbnormal
-          ? `바이오 염증 수치 상승(CRP: ${crp} mg/L, IL-6: ${il6} pg/mL) 및 주요 증상 감지로 이상(ABN)이 판정되었습니다.`
-          : `바이오 센서 측정치 및 문진 분석 결과 주요 이상 소견이 감지되지 않았습니다. (NOR 정상)`
+          ? `[주요 증상 감지] 수치 이상, 주요 의심 증상 소견 또는 지속적인 소견("${finalPrompt}")으로 이상(ABN) 소견이 감지되었습니다. 수의사 진료를 권장합니다.`
+          : `[일시적/정상 범주] 3종 바이오 수치가 모두 정상 범위 안이며, 일시적인 경미 소견은 집에서 지속적인 경과 관찰이 가능합니다. (NOR 정상)`,
       })
     } finally {
       setLoading(false)
@@ -118,20 +186,24 @@ export default function HybridDiagnosisPage() {
   }
 
   return (
-    <div style={containerStyle}>
-      <header style={headerStyle}>
-        <h1 style={titleStyle}>{PAGE_TITLE}</h1>
-        <p style={subtitleStyle}>{PAGE_SUBTITLE}</p>
+    <div style={mobileContainerStyle}>
+      {/* 모바일 상단 헤더 */}
+      <header style={mobileHeaderStyle}>
+        <div style={badgeRowStyle}>
+          <span style={mobileHeaderBadgeStyle}>스마트 문진 탭</span>
+        </div>
+        <h1 style={mobileTitleStyle}>{PAGE_TITLE}</h1>
+        <p style={mobileSubtitleStyle}>{PAGE_SUBTITLE}</p>
       </header>
 
-      <form onSubmit={handleSubmit} style={mainFormStyle}>
-        {/* 1. 반려동물 기본 정보 수치 세션 */}
-        <section style={cardStyle}>
-          <h2 style={sectionTitleStyle}>🐶 반려동물 기본 정보</h2>
-          <div style={gridTwoColumnStyle}>
-            <div style={inputGroupStyle}>
-              <label style={labelStyle}>
-                나이 (Age) <span style={unitSpanStyle}>(세)</span>
+      <form onSubmit={handleSubmit} style={mobileMainFormStyle}>
+        {/* 1. 반려동물 기본 정보 수치 카드 */}
+        <section style={mobileCardStyle}>
+          <h2 style={mobileSectionTitleStyle}>🐶 반려동물 기본 정보</h2>
+          <div style={mobileGridTwoColumnStyle}>
+            <div style={mobileInputGroupStyle}>
+              <label style={mobileLabelStyle}>
+                나이 <span style={unitSpanStyle}>(세)</span>
               </label>
               <input
                 type="number"
@@ -140,13 +212,13 @@ export default function HybridDiagnosisPage() {
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder="예: 2"
-                style={inputStyle}
+                style={mobileInputStyle}
                 required
               />
             </div>
-            <div style={inputGroupStyle}>
-              <label style={labelStyle}>
-                체중 (Weight) <span style={unitSpanStyle}>(kg)</span>
+            <div style={mobileInputGroupStyle}>
+              <label style={mobileLabelStyle}>
+                체중 <span style={unitSpanStyle}>(kg)</span>
               </label>
               <input
                 type="number"
@@ -155,44 +227,44 @@ export default function HybridDiagnosisPage() {
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 placeholder="예: 5.8"
-                style={inputStyle}
+                style={mobileInputStyle}
                 required
               />
             </div>
           </div>
         </section>
 
-        {/* 2. 오늘의 바이오 센서 수치 대시보드 (Read-only UI + 시뮬레이션 새로고침) */}
-        <section style={cardStyle}>
-          <div style={sectionHeaderFlexStyle}>
-            <h2 style={sectionTitleStyle}>📊 오늘의 바이오 센서 수치</h2>
+        {/* 2. 바이오 센서 측정 수치 대시보드 카드 */}
+        <section style={mobileCardStyle}>
+          <div style={mobileSectionHeaderFlexStyle}>
+            <h2 style={mobileSectionTitleStyle}>📊 실시간 바이오 센서</h2>
             <button
               type="button"
               onClick={handleRefreshBiosensors}
-              style={refreshButtonStyle}
-              title="디바이스 측정값을 새로 불러옵니다."
+              style={mobileRefreshButtonStyle}
             >
-              🔄 디바이스 데이터 새로고침
+              🔄 데이터 동기화
             </button>
           </div>
 
-          <div style={gridThreeColumnStyle}>
-            {/* CRP 급성 염증 수치 카드 */}
-            <div style={sensorCardStyle}>
+          <div style={mobileSensorGridStyle}>
+            {/* CRP 급성 염증 카트 */}
+            <div style={mobileSensorCardStyle}>
               <div style={sensorCardHeaderStyle}>
                 <span style={sensorNameStyle}>CRP (급성 염증)</span>
                 <span
                   style={tooltipIconStyle}
-                  onMouseEnter={() => setActiveTooltip('crp')}
-                  onMouseLeave={() => setActiveTooltip(null)}
+                  onClick={() => handleTooltipToggle('crp')}
                 >
                   ℹ️
                 </span>
                 {activeTooltip === 'crp' && (
-                  <div style={tooltipBoxStyle}>체내 급성 염증 반응 시 상승하는 단백질 수치입니다. (정상: 0 ~ 2.0 mg/L)</div>
+                  <div style={mobileTooltipBoxStyle}>체내 급성 염증 수치 (정상: 0 ~ 2.0 mg/L)</div>
                 )}
               </div>
-              <div style={sensorValueStyle}>{crp} <span style={sensorUnitStyle}>mg/L</span></div>
+              <div style={sensorValueStyle}>
+                {crp} <span style={sensorUnitStyle}>mg/L</span>
+              </div>
               <div style={gaugeTrackStyle}>
                 <div
                   style={{
@@ -202,253 +274,310 @@ export default function HybridDiagnosisPage() {
                   }}
                 />
               </div>
-              <span style={gaugeLabelStyle}>{crp > 2.0 ? '⚠️ 주의 범위' : '✅ 정상 범위'}</span>
+              <span style={gaugeLabelStyle}>{crp > 2.0 ? '⚠️ 주의 수치' : '✅ 정상 범위'}</span>
             </div>
 
-            {/* IgG 면역 상태 수치 카드 */}
-            <div style={sensorCardStyle}>
+            {/* IgG 면역 항체 카트 */}
+            <div style={mobileSensorCardStyle}>
               <div style={sensorCardHeaderStyle}>
                 <span style={sensorNameStyle}>IgG (면역 상태)</span>
                 <span
                   style={tooltipIconStyle}
-                  onMouseEnter={() => setActiveTooltip('igg')}
-                  onMouseLeave={() => setActiveTooltip(null)}
+                  onClick={() => handleTooltipToggle('igg')}
                 >
                   ℹ️
                 </span>
                 {activeTooltip === 'igg' && (
-                  <div style={tooltipBoxStyle}>체내 주된 면역 항체 항원 반응 수치입니다.</div>
+                  <div style={mobileTooltipBoxStyle}>면역 항체 반응 수치 (정상: 0 ~ 3.5 mg/dL)</div>
                 )}
               </div>
-              <div style={sensorValueStyle}>{igg} <span style={sensorUnitStyle}>mg/dL</span></div>
+              <div style={sensorValueStyle}>
+                {igg} <span style={sensorUnitStyle}>mg/dL</span>
+              </div>
+              <div style={gaugeTrackStyle}>
+                <div
+                  style={{
+                    ...gaugeFillStyle,
+                    width: `${Math.min((igg / 5.0) * 100, 100)}%`,
+                    backgroundColor: igg > 3.5 ? '#EF4444' : '#10B981',
+                  }}
+                />
+              </div>
+              <span style={gaugeLabelStyle}>{igg > 3.5 ? '⚠️ 주의 수치' : '✅ 정상 범위'}</span>
             </div>
 
-            {/* IL-6 전신 염증 수치 카드 */}
-            <div style={sensorCardStyle}>
+            {/* IL-6 전신 염증 카트 */}
+            <div style={mobileSensorCardStyle}>
               <div style={sensorCardHeaderStyle}>
                 <span style={sensorNameStyle}>IL-6 (전신 염증)</span>
                 <span
                   style={tooltipIconStyle}
-                  onMouseEnter={() => setActiveTooltip('il6')}
-                  onMouseLeave={() => setActiveTooltip(null)}
+                  onClick={() => handleTooltipToggle('il6')}
                 >
                   ℹ️
                 </span>
                 {activeTooltip === 'il6' && (
-                  <div style={tooltipBoxStyle}>전신 면역 자극 및 사이토카인 염증 지표 수치입니다. (정상: 0 ~ 2.5 pg/mL)</div>
+                  <div style={mobileTooltipBoxStyle}>전신 면역 자극 지표 (정상: 0 ~ 2.5 pg/mL)</div>
                 )}
               </div>
-              <div style={sensorValueStyle}>{il6} <span style={sensorUnitStyle}>pg/mL</span></div>
+              <div style={sensorValueStyle}>
+                {il6} <span style={sensorUnitStyle}>pg/mL</span>
+              </div>
+              <div style={gaugeTrackStyle}>
+                <div
+                  style={{
+                    ...gaugeFillStyle,
+                    width: `${Math.min((il6 / 5.0) * 100, 100)}%`,
+                    backgroundColor: il6 > 2.5 ? '#EF4444' : '#10B981',
+                  }}
+                />
+              </div>
+              <span style={gaugeLabelStyle}>{il6 > 2.5 ? '⚠️ 주의 수치' : '✅ 정상 범위'}</span>
             </div>
           </div>
         </section>
 
-        {/* 3. 보호자 스마트 문진표 (주요 증상 칩 + 상세 증상 메모) */}
-        <section style={cardStyle}>
-          <h2 style={sectionTitleStyle}>📝 보호자 스마트 문진표</h2>
+        {/* 3. 보호자 스마트 문진표 카드 (체크박스 UI) */}
+        <section style={mobileCardStyle}>
+          <h2 style={mobileSectionTitleStyle}>📝 보호자 스마트 문진표</h2>
 
           <div style={formSubGroupStyle}>
-            <label style={labelStyle}>① 주요 증상 선택 (다중 선택 칩)</label>
-            <div style={chipContainerStyle}>
+            <label style={mobileLabelStyle}>① 주요 증상 선택 (선택 항목은 AI 분석 제출 시 자동 합성됩니다)</label>
+            <div style={mobileCheckboxGridStyle}>
               {SYMPTOM_OPTIONS.map((symptom) => {
                 const isSelected = selectedSymptoms.includes(symptom)
                 return (
-                  <button
+                  <label
                     key={symptom}
-                    type="button"
-                    onClick={() => handleSymptomToggle(symptom)}
                     style={{
-                      ...chipStyle,
-                      backgroundColor: isSelected ? '#4F46E5' : '#F3F4F6',
-                      color: isSelected ? '#FFFFFF' : '#374151',
-                      borderColor: isSelected ? '#4F46E5' : '#E5E7EB',
+                      ...mobileCheckboxLabelStyle,
+                      backgroundColor: isSelected ? '#EEF2FF' : '#F8FAFC',
+                      borderColor: isSelected ? '#6366F1' : '#E2E8F0',
+                      color: isSelected ? '#4338CA' : '#334155',
                     }}
                   >
-                    {isSelected ? '✓ ' : '+ '}{symptom}
-                  </button>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleSymptomToggle(symptom)}
+                      style={mobileCheckboxInputStyle}
+                    />
+                    <span style={mobileCheckboxTextStyle}>{symptom}</span>
+                  </label>
                 )
               })}
             </div>
           </div>
 
           <div style={formSubGroupStyle}>
-            <label style={labelStyle}>② 상세 증상 메모 (Text Area)</label>
+            <label style={mobileLabelStyle}>② 상세 증상 작성 메모</label>
             <textarea
-              rows={5}
+              rows={4}
               value={textPrompt}
               onChange={(e) => setTextPrompt(e.target.value)}
-              placeholder="강아지가 언제부터 어떻게 아픈지, 평소와 다른 점을 자유롭게 적어주세요. (예: 어제부터 밥을 안 먹고 떨어요)"
-              style={textareaStyle}
+              placeholder="아픈 증상이나 평소와 다른 점을 적어주세요. (위 체크박스 선택 내용과 함께 AI 모델로 전송됩니다)"
+              style={mobileTextareaStyle}
             />
           </div>
         </section>
 
-        {/* 4. AI 진단 풀 위드 버튼 */}
-        <button type="submit" style={fullWidthSubmitButtonStyle} disabled={loading}>
-          {loading ? '✨ AI 하이브리드 종합 분석 중...' : '✨ AI 종합 건강 분석하기'}
+        {/* 4. AI 진단 제출 버튼 */}
+        <button type="submit" style={mobileFullWidthSubmitButtonStyle} disabled={loading}>
+          {loading ? '✨ AI 하이브리드 분석 중...' : '✨ AI 종합 건강 분석하기'}
         </button>
       </form>
 
-      {/* 5. 진단 결과 팝업 및 확장 카드 영역 */}
+      {/* 5. AI 진단 결과 팝업/카드 */}
       {result && (
-        <section style={resultCardContainerStyle}>
+        <section style={mobileResultCardContainerStyle}>
           {result.status === 'NOR' || result.diagnosis === 'NOR' || result.is_normal ? (
-            /* 정상 NOR 결과 카드 A (초록색 테마) */
-            <div style={normalResultCardStyle}>
-              <div style={resultBadgeStyle}>✅ 분석 완료 [NOR]</div>
-              <h3 style={resultTitleStyle}>현재 건강 상태: 정상 범주</h3>
-              <p style={resultDescStyle}>
-                바이오 수치와 스마트 문진을 종합 분석한 결과, 현재 **[정상(NOR)]** 범주에 있습니다. 안심하셔도 좋습니다.
+            <div style={mobileNormalResultCardStyle}>
+              <div style={mobileResultBadgeStyle}>✅ AI 분석 완료 [NOR]</div>
+              <h3 style={mobileResultTitleStyle}>현재 상태: 정상 범주</h3>
+              <p style={mobileResultDescStyle}>
+                수치 분석 및 스마트 문진 결과 <strong>[정상(NOR)]</strong> 범주입니다. 안심하셔도 좋습니다.
               </p>
-              {result.details && <div style={detailsBoxStyle}>{result.details}</div>}
+              {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
             </div>
           ) : (
-            /* 이상 ABN 결과 카드 B (주황/빨간색 테마) */
-            <div style={abnormalResultCardStyle}>
-              <div style={abnormalBadgeStyle}>🚨 [이상(ABN) 감지]</div>
-              <h3 style={abnormalTitleStyle}>수의사 정밀 진료 권장</h3>
-              <p style={abnormalDescStyle}>
-                염증 지표 상승 및 주요 이상 증상이 감지되었습니다. 정확한 진단을 위해 수의사의 진료를 권장합니다.
+            <div style={mobileAbnormalResultCardStyle}>
+              <div style={mobileAbnormalBadgeStyle}>🚨 AI 분석 완료 [ABN]</div>
+              <h3 style={mobileAbnormalTitleStyle}>수의사 정밀 진료 권장</h3>
+              <p style={mobileAbnormalDescStyle}>
+                염증 수치 상승 또는 주요 의심 증상이 감지되었습니다. 수의사 진료를 권장합니다.
               </p>
-              {result.details && <div style={detailsBoxStyle}>{result.details}</div>}
+              {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
             </div>
           )}
         </section>
       )}
 
       {error && !result && (
-        <div style={errorMessageContainerStyle}>
-          ⚠️ 서버 통신 문제 발생: {error}
+        <div style={mobileErrorMessageContainerStyle}>
+          ⚠️ 통신 오류 발생: {error}
         </div>
       )}
     </div>
   )
 }
 
-// 인라인 스타일 객체 정의
-const containerStyle = {
-  maxWidth: '900px',
+// 모바일 퍼스트 인라인 스타일 객체 정의
+const mobileContainerStyle = {
+  width: '100%',
+  maxWidth: '480px',
   margin: '0 auto',
-  padding: '40px 20px',
+  minHeight: '100vh',
+  padding: '16px 12px 32px 12px',
+  boxSizing: 'border-box',
   fontFamily: "'Pretendard', system-ui, -apple-system, sans-serif",
-  color: '#1F2937',
+  backgroundColor: '#F8FAFC',
+  color: '#0F172A',
+  overflowX: 'hidden',
 }
 
-const headerStyle = {
+const mobileHeaderStyle = {
   textAlign: 'center',
-  marginBottom: '32px',
-}
-
-const titleStyle = {
-  fontSize: '26px',
-  fontWeight: '800',
-  color: '#111827',
-  marginBottom: '10px',
-}
-
-const subtitleStyle = {
-  fontSize: '15px',
-  color: '#6B7280',
-  margin: 0,
-}
-
-const mainFormStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '24px',
-}
-
-const cardStyle = {
-  backgroundColor: '#FFFFFF',
-  borderRadius: '16px',
-  padding: '28px',
-  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05)',
-  border: '1px solid #F3F4F6',
-}
-
-const sectionHeaderFlexStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
   marginBottom: '20px',
 }
 
-const sectionTitleStyle = {
-  fontSize: '18px',
+const badgeRowStyle = {
+  display: 'flex',
+  justifyContent: 'center',
+  marginBottom: '6px',
+}
+
+const mobileHeaderBadgeStyle = {
+  fontSize: '12px',
   fontWeight: '700',
-  color: '#111827',
-  margin: '0 0 16px 0',
+  color: '#4F46E5',
+  backgroundColor: '#EEF2FF',
+  padding: '3px 10px',
+  borderRadius: '12px',
 }
 
-const gridTwoColumnStyle = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr',
-  gap: '20px',
+const mobileTitleStyle = {
+  fontSize: '22px',
+  fontWeight: '800',
+  color: '#0F172A',
+  margin: '0 0 6px 0',
+  letterSpacing: '-0.5px',
 }
 
-const gridThreeColumnStyle = {
-  display: 'grid',
-  gridTemplateColumns: '1fr 1fr 1fr',
+const mobileSubtitleStyle = {
+  fontSize: '13px',
+  color: '#64748B',
+  margin: 0,
+  lineHeight: 1.4,
+}
+
+const mobileMainFormStyle = {
+  display: 'flex',
+  flexDirection: 'column',
   gap: '16px',
 }
 
-const inputGroupStyle = {
+const mobileCardStyle = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: '20px',
+  padding: '20px 16px',
+  boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+  border: '1px solid #F1F5F9',
+}
+
+const mobileSectionHeaderFlexStyle = {
   display: 'flex',
-  flexDirection: 'column',
-  gap: '8px',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: '14px',
 }
 
-const formSubGroupStyle = {
-  marginBottom: '20px',
+const mobileSectionTitleStyle = {
+  fontSize: '16px',
+  fontWeight: '800',
+  color: '#0F172A',
+  margin: '0 0 14px 0',
 }
 
-const labelStyle = {
-  fontSize: '14px',
-  fontWeight: '600',
-  color: '#374151',
+const mobileGridTwoColumnStyle = {
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '12px',
 }
 
-const unitSpanStyle = {
-  fontSize: '12px',
-  fontWeight: '400',
-  color: '#6B7280',
-}
-
-const inputStyle = {
-  padding: '12px 16px',
-  borderRadius: '10px',
-  border: '1px solid #D1D5DB',
-  fontSize: '15px',
-  outline: 'none',
-}
-
-const textareaStyle = {
+const mobileSensorGridStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+  gap: '6px',
   width: '100%',
-  padding: '14px 16px',
-  borderRadius: '10px',
-  border: '1px solid #D1D5DB',
-  fontSize: '15px',
-  outline: 'none',
-  resize: 'vertical',
   boxSizing: 'border-box',
 }
 
-const refreshButtonStyle = {
-  padding: '8px 14px',
-  backgroundColor: '#F3F4F6',
-  color: '#374151',
-  border: '1px solid #D1D5DB',
-  borderRadius: '8px',
+const mobileInputGroupStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '6px',
+}
+
+const formSubGroupStyle = {
+  marginBottom: '16px',
+}
+
+const mobileLabelStyle = {
   fontSize: '13px',
-  fontWeight: '600',
+  fontWeight: '700',
+  color: '#334155',
+  display: 'block',
+  marginBottom: '8px',
+}
+
+const unitSpanStyle = {
+  fontSize: '11px',
+  fontWeight: '400',
+  color: '#94A3B8',
+}
+
+const mobileInputStyle = {
+  padding: '12px 14px',
+  borderRadius: '12px',
+  border: '1px solid #CBD5E1',
+  fontSize: '16px',
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
+  backgroundColor: '#FFFFFF',
+  color: '#0F172A',
+}
+
+const mobileTextareaStyle = {
+  width: '100%',
+  padding: '12px 14px',
+  borderRadius: '12px',
+  border: '1px solid #CBD5E1',
+  fontSize: '16px',
+  outline: 'none',
+  resize: 'none',
+  boxSizing: 'border-box',
+  backgroundColor: '#FFFFFF',
+  color: '#0F172A',
+  lineHeight: 1.4,
+}
+
+const mobileRefreshButtonStyle = {
+  padding: '6px 12px',
+  backgroundColor: '#F1F5F9',
+  color: '#475569',
+  border: '1px solid #E2E8F0',
+  borderRadius: '10px',
+  fontSize: '12px',
+  fontWeight: '700',
   cursor: 'pointer',
 }
 
-const sensorCardStyle = {
-  backgroundColor: '#FAFAFA',
-  borderRadius: '12px',
-  padding: '16px',
-  border: '1px solid #E5E7EB',
+const mobileSensorCardStyle = {
+  backgroundColor: '#F8FAFC',
+  borderRadius: '14px',
+  padding: '12px',
+  border: '1px solid #E2E8F0',
   position: 'relative',
 }
 
@@ -456,51 +585,52 @@ const sensorCardHeaderStyle = {
   display: 'flex',
   justifyContent: 'space-between',
   alignItems: 'center',
-  marginBottom: '8px',
+  marginBottom: '6px',
 }
 
 const sensorNameStyle = {
-  fontSize: '13px',
-  fontWeight: '600',
-  color: '#4B5563',
+  fontSize: '12px',
+  fontWeight: '700',
+  color: '#475569',
 }
 
 const tooltipIconStyle = {
   cursor: 'pointer',
-  fontSize: '14px',
+  fontSize: '12px',
 }
 
-const tooltipBoxStyle = {
+const mobileTooltipBoxStyle = {
   position: 'absolute',
-  top: '36px',
-  left: '12px',
-  right: '12px',
-  backgroundColor: '#1F2937',
+  top: '32px',
+  left: '6px',
+  right: '6px',
+  backgroundColor: '#0F172A',
   color: '#FFFFFF',
-  fontSize: '12px',
-  padding: '8px 12px',
-  borderRadius: '6px',
+  fontSize: '11px',
+  padding: '8px 10px',
+  borderRadius: '8px',
   zIndex: 10,
-  boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+  lineHeight: 1.3,
 }
 
 const sensorValueStyle = {
-  fontSize: '22px',
+  fontSize: '18px',
   fontWeight: '800',
-  color: '#111827',
+  color: '#0F172A',
 }
 
 const sensorUnitStyle = {
-  fontSize: '13px',
+  fontSize: '12px',
   fontWeight: '500',
-  color: '#6B7280',
+  color: '#64748B',
 }
 
 const gaugeTrackStyle = {
   height: '6px',
-  backgroundColor: '#E5E7EB',
+  backgroundColor: '#E2E8F0',
   borderRadius: '3px',
-  marginTop: '10px',
+  marginTop: '8px',
   overflow: 'hidden',
 }
 
@@ -511,125 +641,142 @@ const gaugeFillStyle = {
 }
 
 const gaugeLabelStyle = {
-  fontSize: '11px',
-  fontWeight: '600',
-  color: '#6B7280',
+  fontSize: '10px',
+  fontWeight: '700',
+  color: '#64748B',
   display: 'block',
   marginTop: '4px',
 }
 
-const chipContainerStyle = {
+const mobileCheckboxGridStyle = {
   display: 'flex',
   flexWrap: 'wrap',
-  gap: '10px',
-  marginTop: '8px',
+  gap: '8px',
 }
 
-const chipStyle = {
-  padding: '8px 16px',
-  borderRadius: '20px',
+const mobileCheckboxLabelStyle = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+  padding: '8px 12px',
+  borderRadius: '12px',
   border: '1px solid',
-  fontSize: '14px',
-  fontWeight: '600',
+  fontSize: '13px',
+  fontWeight: '700',
   cursor: 'pointer',
-  transition: 'all 0.2s ease',
+  userSelect: 'none',
+  transition: 'all 0.15s ease',
 }
 
-const fullWidthSubmitButtonStyle = {
+const mobileCheckboxInputStyle = {
+  width: '16px',
+  height: '16px',
+  accentColor: '#4F46E5',
+  cursor: 'pointer',
+}
+
+const mobileCheckboxTextStyle = {
+  lineHeight: 1,
+}
+
+const mobileFullWidthSubmitButtonStyle = {
   width: '100%',
-  padding: '18px 24px',
+  minHeight: '52px',
   backgroundColor: '#4F46E5',
   color: '#FFFFFF',
   border: 'none',
-  borderRadius: '12px',
-  fontSize: '18px',
-  fontWeight: '700',
-  cursor: 'pointer',
-  boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)',
-}
-
-const resultCardContainerStyle = {
-  marginTop: '28px',
-}
-
-const normalResultCardStyle = {
-  backgroundColor: '#ECFDF5',
-  border: '2px solid #A7F3D0',
   borderRadius: '16px',
-  padding: '28px',
+  fontSize: '16px',
+  fontWeight: '800',
+  cursor: 'pointer',
+  boxShadow: '0 4px 16px rgba(79, 70, 229, 0.3)',
+}
+
+const mobileResultCardContainerStyle = {
+  marginTop: '16px',
+}
+
+const mobileNormalResultCardStyle = {
+  backgroundColor: '#ECFDF5',
+  border: '1.5px solid #A7F3D0',
+  borderRadius: '20px',
+  padding: '20px 16px',
   textAlign: 'center',
 }
 
-const resultBadgeStyle = {
+const mobileResultBadgeStyle = {
   display: 'inline-block',
-  padding: '6px 16px',
+  padding: '4px 12px',
   backgroundColor: '#059669',
   color: '#FFFFFF',
-  borderRadius: '20px',
-  fontSize: '13px',
+  borderRadius: '12px',
+  fontSize: '12px',
   fontWeight: '700',
-  marginBottom: '12px',
+  marginBottom: '8px',
 }
 
-const resultTitleStyle = {
-  fontSize: '22px',
+const mobileResultTitleStyle = {
+  fontSize: '18px',
   fontWeight: '800',
   color: '#065F46',
-  margin: '0 0 10px 0',
+  margin: '0 0 6px 0',
 }
 
-const resultDescStyle = {
-  fontSize: '15px',
+const mobileResultDescStyle = {
+  fontSize: '13px',
   color: '#047857',
   margin: 0,
+  lineHeight: 1.4,
 }
 
-const abnormalResultCardStyle = {
+const mobileAbnormalResultCardStyle = {
   backgroundColor: '#FEF2F2',
-  border: '2px solid #FECACA',
-  borderRadius: '16px',
-  padding: '28px',
+  border: '1.5px solid #FECACA',
+  borderRadius: '20px',
+  padding: '20px 16px',
   textAlign: 'center',
 }
 
-const abnormalBadgeStyle = {
+const mobileAbnormalBadgeStyle = {
   display: 'inline-block',
-  padding: '6px 16px',
+  padding: '4px 12px',
   backgroundColor: '#DC2626',
   color: '#FFFFFF',
-  borderRadius: '20px',
-  fontSize: '13px',
+  borderRadius: '12px',
+  fontSize: '12px',
   fontWeight: '700',
-  marginBottom: '12px',
+  marginBottom: '8px',
 }
 
-const abnormalTitleStyle = {
-  fontSize: '22px',
+const mobileAbnormalTitleStyle = {
+  fontSize: '18px',
   fontWeight: '800',
   color: '#991B1B',
-  margin: '0 0 10px 0',
+  margin: '0 0 6px 0',
 }
 
-const abnormalDescStyle = {
-  fontSize: '15px',
+const mobileAbnormalDescStyle = {
+  fontSize: '13px',
   color: '#B91C1C',
   margin: 0,
+  lineHeight: 1.4,
 }
 
-const detailsBoxStyle = {
-  marginTop: '16px',
-  padding: '12px',
-  backgroundColor: 'rgba(255, 255, 255, 0.7)',
-  borderRadius: '8px',
-  fontSize: '13px',
+const mobileDetailsBoxStyle = {
+  marginTop: '12px',
+  padding: '10px 12px',
+  backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  borderRadius: '10px',
+  fontSize: '12px',
   textAlign: 'left',
+  lineHeight: 1.4,
 }
 
-const errorMessageContainerStyle = {
-  marginTop: '20px',
-  padding: '14px',
+const mobileErrorMessageContainerStyle = {
+  marginTop: '14px',
+  padding: '12px 14px',
   backgroundColor: '#FFFBEB',
   color: '#B45309',
-  borderRadius: '10px',
+  borderRadius: '12px',
   fontSize: '13px',
 }

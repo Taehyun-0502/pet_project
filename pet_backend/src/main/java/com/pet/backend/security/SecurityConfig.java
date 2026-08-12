@@ -32,8 +32,7 @@ public class SecurityConfig {
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
 
-    // 허용 오리진 — WebSocket 오리진(ChatWebSocketConfig)과 **단일 출처**로 공유한다.
-    // 코드에 오리진을 직접 추가하지 말 것: application.properties의 app.cors.allowed-origins 주석 참조
+    // 허용 오리진 — WebSocket 오리진(ChatWebSocketConfig)과 단일 출처로 공유한다.
     @Value("${app.cors.allowed-origins}")
     private List<String> allowedOrigins;
 
@@ -56,8 +55,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정.
                         // refresh·logout은 Authorization 헤더가 아니라 쿠키로 인증하므로 여기서는 공개다
-                        // (액세스 토큰이 만료된 상태에서 호출되는 것이 정상 동선).
-                        // 공개 경로를 추가하면 JwtAuthenticationFilter.PERMITTED_URIS에도 함께 추가할 것 (백로그 40번)
                         .requestMatchers("/api/members/signup", "/api/members/login",
                                 "/api/members/login/kakao",
                                 "/api/members/refresh", "/api/members/logout",
@@ -66,8 +63,6 @@ public class SecurityConfig {
                         // 그 다음 STOMP CONNECT 프레임에서 ChatStompInterceptor가 JWT를 검증한다
                         .requestMatchers("/ws").permitAll()
                         // 숏츠 피드와 댓글 목록은 로그인 없이 볼 수 있다.
-                        // GET만 열어 업로드·좋아요·댓글 작성·이벤트 기록(POST)은 인증 대상으로 남긴다
-                        // (shorts_guide_1.md 7절 — 보기는 공개, 쓰기는 로그인 필요)
                         .requestMatchers(HttpMethod.GET, "/api/shorts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/shorts/*/comments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/ads").permitAll()
@@ -75,17 +70,13 @@ public class SecurityConfig {
                 .exceptionHandling(handler ->
                         handler.authenticationEntryPoint(authenticationEntryPoint))
                 // 아이디/비밀번호 폼 인증 자리에 JWT 검문소를 배치.
-                // 빈으로 등록하지 않고 직접 생성 — 빈이면 서블릿 컨테이너에도 중복 등록되기 때문
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, objectMapper),
                         UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 
     /**
-     * HTTP CORS. 오리진 목록은 프로퍼티(app.cors.allowed-origins) 주입 — LAN·배포 오리진은
-     * 코드 수정 없이 .env로 추가한다 (2026-08-11 외부화. 이전에는 팀원 IP가 여기 하드코딩으로 쌓였다).
-     * allowCredentials는 리프레시 토큰 쿠키 때문 — credentials와 와일드카드 오리진(*)은
-     * 함께 쓸 수 없으므로 오리진을 명시한다 (docs/api-spec.md 6절).
+     * HTTP CORS. 오리진 목록은 프로퍼티(app.cors.allowed-origins) 주입
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
