@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react'
 import { Route, Routes } from 'react-router-dom'
+import ChatRoomCreatePage from './chat/ChatRoomCreatePage'
 import ChatRoomListPage from './chat/ChatRoomListPage'
 import ChatRoomPage from './chat/ChatRoomPage'
 import KakaoCallbackPage from './member/KakaoCallbackPage'
@@ -56,6 +57,7 @@ function App() {
             <Route path="withdraw" element={<MyPageWithdraw />} />
           </Route>
           <Route path="/chat" element={<ChatRoomListPage />} />
+          <Route path="/chat/new" element={<ChatRoomCreatePage />} />
           <Route path="/chat/rooms/:roomId" element={<ChatRoomPage />} />
           <Route path="/shorts/new" element={<ShortsUploadPage />} />
           {/* 지도 + AI 장소 추천 (루트 CLAUDE.md 지도 Phase). 주의: 이 라우트는 병합 시
