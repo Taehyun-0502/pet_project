@@ -4,6 +4,7 @@ import com.pet.backend.chat.dto.ChatDelegateRequest;
 import com.pet.backend.chat.dto.ChatMemberResponse;
 import com.pet.backend.chat.dto.ChatMessageCreateRequest;
 import com.pet.backend.chat.dto.ChatMessageResponse;
+import com.pet.backend.chat.dto.ChatPinRequest;
 import com.pet.backend.chat.dto.ChatReadRequest;
 import com.pet.backend.chat.dto.ChatRoleChangeRequest;
 import com.pet.backend.chat.dto.ChatRoomResponse;
@@ -74,12 +75,13 @@ public class ChatController {
         return ApiResponse.ok(chatService.join(memberId, roomId));
     }
 
-    // afterId 생략 = 최근 50개, 지정 = 그 이후 전부 (폴링용)
+    // 파라미터 없음 = 최근 50 / afterId = 이후 최대 500(복구) / beforeId = 과거 50 (3차 — api-spec.md 7절)
     @GetMapping("/api/chat/rooms/{roomId}/messages")
     public ApiResponse<List<ChatMessageResponse>> getMessages(@AuthenticationPrincipal Long memberId,
                                                               @PathVariable Long roomId,
-                                                              @RequestParam(required = false) Long afterId) {
-        return ApiResponse.ok(chatService.getMessages(memberId, roomId, afterId));
+                                                              @RequestParam(required = false) Long afterId,
+                                                              @RequestParam(required = false) Long beforeId) {
+        return ApiResponse.ok(chatService.getMessages(memberId, roomId, afterId, beforeId));
     }
 
     @PostMapping("/api/chat/rooms/{roomId}/messages")
@@ -88,6 +90,32 @@ public class ChatController {
                                                         @PathVariable Long roomId,
                                                         @Valid @RequestBody ChatMessageCreateRequest request) {
         return ApiResponse.ok(chatService.sendMessage(memberId, roomId, request));
+    }
+
+    // ── 공지 핀 (3차 — docs/api-spec.md 7절) ──
+
+    // 고정(교체 겸용) — OWNER·MANAGER만. 메시지는 그 방의 것이어야 한다
+    @PutMapping("/api/chat/rooms/{roomId}/pin")
+    public ApiResponse<Void> pinMessage(@AuthenticationPrincipal Long memberId,
+                                        @PathVariable Long roomId,
+                                        @Valid @RequestBody ChatPinRequest request) {
+        chatService.pinMessage(memberId, roomId, request.messageId());
+        return ApiResponse.ok();
+    }
+
+    // 해제 — 핀이 없어도 200 (멱등)
+    @DeleteMapping("/api/chat/rooms/{roomId}/pin")
+    public ApiResponse<Void> unpinMessage(@AuthenticationPrincipal Long memberId,
+                                          @PathVariable Long roomId) {
+        chatService.unpinMessage(memberId, roomId);
+        return ApiResponse.ok();
+    }
+
+    // 공지 조회 (참여자만) — 없으면 data: null
+    @GetMapping("/api/chat/rooms/{roomId}/pin")
+    public ApiResponse<ChatMessageResponse> getPinnedMessage(@AuthenticationPrincipal Long memberId,
+                                                             @PathVariable Long roomId) {
+        return ApiResponse.ok(chatService.getPinnedMessage(memberId, roomId));
     }
 
     // ── 이하 2차: 권한 행사 기능 (docs/api-spec.md 7절 2차 정책) ──

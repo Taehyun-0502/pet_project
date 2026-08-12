@@ -29,6 +29,7 @@ public enum ErrorCode {
     CHAT_ROLE_FORBIDDEN(HttpStatus.FORBIDDEN, "채팅방 내 권한이 없습니다."),
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
     CHAT_MEMBER_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 회원은 이 채팅방에 참여하고 있지 않습니다."),
+    CHAT_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "메시지를 찾을 수 없습니다."),
     USER_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."),
     PET_NOT_FOUND(HttpStatus.NOT_FOUND, "반려동물을 찾을 수 없습니다."),
     DEVICE_NOT_FOUND(HttpStatus.NOT_FOUND, "디바이스를 찾을 수 없습니다."),

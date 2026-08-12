@@ -227,19 +227,32 @@ public class ChatService {
         return response;
     }
 
-    // afterId 없으면 최근 50개, 있으면 그 이후 전부 (폴링·복구 공용 — docs/api-spec.md 7절)
+    /**
+     * 메시지 조회 (docs/api-spec.md 7절 3차) — 파라미터 없음: 최근 50개 / afterId: 이후 최대 500개(복구) /
+     * beforeId: 그보다 오래된 50개(과거 스크롤). 둘 다 지정은 방향이 모호하므로 400.
+     * 세 경로 모두 시간순(오름차순)으로 반환한다 — 프론트의 id 정렬 병합이 방향을 신경 쓰지 않게.
+     */
     @Transactional(readOnly = true)
-    public List<ChatMessageResponse> getMessages(Long memberId, Long roomId, Long afterId) {
+    public List<ChatMessageResponse> getMessages(Long memberId, Long roomId, Long afterId, Long beforeId) {
+        if (afterId != null && beforeId != null) {
+            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                    "afterId와 beforeId는 함께 사용할 수 없습니다.");
+        }
         getActiveRoom(roomId);
         requireParticipant(roomId, memberId);
 
         List<ChatMessage> messages;
-        if (afterId == null) {
+        if (afterId != null) {
+            messages = chatMessageRepository.findTop500ByRoomIdAndIdGreaterThanOrderByIdAsc(roomId, afterId);
+        } else if (beforeId != null) {
+            // 오래된 쪽 50개를 내림차순으로 뽑은 뒤 시간순으로 뒤집는다 (초기 로드와 같은 방식)
+            messages = new ArrayList<>(
+                    chatMessageRepository.findTop50ByRoomIdAndIdLessThanOrderByIdDesc(roomId, beforeId));
+            Collections.reverse(messages);
+        } else {
             // 최근 50개를 내림차순으로 뽑은 뒤 시간순(오름차순)으로 뒤집는다
             messages = new ArrayList<>(chatMessageRepository.findTop50ByRoomIdOrderByIdDesc(roomId));
             Collections.reverse(messages);
-        } else {
-            messages = chatMessageRepository.findByRoomIdAndIdGreaterThanOrderByIdAsc(roomId, afterId);
         }
         if (messages.isEmpty()) {
             return List.of();
@@ -363,6 +376,49 @@ public class ChatService {
         room.delete();
     }
 
+    // 공지 고정 — OWNER·MANAGER, 이미 있으면 교체 (docs/api-spec.md 7절 3차)
+    @Transactional
+    public void pinMessage(Long actorId, Long roomId, Long messageId) {
+        ChatRoom room = getActiveRoom(roomId);
+        requireOwnerOrManager(roomId, actorId);
+        // 소속 검증을 쿼리에 — 다른 방 메시지·없는 id 모두 404 (존재 여부 비노출 규칙)
+        chatMessageRepository.findByIdAndRoomId(messageId, roomId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MESSAGE_NOT_FOUND));
+        room.pin(messageId);
+        eventPublisher.publishEvent(new ChatPinChangedEvent(roomId));
+    }
+
+    // 공지 해제 — 핀이 없어도 성공 (멱등, 동시 해제 경쟁 무해화). 바뀐 게 없으면 신호도 안 보낸다
+    @Transactional
+    public void unpinMessage(Long actorId, Long roomId) {
+        ChatRoom room = getActiveRoom(roomId);
+        requireOwnerOrManager(roomId, actorId);
+        if (room.getPinnedMessageId() == null) {
+            return;
+        }
+        room.unpin();
+        eventPublisher.publishEvent(new ChatPinChangedEvent(roomId));
+    }
+
+    // 공지 조회 — 참여자만. 핀이 없으면 null (응답 data: null)
+    @Transactional(readOnly = true)
+    public ChatMessageResponse getPinnedMessage(Long memberId, Long roomId) {
+        ChatRoom room = getActiveRoom(roomId);
+        requireParticipant(roomId, memberId);
+        if (room.getPinnedMessageId() == null) {
+            return null;
+        }
+        // FK 덕에 실제로는 항상 존재하지만, 없으면 "공지 없음"으로 조용히 처리한다 (조회가 500이 될 이유가 없다)
+        ChatMessage message = chatMessageRepository.findById(room.getPinnedMessageId()).orElse(null);
+        if (message == null) {
+            return null;
+        }
+        Member sender = memberRepository.findById(message.getSenderId()).orElse(null);
+        return ChatMessageResponse.of(message,
+                sender != null ? sender.getName() : "알 수 없음",
+                sender != null ? sender.getProfileImageUrl() : null);
+    }
+
     // 강퇴 권한 매트릭스: OWNER는 MANAGER·MEMBER, MANAGER는 MEMBER만, MEMBER는 불가 (OWNER는 누구도 못 강퇴)
     private boolean canKick(ChatRole actor, ChatRole target) {
         return switch (actor) {
@@ -376,6 +432,13 @@ public class ChatService {
     private ChatRoomMember requireOwner(Long roomId, Long memberId) {
         return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
                 .filter(member -> member.getRole() == ChatRole.OWNER)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN));
+    }
+
+    // OWNER·MANAGER 검증 — 공지 핀은 강퇴와 같은 권한 급 (docs/api-spec.md 7절 3차)
+    private ChatRoomMember requireOwnerOrManager(Long roomId, Long memberId) {
+        return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
+                .filter(member -> member.getRole() != ChatRole.MEMBER)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN));
     }
 

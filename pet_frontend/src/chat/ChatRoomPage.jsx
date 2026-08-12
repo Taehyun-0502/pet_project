@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../member/AuthContext'
 import {
-  changeMemberRole, delegateOwner, deleteRoom, getMessages, getRoomMembers,
-  joinRoom, kickMember, leaveRoom, markRead, sendMessage, updateRoom,
+  changeMemberRole, delegateOwner, deleteRoom, getMessages, getPinnedMessage, getRoomMembers,
+  joinRoom, kickMember, leaveRoom, markRead, pinMessage, sendMessage, unpinMessage, updateRoom,
 } from './chatApi'
 import { subscribeRoom } from './chatSocket'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
@@ -11,6 +11,10 @@ import './chat.css'
 
 // 방 내 role 표시명 (MEMBER는 배지 없음)
 const ROLE_LABEL = { OWNER: '방장', MANAGER: '부방장' }
+
+// 서버 계약과 짝 (api-spec.md 7절 3차) — 초기·과거 로드 페이지 크기 / afterId 복구 상한
+const PAGE_SIZE = 50
+const RECOVERY_LIMIT = 500
 
 export default function ChatRoomPage() {
   const { roomId } = useParams()
@@ -30,11 +34,19 @@ export default function ChatRoomPage() {
   const [sending, setSending] = useState(false)
   const [retryKey, setRetryKey] = useState(0) // 입장 성공 후 재연결하는 트리거
   const [members, setMembers] = useState(null) // 참여자 목록 — null = 아직 안 불러옴
+  const [pinned, setPinned] = useState(null) // 공지 핀 메시지 — null = 없음 (3차)
   const [panelOpen, setPanelOpen] = useState(false) // 참여자 패널 표시 여부
   const [actionError, setActionError] = useState('') // 권한 동작(강퇴·위임 등) 오류
   const lastIdRef = useRef(null) // 서버에게 확인받은 마지막 message id — 재연결 복구의 afterId
   const listRef = useRef(null) // 스크롤 하단 고정용
   const reportedIdRef = useRef(0) // 읽음 보고를 마친 마지막 message id (docs/api-spec.md 7절)
+  // 과거 페이지네이션 (3차 — api-spec.md 7절)
+  const [hasMore, setHasMore] = useState(true) // 이전 대화가 더 있는가 — 응답 < PAGE_SIZE면 끝
+  const [loadingOlder, setLoadingOlder] = useState(false) // 과거 로드 중 (중복 요청 가드 겸 표시)
+  // 하단 고정 여부 — 하단 근처에 있거나 내가 방금 보냈을 때만 자동 스크롤한다 (백로그 18번).
+  // 과거를 읽는 중에 새 메시지가 와도 화면을 끌고 가지 않는다
+  const stickBottomRef = useRef(true)
+  const prependRef = useRef(null) // 과거 로드 직후 스크롤 보정용 { prevHeight, prevTop }
 
   // 화면에 표시된 메시지를 읽음으로 보고 — 1초 디바운스로 남발을 막는다.
   // 실패는 삼킨다: 멱등이라 다음 수신·재입장 때의 보고가 만회한다
@@ -83,17 +95,27 @@ export default function ChatRoomPage() {
     setMessages([])
     setFatalError(null)
     setConnected(false)
+    setHasMore(true)
+    setLoadingOlder(false)
     lastIdRef.current = null
     reportedIdRef.current = 0
+    stickBottomRef.current = true
+    prependRef.current = null
 
     // afterId 이후를 받아 병합한다. 첫 로드(afterId 없음 = 최근 50개)와
     // 재연결 복구가 같은 경로를 쓴다 (docs/api-spec.md 7절)
     const loadSince = async () => {
       try {
+        const initial = lastIdRef.current === null
         const data = await getMessages(roomId, lastIdRef.current)
-        if (cancelled || data.length === 0) return
+        if (cancelled) return
+        // 첫 로드가 한 페이지 미만이면 이 방의 대화 전체를 이미 다 받았다 — 과거 로드 불필요
+        if (initial && data.length < PAGE_SIZE) setHasMore(false)
+        if (data.length === 0) return
         advanceLastId(data)
         mergeMessages(data)
+        // 복구가 상한(500)에 걸렸으면 아직 밀린 메시지가 있다 — 마지막 id로 이어받는다 (7절 3차)
+        if (!initial && data.length === RECOVERY_LIMIT) await loadSince()
       } catch (err) {
         if (cancelled) return
         // 회복 불가능한 오류(미참여 403 / 토큰 만료 401 / 방 없음 404)만 화면을 멈춘다.
@@ -117,6 +139,8 @@ export default function ChatRoomPage() {
       },
       // 참여자 구성 변경 신호 — 내용이 없으므로 목록을 서버에서 다시 읽는다
       onMembersChanged: () => { if (!cancelled) loadMembers() },
+      // 공지 핀 변경 신호 — 같은 방식으로 다시 읽는다 (3차)
+      onPinChanged: () => { if (!cancelled) loadPinned() },
       onReady: loadSince, // 연결·재연결 직후 놓친 구간 복구
       onFatal: (err) => { if (!cancelled) setFatalError(err) },
       onStatus: (ok) => { if (!cancelled) setConnected(ok) },
@@ -129,11 +153,45 @@ export default function ChatRoomPage() {
     }
   }, [roomId, retryKey])
 
-  // 새 메시지가 붙으면 스크롤을 맨 아래로
+  // 메시지 변경 후 스크롤 처리 (백로그 18번 개선 — 3차)
   useEffect(() => {
     const el = listRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (!el) return
+    if (prependRef.current) {
+      // 과거 로드(prepend) — 늘어난 높이만큼 내려서 보던 위치를 유지한다 (안 하면 화면이 점프)
+      el.scrollTop = el.scrollHeight - prependRef.current.prevHeight + prependRef.current.prevTop
+      prependRef.current = null
+      return
+    }
+    // 하단 근처였거나 내가 방금 보냈을 때만 맨 아래로 — 과거를 읽는 중엔 화면을 끌고 가지 않는다
+    if (stickBottomRef.current) el.scrollTop = el.scrollHeight
   }, [messages])
+
+  // 과거 메시지 로드 — 화면에 있는 가장 오래된 id보다 이전 50개 (api-spec.md 7절 3차).
+  // lastIdRef(afterId 복구 기준)는 여기서 절대 전진시키지 않는다 — 과거 응답이다 (troubleshooting 1번 규율)
+  const loadOlder = async () => {
+    if (loadingOlder || !hasMore || messages.length === 0) return
+    setLoadingOlder(true)
+    try {
+      const data = await getMessages(roomId, null, messages[0].id)
+      const el = listRef.current
+      prependRef.current = el ? { prevHeight: el.scrollHeight, prevTop: el.scrollTop } : null
+      if (data.length < PAGE_SIZE) setHasMore(false)
+      mergeMessages(data)
+    } catch {
+      // 다음 상단 스크롤에서 다시 시도된다 — 과거 로드 실패는 치명적이지 않다
+    } finally {
+      setLoadingOlder(false)
+    }
+  }
+
+  // 스크롤 위치 추적 — 하단 고정 여부 갱신 + 상단 도달 시 과거 로드
+  const onListScroll = () => {
+    const el = listRef.current
+    if (!el) return
+    stickBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    if (el.scrollTop < 40) loadOlder()
+  }
 
   // 참여자 목록 — 내 role 판단(버튼 노출)과 패널 표시에 사용. 실패는 치명적이지 않다
   const loadMembers = async () => {
@@ -144,12 +202,45 @@ export default function ChatRoomPage() {
     }
   }
 
+  // 공지 핀 — 입장 시 1회 + PIN_CHANGED 신호마다. 실패는 다음 신호·재입장이 만회한다 (3차)
+  const loadPinned = async () => {
+    try {
+      setPinned(await getPinnedMessage(roomId))
+    } catch {
+      // 미참여(403) 등 — 방 본문 쪽 fatalError 처리에 맡긴다
+    }
+  }
+
   useEffect(() => {
+    setPinned(null) // 방 전환 시 이전 방의 공지가 남지 않게
     loadMembers()
+    loadPinned()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, retryKey])
 
   const myRole = members?.find((m) => m.memberId === user.id)?.role
+  // 공지 고정·해제 권한 — 서버 requireOwnerOrManager와 동일 기준 (버튼 노출은 중복 방어일 뿐)
+  const canPin = myRole === 'OWNER' || myRole === 'MANAGER'
+
+  const onPin = async (messageId) => {
+    setActionError('')
+    try {
+      await pinMessage(roomId, messageId)
+      await loadPinned() // PIN_CHANGED 신호도 오지만 연결이 끊긴 상태에서도 내 화면은 즉시 맞춘다
+    } catch (err) {
+      setActionError(err.message)
+    }
+  }
+
+  const onUnpin = async () => {
+    setActionError('')
+    try {
+      await unpinMessage(roomId)
+      setPinned(null)
+    } catch (err) {
+      setActionError(err.message)
+    }
+  }
 
   // 권한 동작 공통 처리 — 성공하면 참여자 목록을 새로 읽는다.
   // 서버도 MEMBERS_CHANGED를 밀어주지만, 연결이 끊긴 상태에서도 내 화면은 즉시 맞도록 여기서도 읽는다
@@ -270,6 +361,10 @@ export default function ChatRoomPage() {
     const trimmed = content.trim()
     if (!trimmed) return
     setSending(true)
+    // 내가 보낸 직후에는 어디를 읽고 있었든 맨 아래로 (백로그 18번). 응답 후가 아니라 **전송 시작 시점**에
+    // 켜는 이유: 내 메시지가 REST 응답보다 WS 푸시로 먼저 도착하면(AFTER_COMMIT 경쟁 — 검증에서 실측)
+    // 응답 후의 병합은 중복 제거로 no-op이 되어 스크롤 effect가 아예 돌지 않는다
+    stickBottomRef.current = true
     try {
       const sent = await sendMessage(roomId, { content: trimmed })
       // 화면에 즉시 띄우기 위한 병합일 뿐 — lastIdRef는 전진시키지 않는다.
@@ -402,9 +497,23 @@ export default function ChatRoomPage() {
         </ul>
       )}
 
-      {!connected && <p className="chat-status">실시간 연결 중…</p>}
+      {/* 공지 배너 (3차) — 원본 위치로 점프는 v1 제외(명세), 전문 표시로 갈음 */}
+      {pinned && (
+        <div className="pin-banner">
+          <span className="pin-content">
+            📌 <strong>{pinned.senderName}</strong> {pinned.content}
+          </span>
+          {canPin && (
+            <button type="button" onClick={onUnpin}>해제</button>
+          )}
+        </div>
+      )}
 
-      <ul className="chat-messages" ref={listRef}>
+      {!connected && <p className="chat-status">실시간 연결 중…</p>}
+      {loadingOlder && <p className="chat-status">이전 대화 불러오는 중…</p>}
+      {!hasMore && messages.length > 0 && <p className="chat-status">대화의 시작입니다</p>}
+
+      <ul className="chat-messages" ref={listRef} onScroll={onListScroll}>
         {messages.map((message) => (
           <li key={message.id} className={message.senderId === user.id ? 'mine' : ''}>
             {message.senderId !== user.id && (
@@ -418,6 +527,15 @@ export default function ChatRoomPage() {
               </span>
             )}
             {message.content}
+            {/* 공지 고정 버튼 — 권한자(OWNER·MANAGER)에게만. 이미 고정된 메시지에는 표시하지 않는다 */}
+            {canPin && pinned?.id !== message.id && (
+              <button
+                type="button" className="pin-button" aria-label="공지로 고정"
+                onClick={() => onPin(message.id)}
+              >
+                📌
+              </button>
+            )}
           </li>
         ))}
       </ul>

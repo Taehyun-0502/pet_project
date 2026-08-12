@@ -267,6 +267,46 @@
   border-radius: 6px;
 }
 
+/* 3차: 공지 핀 — 배너 + 말풍선의 고정 버튼 */
+.pin-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border: 1px solid #f0d264;
+  border-radius: 8px;
+  background: #fff8dc;
+  font-size: 13px;
+  text-align: left;
+}
+
+.pin-banner .pin-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-banner button {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pin-button {
+  margin-left: 6px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.pin-button:hover {
+  opacity: 1;
+}
+
 /* 실시간 연결 상태 안내 — 오류가 아니라 진행 중 표시라 눈에 덜 띄게 */
 .chat-status {
   margin: 8px 0;

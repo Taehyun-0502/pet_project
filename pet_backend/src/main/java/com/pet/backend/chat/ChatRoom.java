@@ -48,6 +48,10 @@ public class ChatRoom {
     @Column(name = "max_members")
     private Integer maxMembers;
 
+    // 공지로 고정된 메시지 id (chat_message.message_id FK). NULL = 공지 없음 (docs/api-spec.md 7절 3차)
+    @Column(name = "pinned_message_id")
+    private Long pinnedMessageId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -79,6 +83,7 @@ public class ChatRoom {
      * 방 정보 수정 — 전체 교체 (docs/api-spec.md 7절 3차, Pet.update와 같은 의미론).
      * description·maxMembers에 null이 오면 그대로 null — 값을 지우는 수단이기도 하다.
      * OWNER 검증은 Service(requireOwner)가 담당한다.
+     * 공지 핀은 여기 포함하지 않는다 — 방 정보를 고쳐도 공지가 지워지면 안 된다 (pet 사진 분리와 같은 원칙).
      */
     public void updateProfile(String name, ChatCategory category,
                               String description, Integer maxMembers) {
@@ -86,6 +91,17 @@ public class ChatRoom {
         this.category = category;
         this.description = description;
         this.maxMembers = maxMembers;
+    }
+
+    // 공지 고정(교체 겸용)·해제 — 권한(OWNER·MANAGER)·메시지 소속 검증은 Service.
+    // 동시 교체는 마지막 커밋 승리(lost update)를 의도적으로 수용한다 —
+    // "마지막 공지가 이긴다"가 자연스러운 의미론이라 @Version을 두지 않는다 (docs/api-spec.md 7절 3차)
+    public void pin(Long messageId) {
+        this.pinnedMessageId = messageId;
+    }
+
+    public void unpin() {
+        this.pinnedMessageId = null;
     }
 
     public boolean isDeleted() {

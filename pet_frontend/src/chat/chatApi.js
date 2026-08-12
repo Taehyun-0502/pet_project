@@ -32,14 +32,35 @@ export function joinRoom(roomId) {
   return request(`/api/chat/rooms/${roomId}/join`, { method: 'POST' })
 }
 
-// afterId 생략: 최근 50개 / 지정: 그 이후 전부 (폴링용)
-export function getMessages(roomId, afterId) {
-  const query = afterId ? `?afterId=${afterId}` : ''
-  return request(`/api/chat/rooms/${roomId}/messages${query}`)
+// 파라미터 없음: 최근 50 / afterId: 이후 최대 500(복구 — 상한 도달 시 이어서 재호출) /
+// beforeId: 과거 50 (위로 스크롤). 둘 다 지정은 400 (api-spec.md 7절 3차)
+export function getMessages(roomId, afterId, beforeId) {
+  const params = new URLSearchParams()
+  if (afterId) params.set('afterId', afterId)
+  if (beforeId) params.set('beforeId', beforeId)
+  const query = params.toString()
+  return request(`/api/chat/rooms/${roomId}/messages${query ? `?${query}` : ''}`)
 }
 
 export function sendMessage(roomId, { content }) {
   return request(`/api/chat/rooms/${roomId}/messages`, { method: 'POST', body: { content } })
+}
+
+// ── 공지 핀 (3차 — api-spec.md 7절) ──
+
+// 공지 조회 (참여자만) — 핀 메시지(메시지 응답 형태), 없으면 null
+export function getPinnedMessage(roomId) {
+  return request(`/api/chat/rooms/${roomId}/pin`)
+}
+
+// 공지 고정(교체 겸용) — OWNER·MANAGER만. 다른 방 메시지는 404
+export function pinMessage(roomId, messageId) {
+  return request(`/api/chat/rooms/${roomId}/pin`, { method: 'PUT', body: { messageId } })
+}
+
+// 공지 해제 — 핀이 없어도 성공(멱등)
+export function unpinMessage(roomId) {
+  return request(`/api/chat/rooms/${roomId}/pin`, { method: 'DELETE' })
 }
 
 // ── 이하 2차: 권한 행사 기능 ──
