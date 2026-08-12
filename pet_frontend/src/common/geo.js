@@ -11,6 +11,19 @@
  * @param {{lat: number, lng: number}} b
  * @returns {number} 두 좌표 사이 거리(미터)
  */
+/**
+ * 미터 거리를 사람이 읽는 라벨로 변환한다. 1km 미만은 "850m", 이상은 "1.2km".
+ * distanceMeters가 구면 근사치이므로 "약 ~" 같은 문맥과 함께 쓰길 권장.
+ *
+ * @param {number} meters
+ * @returns {string} 예: "850m", "1.2km" (유효하지 않은 입력이면 빈 문자열)
+ */
+export function formatDistanceLabel(meters) {
+  if (!Number.isFinite(meters) || meters < 0) return ''
+  if (meters < 1000) return `${Math.round(meters)}m`
+  return `${(meters / 1000).toFixed(1)}km`
+}
+
 export function distanceMeters(a, b) {
   const R = 6371000
   const toRad = (deg) => (deg * Math.PI) / 180

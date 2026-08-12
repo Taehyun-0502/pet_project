@@ -13,13 +13,19 @@
  *
  * 마커 클릭 시 카카오맵으로 이동시키지 않고, 이 컴포넌트 내부 공통
  * **하단 바텀시트**(2026-08-06 모바일 퍼스트 리디자인 — 기존 중앙 모달 폐기)로
- * 이름/카테고리 배지·상세/주소와 [전화 걸기]/[카카오맵에서 보기] 액션 버튼을
- * 보여준다. `phone`이 없으면 전화 버튼 자체를 숨긴다. 시트는 화면 하단에
+ * 카테고리 배지(닫기 버튼과 같은 헤더 한 줄)/이름/주소/전화번호/내 위치 기준
+ * 거리(`currentLocation`이 있을 때만)와 [전화 걸기] 액션 버튼을 보여준다.
+ * `phone`이 없으면 전화번호 표시·버튼 모두 숨긴다. 카테고리 상세
+ * (`categoryDetail`)는 2026-08-07 사용자 결정으로 시트에서 제거 — 필드 자체는
+ * 스키마에 유지되므로 다른 사용처에서 쓸 수 있다. "카카오맵에서 보기" 링크는 2026-08-07 사용자 결정으로
+ * 삭제 — 영업시간·리뷰·사진은 카카오 API 미제공이라 서비스 내 표시 불가
+ * 항목으로 남는다(크롤링은 약관 위반). 시트는 화면 하단에
  * 고정되고 지도 위쪽은 계속 보인다(전체 화면을 가리는 배경 없음, 얕은 스크림만).
- * `position: fixed`라 mini 모드(작은 컨테이너)에서도 화면 전체 기준 바텀시트로
- * 뜬다 — PetMap의 조상 요소들이 transform/filter 등으로 새 containing block을
- * 만들지 않는 한(현재 MapPage 등 사용처에 없음) 정상 동작한다. 데스크톱
- * (`min-width: 768px`)에서는 시트 너비가 520px로 제한되고 가로 중앙 정렬된다.
+ * 시트는 `createPortal`로 document.body에 렌더링된다(2026-08-07 — .pet-map의
+ * z-index:0 격리 컨텍스트 안에 두면 페이지 오버레이가 시트를 가리는 버그 수정).
+ * 덕분에 mini 모드(작은 컨테이너)에서도, 조상에 transform/filter가 있어도 항상
+ * 뷰포트 기준 하단 바텀시트로 뜬다. 시트는 화면 폭과 무관하게 모바일 레이아웃
+ * 하나만 쓴다 (2026-08-07 PC 대응 제외 확정).
  * 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4/N-5): 열릴 때 시트로
  * 포커스 이동 + Tab 트랩 + ESC로 닫기, 닫힐 때 이전 포커스로 복귀, 열려 있는
  * 동안 배경 스크롤 잠금. `places`가 교체되거나 카테고리 토글로 선택된 장소가
@@ -41,8 +47,10 @@
  * `onMapMoved`가 주어지면, 사용자가 드래그/스크롤 줌 등으로 지도를 직접
  * 움직였을 때(카카오 `idle` 이벤트) 현재 중심 좌표를 전달한다. 이 컴포넌트
  * 자신이 마커 범위에 맞추기 위해 수행하는 프로그래밍적 이동(장소 목록 변경 시
- * 범위 맞춤, 현위치 이동, 카테고리 토글 등)은 내부에서 구분해 걸러내므로
- * 호출되지 않는다 — "사용자가 실제로 지도를 움직였다"는 신호로만 쓰면 된다.
+ * 범위 맞춤, 카테고리 토글 등)은 내부에서 구분해 걸러내므로 호출되지 않는다
+ * — "사용자가 실제로 지도를 움직였다"는 신호로만 쓰면 된다. 단 "내 위치로 이동"
+ * 버튼에 의한 이동은 사용자가 직접 일으킨 것이므로 **호출된다** (2026-08-07
+ * 사용자 결정 — 다른 지역 재검색 후 내 위치로 돌아오면 재검색 버튼이 뜨도록).
  * "이 지역에서 재검색" 버튼처럼 사용처가 원할 때만 쓰는 선택 기능이라,
  * 넘기지 않아도(mini 모드 등) 무해하다.
  *
@@ -100,8 +108,8 @@
  * - onLocateClick?: () => void — "내 위치로 이동" 버튼을 눌렀는데
  *     `currentLocation`이 아직 없을 때 호출된다(위치 획득 위임).
  * - onMapMoved?: ({ lat: number, lng: number }) => void — 사용자가 지도를
- *     직접 움직였을 때(드래그/줌 등) 호출된다. 이 컴포넌트의 자체 프로그래밍적
- *     이동은 걸러지므로 호출되지 않는다.
+ *     직접 움직였을 때(드래그/줌, "내 위치로 이동" 버튼 포함) 호출된다.
+ *     이 컴포넌트의 자체 프로그래밍적 이동(범위 맞춤 등)은 걸러지므로 호출되지 않는다.
  * - onCenterChanged?: ({ lat: number, lng: number }) => void — 지도 중심이
  *     바뀔 때마다(이동 주체 무관 — 프로그래밍적 이동 포함) + 최초 생성 직후에
  *     현재 중심을 알린다. AI 검색이 "현재 보고 있는 지도" 기준으로 동작하기
@@ -122,26 +130,49 @@
  *     맞춘다. 생략하면 매번(기존 동작) 맞춘다.
  * - toggleSlot?: HTMLElement | null — 주어지면 카테고리 토글 칩을 지도 위
  *     오버레이 대신 이 DOM 노드 안에 포털로 렌더링한다.
+ * - categories?: Array<'HOSPITAL'|'CAFE'|'HOTEL'> | null — 이 지도가 다루는
+ *     카테고리를 제한한다 (2026-08-12 — 병원 전용 지도 등 단일 카테고리 사용처).
+ *     목록 밖 카테고리는 "비활성화"가 아니라 **아예 노출하지 않는다**: 마커도
+ *     그리지 않고 토글 칩도 렌더링하지 않으며, 특히 1개만 지정하면 토글 칩 줄
+ *     자체가 사라진다(선택할 게 없으므로). 미전달(null)이면 전체 카테고리(기존
+ *     동작과 동일). 별도 페이지·별도 컴포넌트를 만들지 말고 이 prop으로 쓸 것:
+ *     예) 병원 리스트 페이지에서
+ *       `<PetMap places={hospitalPlaces} categories={['HOSPITAL']} />`
+ *     — 데이터 조회도 `getNearbyPlaces(lat, lng, ['HOSPITAL'])`(mapApi)가
+ *     categories 파라미터를 이미 지원하므로 병원만 받아 넘기면 된다.
+ *     **빈 배열(`categories={[]}`)을 넘기면 마커·토글 칩이 전부 비노출된다**
+ *     (2026-08-12 산책 Phase에서 실사용·확인 — allowedCategories가 빈 배열이 되어
+ *     아래 필터 로직이 자연히 처리하므로 별도 분기 코드가 필요하지 않았다). 장소
+ *     마커 없이 경로 폴리라인만 그리는 화면(예: 산책 페이지)에서
+ *     `<PetMap places={[]} categories={[]} path={walkPath} />`처럼 쓴다.
+ * - path?: Array<{ lat: number, lng: number }> | null — 주어지면 카카오
+ *     `Polyline`으로 경로선을 그린다(strokeWeight 5, 파랑 계열, strokeOpacity 0.85).
+ *     **공용 컴포넌트 신규 prop — 팀 공유 필요(규칙 3)** (2026-08-12 산책 Phase 신규
+ *     — GPS 산책 트래킹 경로 표시용). 값이 바뀌면(좌표 배열 갱신) 선을 다시
+ *     그리고, `null`이거나 빈 배열이면 지도에서 제거한다. 언마운트 시에도 지도
+ *     인스턴스와 함께 정리된다. 추적 중 최신 좌표를 따라 지도 중심을 옮기는 것은
+ *     이 컴포넌트의 책임이 아니다 — 사용처가 `currentLocation`을 갱신하고
+ *     `fitBoundsKey`를 함께 올리면(예: 새 좌표가 수신될 때마다 증가) 기존
+ *     fitBoundsKey 메커니즘이 그대로 재사용되어 지도를 그 지점으로 다시
+ *     맞춘다(별도 "따라가기" API를 새로 만들지 않음 — WalkPage.jsx 참고).
+ *     미전달 시 기존 동작과 완전히 동일.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { loadKakaoMaps } from './kakaoMapLoader';
-import { distanceMeters } from '../common/geo';
+import { CATEGORY_META } from './categoryMeta';
+import { distanceMeters, formatDistanceLabel } from '../common/geo';
 import { buildRegionLabel } from '../common/regionLabel';
+import { DEFAULT_CENTER } from '../common/mapDefaults';
 import './PetMap.css';
 
 const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY;
 
 // 카테고리별 마커 색 — 루트 CLAUDE.md 118행 기준(병원=빨강/카페=파랑/호텔=초록).
 // design-agent의 디자인 토큰이 확정되면 이 상수를 토큰 참조로 교체한다.
-const CATEGORY_META = {
-  HOSPITAL: { label: '병원', color: '#e53e3e' },
-  CAFE: { label: '카페', color: '#3b82f6' },
-  HOTEL: { label: '호텔', color: '#22c55e' },
-};
-
-const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }; // 서울시청 — 위치 정보가 전혀 없을 때의 기본 중심
+// DEFAULT_CENTER(서울시청)는 common/mapDefaults.js로 승격됨 (QA F-5, 2026-08-12
+// 산책 Phase — MapPage.jsx·WalkPage.jsx와 값 공유, 동작 변경 없음).
 
 const MIN_LEVEL = 1;
 const MAX_LEVEL = 14;
@@ -179,6 +210,8 @@ function PetMap({
   onRegionChanged,
   fitBoundsKey,
   toggleSlot = null,
+  categories = null,
+  path = null,
 }) {
   const containerRef = useRef(null);
   const kakaoRef = useRef(null);
@@ -187,6 +220,7 @@ function PetMap({
   const markerImagesRef = useRef({});
   const placeMarkersRef = useRef([]);
   const currentMarkerRef = useRef(null);
+  const polylineRef = useRef(null); // 산책 경로(path prop) Polyline 인스턴스 — 2026-08-12 산책 Phase 신규
   const pendingPanRef = useRef(false);
   const sheetPanelRef = useRef(null);
   const previousFocusRef = useRef(null); // 시트 열기 전 포커스였던 요소 — 닫을 때 복귀시킨다
@@ -257,6 +291,21 @@ function PetMap({
       onRegionChangedRef.current?.(buildRegionLabel(result));
     });
   };
+
+  // 노출 대상 카테고리 (2026-08-12 — 병원 전용 지도 등 카테고리 제한 사용처 지원):
+  // categories prop이 주어지면 그 목록의 카테고리만 마커·토글 칩 대상이 되고,
+  // 나머지는 "비활성화"가 아니라 아예 렌더링하지 않는다. 특히 1개만 남으면
+  // 토글 칩 UI 자체를 그리지 않는다(선택할 게 없으므로 — 아래 showToggles).
+  // 미전달(null)이면 전체 카테고리로 기존 동작과 완전히 동일하다.
+  // 호출부가 매 렌더 새 배열을 넘겨도 이펙트가 헛돌지 않게 정렬·직렬화 키로 메모한다.
+  const allowedKey = categories ? [...categories].sort().join(',') : null;
+  const allowedCategories = useMemo(
+    () =>
+      allowedKey === null
+        ? Object.keys(CATEGORY_META)
+        : allowedKey.split(',').filter((category) => CATEGORY_META[category]),
+    [allowedKey],
+  );
 
   const categoryCounts = useMemo(() => {
     const counts = { HOSPITAL: 0, CAFE: 0, HOTEL: 0 };
@@ -367,6 +416,13 @@ function PetMap({
       // 증가시켜두면, 언마운트 이후 도착하는 콜백이 "더 최신 요청이 이미 발생"
       // 가드에 걸려 폐기되고 부모 setState(onRegionChanged)를 호출하지 않는다.
       regionRequestIdRef.current += 1;
+
+      // 산책 경로 폴리라인(path prop)도 지도와 함께 정리한다 (2026-08-12 산책 Phase
+      // 신규 — "언마운트 시 제거" 요구사항). 아래 path 렌더링 이펙트도 path가
+      // null/빈 배열이 되면 스스로 제거하지만, 언마운트 시엔 그 이펙트가 다시
+      // 실행되지 않으므로 여기서 명시적으로 처리한다.
+      polylineRef.current?.setMap(null);
+      polylineRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 지도 인스턴스는 마운트당 1회만 생성
   }, []);
@@ -383,7 +439,9 @@ function PetMap({
     }
     placeMarkersRef.current = [];
 
-    const visiblePlaces = places.filter((place) => visibleCategories[place.category]);
+    const visiblePlaces = places.filter(
+      (place) => allowedCategories.includes(place.category) && visibleCategories[place.category],
+    );
 
     for (const place of visiblePlaces) {
       const position = new kakao.maps.LatLng(place.lat, place.lng);
@@ -429,7 +487,7 @@ function PetMap({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- currentLocation은 범위 계산에만 참고, 별도 이펙트에서 마커 관리
-  }, [places, visibleCategories, sdkStatus, fitBoundsKey]);
+  }, [places, visibleCategories, allowedCategories, sdkStatus, fitBoundsKey]);
 
   // 현위치 마커 렌더링/갱신
   useEffect(() => {
@@ -463,6 +521,38 @@ function PetMap({
       pendingPanRef.current = false;
     }
   }, [currentLocation, sdkStatus]);
+
+  // 산책 경로 폴리라인 렌더링/갱신 (path prop, 2026-08-12 산책 Phase 신규).
+  // path가 없거나 빈 배열이면 지도에서 제거하고, 있으면 생성 또는 setPath로 갱신한다.
+  // "지금 보이는 지도를 path/currentLocation에 맞춰 다시 옮길지"는 이 이펙트의
+  // 책임이 아니다 — 기존 fitBoundsKey 메커니즘을 사용처가 그대로 재사용한다
+  // (예: 추적 중 새 좌표마다 fitBoundsKey를 올려 "따라가기" 구현 — WalkPage.jsx).
+  useEffect(() => {
+    const kakao = kakaoRef.current;
+    const map = mapRef.current;
+    if (sdkStatus !== 'ready' || !kakao || !map) return;
+
+    if (!path || path.length === 0) {
+      polylineRef.current?.setMap(null);
+      polylineRef.current = null;
+      return;
+    }
+
+    const linePath = path.map((point) => new kakao.maps.LatLng(point.lat, point.lng));
+
+    if (!polylineRef.current) {
+      polylineRef.current = new kakao.maps.Polyline({
+        path: linePath,
+        strokeWeight: 5,
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.85,
+        strokeStyle: 'solid',
+      });
+      polylineRef.current.setMap(map);
+    } else {
+      polylineRef.current.setPath(linePath);
+    }
+  }, [path, sdkStatus]);
 
   // 장소 상세 시트 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4): 열릴 때 패널로
   // 포커스 이동 + Tab 트랩(패널 안에서만 순환) + ESC로 닫기 + 배경 스크롤 잠금,
@@ -515,13 +605,19 @@ function PetMap({
   // 화면에서 사라지면 시트가 낡은(stale) 장소를 계속 띄우고 있지 않도록 닫는다(QA N-5).
   useEffect(() => {
     if (!selectedPlace) return;
-    const stillVisible = places.includes(selectedPlace) && visibleCategories[selectedPlace.category];
+    const stillVisible =
+      places.includes(selectedPlace) &&
+      allowedCategories.includes(selectedPlace.category) &&
+      visibleCategories[selectedPlace.category];
     if (!stillVisible) setSelectedPlace(null);
-  }, [places, visibleCategories, selectedPlace]);
+  }, [places, visibleCategories, allowedCategories, selectedPlace]);
 
   const handleLocateClick = () => {
     if (currentLocation && mapRef.current && kakaoRef.current) {
-      programmaticMoveRef.current = true;
+      // 프로그래밍적 이동으로 표시하지 않는다(programmaticMoveRef 미설정) — "내 위치로 이동"은
+      // 사용자가 버튼으로 직접 일으킨 이동이므로 onMapMoved를 발화시켜, 마지막 조회 지점에서
+      // 충분히 멀면 "이 지역에서 재검색" 버튼이 뜨게 한다 (2026-08-07 사용자 결정:
+      // 다른 지역 재검색 후 내 위치로 돌아왔을 때 재검색 버튼 노출).
       mapRef.current.panTo(new kakaoRef.current.maps.LatLng(currentLocation.lat, currentLocation.lng));
       return;
     }
@@ -570,13 +666,18 @@ function PetMap({
 
   // 토글 칩 마크업/상태/핸들러는 전부 여기(PetMap) 소유 — toggleSlot이 주어지면
   // 그리는 "위치"만 그 DOM 노드로 포털한다(내부 구현을 MapPage 등으로 옮기지 않음).
+  // categories prop으로 제한된 경우 허용 카테고리의 칩만 그리고, 1개 이하면
+  // 토글 UI 자체를 렌더링하지 않는다(비활성화가 아니라 비노출 — 2026-08-12 확정).
+  const showToggles = allowedCategories.length > 1;
   const toggleChips = (
     <div
       className={`pet-map__toggle-list${toggleSlot ? '' : ' pet-map__toggle-list--floating'}`}
       role="group"
       aria-label="장소 카테고리 표시 전환"
     >
-      {Object.entries(CATEGORY_META).map(([category, meta]) => (
+      {Object.entries(CATEGORY_META)
+        .filter(([category]) => allowedCategories.includes(category))
+        .map(([category, meta]) => (
         <button
           key={category}
           type="button"
@@ -599,7 +700,7 @@ function PetMap({
     <div className={`pet-map pet-map--${size}`}>
       <div ref={containerRef} className="pet-map__canvas" />
 
-      {toggleSlot ? createPortal(toggleChips, toggleSlot) : toggleChips}
+      {showToggles && (toggleSlot ? createPortal(toggleChips, toggleSlot) : toggleChips)}
 
       <div className="pet-map__zoom-control" role="group" aria-label="지도 확대/축소">
         <button
@@ -646,7 +747,13 @@ function PetMap({
         </svg>
       </button>
 
-      {selectedPlace && (
+      {/* 상세 시트는 document.body로 포털 (2026-08-07 버그 수정): .pet-map이
+          z-index:0 격리 스태킹 컨텍스트라, 시트를 이 안에 두면 z-index:1000이어도
+          형제 오버레이(예: MapPage의 "목록 보기" z-index:1)가 위에 그려져 시트를
+          가린다. body로 빼면 페이지 오버레이들과 같은 최상위 컨텍스트에서 비교되어
+          항상 위에 뜬다. position:fixed의 조상 containing block 이슈(transform 등)도
+          함께 사라진다. */}
+      {selectedPlace && createPortal(
         <div className="pet-map__sheet-backdrop" onMouseDown={handleBackdropClick}>
           <div
             ref={sheetPanelRef}
@@ -659,30 +766,26 @@ function PetMap({
           >
             <span className="pet-map__sheet-handle" aria-hidden="true" />
 
-            <button
-              type="button"
-              className="pet-map__sheet-close"
-              onClick={() => setSelectedPlace(null)}
-              aria-label="닫기"
-            >
-              ×
-            </button>
-
-            {(selectedMeta || selectedPlace.categoryDetail) && (
-              <div className="pet-map__sheet-badge-row">
-                {selectedMeta && (
-                  <span
-                    className="pet-map__sheet-badge"
-                    style={{ '--chip-color': selectedMeta.color }}
-                  >
-                    {selectedMeta.label}
-                  </span>
-                )}
-                {selectedPlace.categoryDetail && (
-                  <span className="pet-map__sheet-category-detail">{selectedPlace.categoryDetail}</span>
-                )}
-              </div>
-            )}
+            {/* 헤더 한 줄: 좌측 카테고리 배지 + 우측 닫기 (2026-08-07 사용자 결정 —
+                카테고리 상세(카카오 category_name) 텍스트는 시트에서 제거) */}
+            <div className="pet-map__sheet-header">
+              {selectedMeta && (
+                <span
+                  className="pet-map__sheet-badge"
+                  style={{ '--chip-color': selectedMeta.color }}
+                >
+                  {selectedMeta.label}
+                </span>
+              )}
+              <button
+                type="button"
+                className="pet-map__sheet-close"
+                onClick={() => setSelectedPlace(null)}
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
 
             <h3 className="pet-map__sheet-title">{selectedPlace.name}</h3>
 
@@ -690,30 +793,37 @@ function PetMap({
               <p className="pet-map__sheet-address">{selectedPlace.address}</p>
             )}
 
-            {(selectedPlace.phone || selectedPlace.placeUrl) && (
+            {(selectedPlace.phone || currentLocation) && (
+              <p className="pet-map__sheet-meta">
+                {[
+                  selectedPlace.phone,
+                  currentLocation
+                    ? `내 위치에서 약 ${formatDistanceLabel(
+                        distanceMeters(currentLocation, {
+                          lat: selectedPlace.lat,
+                          lng: selectedPlace.lng,
+                        }),
+                      )}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            )}
+
+            {selectedPlace.phone && (
               <div className="pet-map__sheet-actions">
-                {selectedPlace.phone && (
-                  <a
-                    className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
-                    href={`tel:${selectedPlace.phone}`}
-                  >
-                    전화 걸기
-                  </a>
-                )}
-                {selectedPlace.placeUrl && (
-                  <a
-                    className="pet-map__sheet-action-btn"
-                    href={selectedPlace.placeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    카카오맵에서 보기
-                  </a>
-                )}
+                <a
+                  className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
+                  href={`tel:${selectedPlace.phone}`}
+                >
+                  전화 걸기
+                </a>
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

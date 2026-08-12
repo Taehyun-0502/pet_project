@@ -57,20 +57,28 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PetMap from '../../components/PetMap'
+import { CATEGORY_META } from '../../components/categoryMeta'
 import SearchBar from '../../components/SearchBar'
-import { distanceMeters } from '../../common/geo'
+import { distanceMeters, formatDistanceLabel } from '../../common/geo'
+import { DEFAULT_CENTER } from '../../common/mapDefaults'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import { askChat, getNearbyPlaces } from './mapApi'
 import './MapPage.css'
 
-// PetMap.jsx의 DEFAULT_CENTER(서울시청)와 동일한 값 — 위치 권한이 없을 때
-// 초기 마커 조회에 쓸 기본 좌표. PetMap은 수정 대상이 아니므로 값만 그대로 미러링한다.
-const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 }
+// DEFAULT_CENTER(서울시청)는 common/mapDefaults.js 공용 상수로 승격됨 (QA F-5,
+// 2026-08-12 산책 Phase — 이전엔 PetMap.jsx와 이 파일에 같은 값이 각각
+// 하드코딩돼 있었다. WalkPage.jsx도 동일 상수를 쓴다).
 
 // "이 지역에서 재검색" 버튼을 띄울 최소 이동 거리(대략). distanceMeters(하버사인)
 // 근사로 충분하다는 판단 — 재검색 여부를 가리는 용도일 뿐 정밀한 지리 계산이
 // 필요한 곳이 아니다. (QA N-2 — 거리 계산은 src/common/geo.js로 통합)
 const RESEARCH_THRESHOLD_METERS = 500
+
+// 목록 바텀시트 모션 타이밍 (2026-08-07 목업 승인값) — MapPage.css의 keyframes/transition
+// 시간과 반드시 일치시킬 것. SHEET: 시트 슬라이드업/다운, CHIP: 지도 칩 페이드아웃 후
+// 시트 안으로 이동하는 시점.
+const SHEET_MOTION_MS = 340
+const CHIP_FADE_MS = 260
 
 function MapPage() {
   const { location, requestLocation } = useGeolocation()
@@ -301,6 +309,75 @@ function MapPage() {
     if (event.target === event.currentTarget) setAnswer(null)
   }
 
+  // 장소 목록 바텀시트 (2026-08-07 사용자 요청): 지도 하단 "목록 보기" 버튼으로
+  // 현재 지도에 표시 중인 장소(displayedPlaces — AI 검색 중이면 검색 결과, 아니면
+  // 주변 조회 결과)를 리스트로 보여준다. 재검색/AI 검색으로 장소가 갈리면 열려 있는
+  // 목록도 같이 갱신된다. 항목 클릭 동작(지도 이동·상세 연동)은 아직 미구현 —
+  // "목록 표시까지"가 이번 범위(사용자 결정). 접근성은 AI 답변 시트와 동일한
+  // 가벼운 버전(포커스 이동 + ESC + 스크롤 잠금 + 백드롭 클릭 닫기).
+  const [listOpen, setListOpen] = useState(false)
+  // 닫힘 요청 후 슬라이드다운 애니메이션이 재생되는 동안 true — 끝나면 언마운트
+  const [listClosing, setListClosing] = useState(false)
+  const listSheetRef = useRef(null)
+  const listPreviousFocusRef = useRef(null)
+
+  // 시트 열림/닫힘 모션 (2026-08-07 목업 승인): 열릴 때 하단 슬라이드업 + 배경 페이드인,
+  // 닫힐 때 역재생. 즉시 언마운트하면 닫힘 애니메이션이 보이지 않으므로, 닫기는
+  // listClosing을 켜서 애니메이션을 재생한 뒤 SHEET_MOTION_MS 후에 언마운트한다.
+  const closeList = useCallback(() => {
+    setListClosing(true)
+  }, [])
+
+  useEffect(() => {
+    if (!listClosing) return
+    const timer = setTimeout(() => {
+      setListOpen(false)
+      setListClosing(false)
+    }, SHEET_MOTION_MS)
+    return () => clearTimeout(timer)
+  }, [listClosing])
+
+  // 카테고리 토글 칩 이동 (2026-08-07 목업 승인): 목록이 열리면 지도 위 칩이 서서히
+  // 사라진 뒤(CHIP_FADE_MS) 시트 안 슬롯으로 이동해 페이드인한다. 닫히기 시작하면
+  // 즉시 지도 헤더로 복귀시키고, 헤더 슬롯의 opacity 전환이 페이드인으로 받아준다.
+  // 칩 상태·로직은 여전히 PetMap 내부(공통 구현 원칙) — 그릴 위치만 옮긴다.
+  // 주의: 시트 안 칩 토글은 지도 마커 노출만 제어하고 목록 항목은 필터링하지 않는다(미착수).
+  const [chipsInSheet, setChipsInSheet] = useState(false)
+  const [listToggleSlotNode, setListToggleSlotNode] = useState(null)
+
+  useEffect(() => {
+    if (listOpen && !listClosing) {
+      const timer = setTimeout(() => setChipsInSheet(true), CHIP_FADE_MS)
+      return () => clearTimeout(timer)
+    }
+    setChipsInSheet(false)
+  }, [listOpen, listClosing])
+
+  useEffect(() => {
+    if (!listOpen) return
+
+    listPreviousFocusRef.current = document.activeElement
+    listSheetRef.current?.focus()
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') closeList()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      listPreviousFocusRef.current?.focus?.()
+    }
+  }, [listOpen, closeList])
+
+  const handleListBackdropClick = (event) => {
+    if (event.target === event.currentTarget) closeList()
+  }
+
   return (
     <div className="map-page">
       <div className="map-page__map-wrap">
@@ -321,7 +398,13 @@ function MapPage() {
               locationLabel={regionLabel}
             />
           </div>
-          <div className="map-page__toggle-slot" ref={setToggleSlotNode} />
+          <div
+            className={
+              'map-page__toggle-slot' +
+              (listOpen && !listClosing ? ' map-page__toggle-slot--fading' : '')
+            }
+            ref={setToggleSlotNode}
+          />
         </div>
 
         <PetMap
@@ -333,7 +416,8 @@ function MapPage() {
           onCenterChanged={handleCenterChanged}
           onRegionChanged={handleRegionChanged}
           fitBoundsKey={fitBoundsKey}
-          toggleSlot={toggleSlotNode}
+          // 칩 그릴 위치: 지도 칩 페이드아웃이 끝난 뒤(chipsInSheet)에만 시트 안 슬롯으로
+          toggleSlot={chipsInSheet && listToggleSlotNode ? listToggleSlotNode : toggleSlotNode}
         />
 
         {researchCenter && (
@@ -344,6 +428,21 @@ function MapPage() {
             disabled={researchLoading}
           >
             {researchLoading ? '재검색 중…' : '이 지역에서 재검색'}
+          </button>
+        )}
+
+        {/* 지도 하단 중앙 "목록 보기" — 좌하단 카카오 로고·우하단 내 위치 버튼을 피해
+            중앙 배치. 표시할 장소가 없으면 버튼도 숨긴다. */}
+        {displayedPlaces.length > 0 && (
+          <button
+            type="button"
+            className={
+              'map-page__list-btn' +
+              (listOpen && !listClosing ? ' map-page__list-btn--hidden' : '')
+            }
+            onClick={() => setListOpen(true)}
+          >
+            목록 보기 ({displayedPlaces.length})
           </button>
         )}
 
@@ -377,6 +476,85 @@ function MapPage() {
                 ×
               </button>
               <p className="map-page__sheet-text">{answer}</p>
+            </div>
+          </div>
+        )}
+
+        {listOpen && (
+          <div
+            className={
+              'map-page__sheet-backdrop map-page__sheet-backdrop--animated' +
+              (listClosing ? ' map-page__sheet-backdrop--closing' : '')
+            }
+            onMouseDown={handleListBackdropClick}
+          >
+            <div
+              ref={listSheetRef}
+              className={
+                'map-page__sheet map-page__sheet--list map-page__sheet--animated' +
+                (listClosing ? ' map-page__sheet--closing' : '')
+              }
+              role="dialog"
+              aria-label="이 지역 장소 목록"
+              tabIndex={-1}
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <span className="map-page__sheet-handle" aria-hidden="true" />
+              {/* 헤더 한 줄: 제목 + 닫기 (마커 상세 시트의 배지·닫기 한 줄 배치와 동일 원칙) */}
+              <div className="map-page__list-header">
+                <strong className="map-page__list-title">
+                  이 지역 장소 ({displayedPlaces.length})
+                </strong>
+                <button
+                  type="button"
+                  className="map-page__sheet-close map-page__sheet-close--inline"
+                  onClick={closeList}
+                  aria-label="목록 닫기"
+                >
+                  ×
+                </button>
+              </div>
+              {/* 카테고리 토글 칩 슬롯 — 지도 칩이 페이드아웃된 뒤 이 자리로 이동해 페이드인 */}
+              <div
+                className={
+                  'map-page__list-toggle-slot' +
+                  (chipsInSheet ? ' map-page__list-toggle-slot--visible' : '')
+                }
+                ref={setListToggleSlotNode}
+              />
+              <ul className="map-page__place-list">
+                {displayedPlaces.map((place, index) => {
+                  const meta = CATEGORY_META[place.category]
+                  const infoLine = [
+                    place.phone,
+                    location
+                      ? `내 위치에서 약 ${formatDistanceLabel(
+                          distanceMeters(location, { lat: place.lat, lng: place.lng }),
+                        )}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')
+                  return (
+                    <li key={`${place.name}-${place.lat}-${place.lng}-${index}`} className="map-page__place-item">
+                      {meta && (
+                        <span
+                          className="map-page__place-dot"
+                          style={{ background: meta.color }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <div className="map-page__place-body">
+                        <span className="map-page__place-name">{place.name}</span>
+                        {place.address && (
+                          <span className="map-page__place-address">{place.address}</span>
+                        )}
+                        {infoLine && <span className="map-page__place-info">{infoLine}</span>}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
           </div>
         )}
