@@ -43,7 +43,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/api/members/login",
             "/api/members/login/kakao",
             "/api/members/refresh",
-            "/api/members/logout");
+            "/api/members/logout",
+            "/api/ads");
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {

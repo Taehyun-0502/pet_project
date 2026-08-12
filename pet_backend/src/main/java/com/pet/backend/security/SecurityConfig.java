@@ -70,6 +70,7 @@ public class SecurityConfig {
                         // (shorts_guide_1.md 7절 — 보기는 공개, 쓰기는 로그인 필요)
                         .requestMatchers(HttpMethod.GET, "/api/shorts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/shorts/*/comments").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/ads").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(handler ->
                         handler.authenticationEntryPoint(authenticationEntryPoint))
