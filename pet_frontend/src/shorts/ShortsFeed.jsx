@@ -45,6 +45,10 @@ const BATCH_SIZE = 5;
 const FLUSH_DELAY_MS = 4000;
 // 끝에서 이만큼 남았을 때 다음 페이지를 미리 받는다 (마지막 카드에서 받으면 이미 늦다)
 const PREFETCH_BEFORE_END = 3;
+// 탭했을 때 가운데 정지·재생 표시가 떠 있는 시간.
+// ShortsFeed.css의 .sf-tap-hint 애니메이션 길이(.6s)와 같아야 한다 — 이 값이 더 짧으면
+// 사라지는 중에 DOM에서 빠져 뚝 끊기고, 더 길면 다 사라진 빈 요소가 남는다
+const TAP_HINT_MS = 600;
 
 // 영상이 로드되기 전에 보이는 배경. DB에 없는 순수 표시용 값이라 id로 색만 골라 쓴다
 const FALLBACK_BG = [
@@ -75,6 +79,14 @@ const Comment = () => (
 );
 const Share = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2"><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4 20-7z" /></svg>
+);
+// 탭 표시용 — 액션 버튼 아이콘들과 달리 채워진 모양이다. 어두운 원 위에 얹혀
+// 한순간만 보이므로 선보다 면이 알아보기 쉽다
+const PauseMark = () => (
+  <svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" /></svg>
+);
+const PlayMark = () => (
+  <svg viewBox="0 0 24 24" fill="#fff"><path d="M7 4.5 19 12 7 19.5z" /></svg>
 );
 const Sound = ({ muted }) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2">
@@ -187,10 +199,34 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     };
   }, [id, durationSec, index, onEvent, onEnter]);
 
+  /*
+   * 탭 한 번에 정지/재생 + 가운데 표시.
+   *
+   * 표시를 video의 play/pause 이벤트가 아니라 탭에서 띄우는 이유: 그 이벤트는
+   * IntersectionObserver의 자동 재생·정지에서도 나오기 때문에, 스크롤로 카드를 넘길
+   * 때마다 표시가 번쩍인다. 사용자가 직접 누른 경우에만 보여야 한다.
+   *
+   * seq를 key로 쓰는 이유: 정지→재생→정지처럼 왕복하면 type이 되돌아오는데, key가 같으면
+   * 리액트가 같은 요소로 보고 애니메이션을 다시 시작하지 않는다. 빠르게 두 번 누를 때도
+   * 마찬가지다. 매번 새 번호를 주면 항상 처음부터 다시 뜬다
+   */
+  const [tapHint, setTapHint] = useState(null);
+  const tapHintTimerRef = useRef(null);
+  const tapHintSeqRef = useRef(0);
+  // 표시가 떠 있는 동안 카드를 벗어나면 타이머만 남는다 — 사라진 요소에 setState하지 않게 정리
+  useEffect(() => () => clearTimeout(tapHintTimerRef.current), []);
+
   const handleTap = () => {
     const v = videoRef.current;
-    if (v.paused) v.play().catch(() => {});
-    else v.pause();
+    // play()는 비동기라 그 결과를 기다리면 표시가 늦는다. 누른 순간의 의도로 정한다
+    const pausing = !v.paused;
+    if (pausing) v.pause();
+    else v.play().catch(() => {});
+
+    tapHintSeqRef.current += 1;
+    setTapHint({ paused: pausing, seq: tapHintSeqRef.current });
+    clearTimeout(tapHintTimerRef.current);
+    tapHintTimerRef.current = setTimeout(() => setTapHint(null), TAP_HINT_MS);
   };
 
   const onTimeUpdate = () => {
@@ -236,6 +272,12 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         onTimeUpdate={onTimeUpdate}
       />
       <div className="sf-scrim" />
+      {/* 화면에 잠깐 뜨는 상태 표시일 뿐이라 스크린리더에는 읽히지 않게 한다 */}
+      {tapHint && (
+        <div key={tapHint.seq} className="sf-tap-hint" aria-hidden="true">
+          {tapHint.paused ? <PauseMark /> : <PlayMark />}
+        </div>
+      )}
       <UploadButton />
 
       <div className="sf-info">
