@@ -105,12 +105,46 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   const visibleRef = useRef(false);
   // 이번 시청 묶음에서 지금까지 쌓인 시간(ms). loop이므로 영상 길이를 넘어 계속 커진다
   const watchedMsRef = useRef(0);
-  // 지금 돌고 있는 구간의 시작 시각. null이면 시계가 멈춘 상태(화면 밖이거나 탭이 숨겨짐)
+  // 지금 돌고 있는 구간의 시작 시각.
+  // null이면 시계가 멈춘 상태 — 화면 밖이거나, 탭이 숨겨졌거나, 정지 중 (syncClock 참고)
   const runningSinceRef = useRef(null);
   const [progress, setProgress] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [likePending, setLikePending] = useState(false);
   const [actionError, setActionError] = useState("");
+
+  /*
+   * 시청 시계. 아래 관찰자 effect와 handleTap 양쪽에서 써야 해서 effect 밖에 둔다.
+   * 셋 다 ref만 건드리므로 useCallback([])으로 고정된다 — 이 함수들이 effect 의존성에
+   * 들어가는데 정체성이 바뀌면 관찰자가 다시 만들어져 재생이 끊긴다 (onEvent와 같은 이유)
+   */
+  // 시계를 멈추고 그동안 흐른 시간을 누적한다. 여러 번 불려도 안전하다
+  const pauseClock = useCallback(() => {
+    if (runningSinceRef.current === null) return;
+    watchedMsRef.current += performance.now() - runningSinceRef.current;
+    runningSinceRef.current = null;
+  }, []);
+  const startClock = useCallback(() => {
+    if (runningSinceRef.current !== null) return;
+    runningSinceRef.current = performance.now();
+  }, []);
+
+  /*
+   * 시계가 돌아야 하는지 다시 판단한다.
+   *
+   * 조건이 셋(화면 안 · 탭이 보임 · 재생 중)이라 각 자리에서 start/pause를 직접 부르면
+   * 조합을 놓친다 — 예를 들어 정지해둔 채 탭을 나갔다 돌아오면 "화면 안"만 보고 시계를
+   * 다시 돌리게 된다. 그래서 부르는 쪽은 "뭔가 바뀌었다"만 알리고 판단은 여기 한 곳에서 한다.
+   *
+   * 정지 중에도 시간이 쌓이면 영상을 세워두는 것만으로 완료율이 올라가 추천 점수가
+   * 부풀려진다 (가이드 3-3절의 완료율은 '본' 시간이어야 한다).
+   */
+  const syncClock = useCallback(() => {
+    const v = videoRef.current;
+    const playing = visibleRef.current && document.visibilityState === "visible" && v != null && !v.paused;
+    if (playing) startClock();
+    else pauseClock();
+  }, [pauseClock, startClock]);
 
   // 화면에 50% 이상 보이면 재생, 벗어나면 정지+처음으로.
   // 같은 관찰자에 시청 기록을 얹는다 — 재생 판정과 시청 판정이 어긋나면 안 되기 때문이다
@@ -123,17 +157,6 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    // 시계를 멈추고 그동안 흐른 시간을 누적한다. 여러 번 불려도 안전하다
-    const pauseClock = () => {
-      if (runningSinceRef.current === null) return;
-      watchedMsRef.current += performance.now() - runningSinceRef.current;
-      runningSinceRef.current = null;
-    };
-    const startClock = () => {
-      if (runningSinceRef.current !== null) return;
-      runningSinceRef.current = performance.now();
-    };
 
     // 시청 한 묶음을 마감해 보낸다. 완료율로 watch / skip을 가른다
     const emitWatch = () => {
@@ -156,7 +179,7 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         visibleRef.current = entry.isIntersecting;
         if (entry.isIntersecting) {
           video.play().catch(() => {});
-          startClock();
+          syncClock();
           onEvent(id, "view");
           // 끝에 가까워졌는지 부모가 판단한다. view 이벤트와 달리 중복 억제나 로그인 조건이
           // 없어야 해서(비로그인도 스크롤은 한다) 별도 통로로 알린다
@@ -172,32 +195,39 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     observer.observe(video);
 
     /*
-     * 탭을 숨기면 시계만 멈춘다 — 보내지는 않는다 (가이드 3-4절 ③).
+     * 탭을 숨기거나 영상을 정지하면 시계만 멈춘다 — 보내지는 않는다 (가이드 3-4절 ③).
      *
      * 돌아왔을 때 이어서 세는 이유: 한 번의 시청이 두 건으로 쪼개지면 점수가 오히려 커진다.
      * 시청점수가 ln(1+완료율)로 위로 볼록해서 ln(1.5)+ln(1.5) > ln(2) 이기 때문이다.
      */
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") pauseClock();
-      else if (visibleRef.current) startClock();
-    };
     // 페이지가 정말 사라지는 시점. 여기서는 마감해서 보낸다 —
     // 부모의 flush(keepalive)가 이 뒤에 실행돼야 큐에 든 것이 함께 나가는데,
     // 리액트는 자식 effect를 부모보다 먼저 실행하므로 이 리스너가 먼저 등록된다
     const onPageHide = () => emitWatch();
 
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    /*
+     * 재생 상태가 바뀔 때마다 시계를 맞춘다.
+     *
+     * handleTap이 직접 시계를 건드리지 않고 여기로 모으는 이유: 재생 상태를 바꾸는 길이
+     * 탭 말고도 여럿이다 — 관찰자의 자동 재생·정지, 자동재생 차단으로 play()가 거부되는 경우,
+     * 브라우저가 알아서 멈추는 경우. 어느 길로 바뀌든 이 두 이벤트는 반드시 지나간다
+     */
+    video.addEventListener("play", syncClock);
+    video.addEventListener("pause", syncClock);
+    document.addEventListener("visibilitychange", syncClock);
     window.addEventListener("pagehide", onPageHide);
 
     // 관찰자를 끊는 것만으로는 '벗어남' 콜백이 오지 않는다 — 보던 중에 다른 화면으로
     // 이동하면 마지막 시청 기록이 통째로 사라지므로 여기서 직접 남긴다
     return () => {
       observer.disconnect();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      video.removeEventListener("play", syncClock);
+      video.removeEventListener("pause", syncClock);
+      document.removeEventListener("visibilitychange", syncClock);
       window.removeEventListener("pagehide", onPageHide);
       emitWatch();
     };
-  }, [id, durationSec, index, onEvent, onEnter]);
+  }, [id, durationSec, index, onEvent, onEnter, pauseClock, syncClock]);
 
   /*
    * 탭 한 번에 정지/재생 + 가운데 표시.
