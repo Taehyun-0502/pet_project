@@ -1,6 +1,8 @@
 package com.pet.backend.chat.websocket;
 
+import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -27,16 +29,18 @@ public class ChatWebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final ChatStompInterceptor chatStompInterceptor;
     private final ChatWebSocketSessionRegistry sessionRegistry;
 
+    // WebSocket 오리진 검사는 HTTP CORS(SecurityConfig)와 **별개**라 목록이 갈라지면
+    // REST만 되고 실시간만 조용히 죽는다 — 65번에서 한 번, 2026-08-11 LAN 휴대폰에서 두 번째 실측
+    // (CORS에만 LAN 오리진이 추가되고 여기가 빠져 "새로고침해야 메시지가 보이는" 증상).
+    // 그래서 같은 프로퍼티를 주입받아 단일 출처로 통일했다 (application.properties 주석 참조)
+    @Value("${app.cors.allowed-origins}")
+    private List<String> allowedOrigins;
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // SockJS 폴백 없음 — 최신 브라우저의 native WebSocket만 대상
-        //
-        // 오리진은 WebSocket 자체 검사라 HTTP CORS 설정(SecurityConfig)과 **별개로** 지정해야 한다.
-        // 그래서 오리진을 바꿀 때는 반드시 두 곳을 함께 고쳐야 한다 — 실제로 46번 수정에서
-        // SecurityConfig만 고치고 여기를 빠뜨려 LAN 오리진이 남았었다(리뷰 65번).
-        // LAN 오리진을 넣지 않는 이유는 SecurityConfig의 CORS 주석 참조.
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("http://localhost:5173", "http://localhost:5174");
+                .setAllowedOrigins(allowedOrigins.toArray(String[]::new));
     }
 
     @Override

@@ -79,7 +79,7 @@ public class ShortsCommentService {
             throw new BusinessException(ErrorCode.SHORTS_NOT_FOUND);
         }
 
-        // 응답에 작성자 이름이 필요하고, 탈퇴 회원의 작성을 막는 검사도 겸한다
+        // 응답에 작성자 이름·프로필 사진이 필요하고, 탈퇴 회원의 작성을 막는 검사도 겸한다
         Member member = memberRepository.findById(memberId)
                 .filter(found -> !found.isDeleted())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
@@ -107,8 +107,8 @@ public class ShortsCommentService {
         eventService.recordInteraction(memberId, shortId, ShortsEventType.COMMENT);
 
         // 방금 쓴 댓글이므로 좋아요는 없고 답글도 없다
-        return new ShortsCommentResponse(comment.getId(), member.getName(), comment.getContent(),
-                comment.getLikeCount(), false, comment.getCreatedAt(), List.of());
+        return new ShortsCommentResponse(comment.getId(), member.getName(), member.getProfileImageUrl(),
+                comment.getContent(), comment.getLikeCount(), false, comment.getCreatedAt(), List.of());
     }
 
     /** 댓글 좋아요 토글. 영상 좋아요와 같은 방식이다 (ShortsService.toggleLike 참고). */

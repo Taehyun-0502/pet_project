@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 영상 주제 — <b>고정 목록 13종</b> (숏츠_태그_설계.md 2절).
+ * 영상 주제 — <b>고정 목록 14종</b> (숏츠_태그_설계.md 2절).
  *
  * <p>개인 취향을 가르는 것은 "무엇을(주제)"이다. 같은 강아지가 서울에서 찍은 영상이라도
  * 산책 / 미용 / 훈련이면 완전히 다른 콘텐츠다.
@@ -16,7 +16,7 @@ import java.util.Optional;
  * 태그당 데이터가 희박해져 개인화가 작동하지 않는다. 나중에 LLM이 주제를 제안하게 될 때도
  * (설계 6절) 목록 밖 값을 걸러내야 하므로, 그 목록의 단일 출처가 여기다.
  *
- * <p><b>프론트에도 같은 13개가 있다</b>({@code ShortsUploadPage.jsx}의 {@code TOPICS}).
+ * <p><b>프론트에도 같은 14개가 있다</b>({@code ShortsUploadPage.jsx}의 {@code TOPICS}).
  * 목록을 고칠 때 양쪽을 함께 고쳐야 하며, 최종 차단은 서버인 이 enum이다.
  *
  * <p>10~13개 큰 덩어리로 시작한다. 잘게 쪼개면 태그가 흩어져 개인화 데이터가 희박해지고
@@ -42,6 +42,7 @@ public enum ShortsTopic {
     FUNNY("개그/밈"),
     CHALLENGE("챌린지/트렌드"),
     TOUCHING("감동/성장"),
+    MUSIC("노래/음악"),
 
     // ───── 커뮤니티 ─────
     ADOPTION("입양/구조");

@@ -3,6 +3,7 @@ package com.pet.backend.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -30,6 +31,11 @@ public class SecurityConfig {
     private final RestAuthenticationEntryPoint authenticationEntryPoint;
     private final JwtTokenProvider jwtTokenProvider;
     private final ObjectMapper objectMapper;
+
+    // 허용 오리진 — WebSocket 오리진(ChatWebSocketConfig)과 **단일 출처**로 공유한다.
+    // 코드에 오리진을 직접 추가하지 말 것: application.properties의 app.cors.allowed-origins 주석 참조
+    @Value("${app.cors.allowed-origins}")
+    private List<String> allowedOrigins;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -75,14 +81,15 @@ public class SecurityConfig {
     }
 
     /**
-     * 개발용 CORS: Vite 개발 서버(localhost:5173)에서의 요청 허용.
-     * allowCredentials는 2차 리프레시 토큰 쿠키 대비 — credentials와 와일드카드 오리진(*)은
-     * 함께 쓸 수 없으므로 오리진을 명시한다 (docs/api-spec.md 6절). 배포 오리진은 확정 시 추가.
+     * HTTP CORS. 오리진 목록은 프로퍼티(app.cors.allowed-origins) 주입 — LAN·배포 오리진은
+     * 코드 수정 없이 .env로 추가한다 (2026-08-11 외부화. 이전에는 팀원 IP가 여기 하드코딩으로 쌓였다).
+     * allowCredentials는 리프레시 토큰 쿠키 때문 — credentials와 와일드카드 오리진(*)은
+     * 함께 쓸 수 없으므로 오리진을 명시한다 (docs/api-spec.md 6절).
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:5174","http://192.168.0.9:5173","http://192.168.0.20:5173","http://192.168.0.18:5173","http://192.168.0.7:5173"));
+        config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         config.setAllowCredentials(true);
