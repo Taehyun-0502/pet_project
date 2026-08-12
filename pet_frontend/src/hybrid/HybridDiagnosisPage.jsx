@@ -423,6 +423,7 @@ export default function HybridDiagnosisPage() {
 
 // 모바일 퍼스트 인라인 스타일 객체 정의
 const mobileContainerStyle = {
+  width: '100%',
   maxWidth: '480px',
   margin: '0 auto',
   minHeight: '100vh',
@@ -431,6 +432,7 @@ const mobileContainerStyle = {
   fontFamily: "'Pretendard', system-ui, -apple-system, sans-serif",
   backgroundColor: '#F8FAFC',
   color: '#0F172A',
+  overflowX: 'hidden',
 }
 
 const mobileHeaderStyle = {
@@ -504,8 +506,10 @@ const mobileGridTwoColumnStyle = {
 
 const mobileSensorGridStyle = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-  gap: '10px',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
+  gap: '6px',
+  width: '100%',
+  boxSizing: 'border-box',
 }
 
 const mobileInputGroupStyle = {
