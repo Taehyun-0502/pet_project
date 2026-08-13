@@ -7,7 +7,9 @@ import { withdraw } from './memberApi'
 // 소셜 계정의 탈퇴 확인 문구 — 서버(MemberService.WITHDRAW_CONFIRM_PHRASE)와 계약 (api-spec.md 1절 6차)
 const WITHDRAW_CONFIRM_PHRASE = '탈퇴합니다'
 
-// 마이페이지 — 회원 탈퇴 탭 (위험 영역이라 별도 탭으로 격리). 레이아웃·분리 배경은 MyPage.jsx 주석 참조
+// 마이페이지 — 회원 탈퇴(위험 영역). 2026-08-13 개편으로 **독립 탭이 아니라 보안 화면 하단의
+// 한 섹션**이 됐다 — 라우트가 아니라 MyPageSecurity가 컴포넌트로 렌더한다.
+// 구 URL /mypage/withdraw는 App.jsx에서 보안 화면으로 리다이렉트된다
 export default function MyPageWithdraw() {
   const { user, updateUser } = useAuth()
   const navigate = useNavigate()
