@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
+import DiagnosisTabNav from '../components/DiagnosisTabNav'
+import { HybridDiagnosisPdfModal } from './HybridDiagnosisPdfModal'
 // 주변 동물병원 지도+리스트 공용 섹션 (2026-08-13 추가 — 페이지 소유자와 공유 필요)
 import NearbyPlaces from '../components/NearbyPlaces'
 
@@ -268,7 +270,7 @@ export default function HybridDiagnosisPage() {
       const mildSubCount = selectedSubSymptoms.filter((sub) => MILD_NORMAL_SUB_SYMPTOMS.includes(sub)).length
       const moderateSubCount = selectedSubSymptoms.length - mildSubCount
 
-      let riskScore = 20.0
+      let riskScore = 15.0
       if (isAbnormalBiomarker) riskScore += 30.0
       if (hasCritical) riskScore += 35.0
       riskScore += moderateSubCount * 12.0

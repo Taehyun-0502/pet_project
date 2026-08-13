@@ -385,7 +385,10 @@ async def predict_hybrid_health(req: HybridDiagnosisRequest) -> Dict[str, Any]:
         mild_count = sum(1 for kw in mild_keywords if kw in clean_prompt)
 
         # 3. AI 모델 종합 위험도 점수 계산
-        total_risk_score = abn_prob_raw
+        # 미학습 텐서 임의 초기 확률의 오버플로우 방지 (기본 베이스라인 위험도 15.0점)
+        base_risk = min(abn_prob_raw, 20.0)
+        total_risk_score = base_risk
+
         if is_abnormal_biomarker:
             total_risk_score += 30.0
         if has_critical:
