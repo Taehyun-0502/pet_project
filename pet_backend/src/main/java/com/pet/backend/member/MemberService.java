@@ -46,6 +46,10 @@ public class MemberService {
     private static final String KAKAO_NAME_PREFIX = "카카오회원";
     private static final int KAKAO_NAME_ATTEMPTS = 5;
 
+    // 이름 중복을 최종 차단하는 부분 UNIQUE 인덱스 이름 (schema.sql 1절).
+    // 위반 예외에서 어느 인덱스가 걸렸는지 가려내는 데 쓴다 — duplicatedFieldOf 참조
+    private static final String NAME_UNIQUE_INDEX = "ux_pet_member_name_active";
+
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
@@ -65,18 +69,46 @@ public class MemberService {
         if (memberRepository.existsActiveByNormalizedEmail(email)) {
             throw new BusinessException(MemberErrorCode.EMAIL_DUPLICATED);
         }
+        // 이름도 앞뒤 공백을 떼고 저장한다 — 안 하면 "  홍길동"과 "홍길동"이 서로 다른 이름이 되어
+        // 중복 검사와 UNIQUE 인덱스를 나란히 빠져나간다 (이름 수정은 원래부터 trim했다)
+        String name = request.name().trim();
+        if (memberRepository.existsActiveByNormalizedName(normalizeName(name))) {
+            throw new BusinessException(MemberErrorCode.NAME_DUPLICATED);
+        }
         Member member = Member.createLocalMember(
                 email,
                 passwordEncoder.encode(request.password()),
-                request.name());
+                name);
         try {
             memberRepository.save(member);
         } catch (DataIntegrityViolationException e) {
-            // 중복 검사와 INSERT 사이에 같은 이메일이 먼저 가입한 경쟁 상황 —
-            // DB 부분 UNIQUE 인덱스(ux_pet_member_email_active) 위반을 409로 변환
-            throw new BusinessException(MemberErrorCode.EMAIL_DUPLICATED);
+            // 중복 검사와 INSERT 사이에 같은 값이 먼저 가입한 경쟁 상황 —
+            // DB 부분 UNIQUE 인덱스 위반을 409로 변환한다.
+            //
+            // **어느 인덱스가 걸렸는지 예외 메시지로 판별한다.** 여기서 DB를 다시 조회할 수는 없다 —
+            // 이 메서드는 @Transactional이고 PostgreSQL은 제약 위반으로 트랜잭션이 이미 중단(aborted)돼
+            // 뒤따르는 질의가 전부 실패한다 (비트랜잭션인 registerKakaoMember가 재조회로 판별하는 것과
+            // 다른 이유가 여기 있다). 판별에 실패하면 종전 동작대로 이메일 중복으로 안내한다
+            throw new BusinessException(duplicatedFieldOf(e));
         }
         return MemberResponse.from(member);
+    }
+
+    /**
+     * UNIQUE 위반이 어느 인덱스에서 났는지 가려낸다. PostgreSQL이
+     * {@code duplicate key value violates unique constraint "ux_pet_member_name_active"} 형태로
+     * 인덱스 이름을 실어 보내는 것에 기댄다 — <b>인덱스 이름이 사실상 계약</b>이므로
+     * schema.sql에서 이름을 바꾸면 여기도 함께 바꿔야 한다.
+     *
+     * <p>모르는 위반은 이메일 중복으로 답한다(개편 전 동작 유지) — 이름 인덱스가 아직 없는 환경에서도
+     * 종전과 똑같이 동작하게 하려는 것이다.
+     */
+    private static MemberErrorCode duplicatedFieldOf(DataIntegrityViolationException e) {
+        Throwable cause = e.getMostSpecificCause();
+        String message = cause.getMessage() == null ? "" : cause.getMessage();
+        return message.contains(NAME_UNIQUE_INDEX)
+                ? MemberErrorCode.NAME_DUPLICATED
+                : MemberErrorCode.EMAIL_DUPLICATED;
     }
 
     /**
