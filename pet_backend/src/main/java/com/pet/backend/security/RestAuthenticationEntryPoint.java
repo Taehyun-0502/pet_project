@@ -29,6 +29,6 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setStatus(code.getStatus().value());
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write(objectMapper.writeValueAsString(
-                ApiResponse.fail(code.name(), code.getDefaultMessage())));
+                ApiResponse.fail(code.getCode(), code.getDefaultMessage())));
     }
 }

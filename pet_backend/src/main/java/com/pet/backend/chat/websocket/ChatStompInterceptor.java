@@ -105,7 +105,7 @@ public class ChatStompInterceptor implements ChannelInterceptor {
 
     // 프레임을 거부한다 — 클라이언트는 ERROR 프레임의 message로 원인을 구분한다
     private MessageDeliveryException reject(Message<?> message, ErrorCode code) {
-        return new MessageDeliveryException(message, code.name());
+        return new MessageDeliveryException(message, code.getCode());
     }
 
     // 세션의 주인. HTTP 인증(SecurityContext의 memberId)과 같은 값을 담는다
