@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.SessionResponse;
@@ -25,18 +26,25 @@ import com.pet.backend.member.dto.SignupRequest;
 import com.pet.backend.member.dto.TokenResponse;
 import com.pet.backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MemberService {
 
     // 소셜 계정의 탈퇴 확인 문구 — 프론트와 계약 (docs/api-spec.md 1절 6차)
     static final String WITHDRAW_CONFIRM_PHRASE = "탈퇴합니다";
+
+    // 카카오 가입 회원의 임의 이름 (generateKakaoName 주석 참조).
+    // 접두어를 바꾸면 기존 회원 이름과 형태가 갈리므로 함부로 고치지 않는다 — 소급 변경은 하지 않기로 했다
+    private static final String KAKAO_NAME_PREFIX = "카카오회원";
+    private static final int KAKAO_NAME_ATTEMPTS = 5;
 
     private final MemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
@@ -120,15 +128,9 @@ public class MemberService {
         if (email != null && memberRepository.existsActiveByNormalizedEmail(email)) {
             throw new BusinessException(MemberErrorCode.SOCIAL_EMAIL_CONFLICT);
         }
-        String name = (userInfo.nickname() == null || userInfo.nickname().isBlank())
-                ? "카카오 회원"
-                : userInfo.nickname().trim();
-        if (name.length() > 50) {
-            name = name.substring(0, 50); // name VARCHAR(50) — 카카오 닉네임 상한이 더 짧지만 방어
-        }
         try {
             return memberRepository.save(
-                    Member.createKakaoMember(email, name, userInfo.providerId()));
+                    Member.createKakaoMember(email, generateKakaoName(), userInfo.providerId()));
         } catch (DataIntegrityViolationException e) {
             // 같은 카카오 계정의 동시 첫 로그인 경쟁(ux_pet_member_provider_active) — 먼저 들어간 행으로 로그인.
             //
@@ -148,6 +150,36 @@ public class MemberService {
                         throw e;
                     });
         }
+    }
+
+    /**
+     * 카카오 가입 회원의 표시 이름을 만든다 — <b>카카오 닉네임은 쓰지 않는다</b>
+     * (2026-08-13 확정, docs/plan-2026-08-13.md F3). 예: {@code 카카오회원482913}
+     *
+     * <p><b>순번(n번째 카카오 회원)이 아니라 난수인 이유</b>는 두 가지다.
+     * ① 순번은 {@code max(id)+1} 같은 집계 조회가 필요한데 동시 가입에서 같은 값이 나온다.
+     * ② 순번은 가입자 수를 그대로 노출한다. 카카오 회원번호(providerId)를 쓰지 않는 이유는
+     * 더 분명하다 — 외부 서비스의 계정 식별자를 화면에 그대로 띄우는 셈이 된다.
+     *
+     * <p>중복이면 다시 뽑는다. 여기서 지는 경쟁(검사와 INSERT 사이)은 막지 못하며,
+     * 최종 차단은 닉네임 유니크 인덱스를 넣는 F2가 맡는다.
+     * <b>가입을 실패시키지 않는 것</b>이 이 메서드의 계약이다 — 그래서 재시도가 모두 실패하면
+     * 예외 대신 사실상 겹치지 않는 값으로 마무리한다.
+     */
+    private String generateKakaoName() {
+        for (int attempt = 0; attempt < KAKAO_NAME_ATTEMPTS; attempt++) {
+            String candidate = KAKAO_NAME_PREFIX
+                    + ThreadLocalRandom.current().nextInt(100_000, 1_000_000);
+            // 리포지토리 규약대로 소문자로 정규화해 넘긴다 (이 후보는 한글+숫자라 바뀌지 않지만,
+            // 규약을 여기서 어기면 다른 호출부가 그대로 따라 한다)
+            if (!memberRepository.existsActiveByNormalizedName(candidate.toLowerCase(Locale.ROOT))) {
+                return candidate;
+            }
+        }
+        // 6자리 난수가 연속으로 겹혔다 — 확률상 사실상 오지 않는 경로다.
+        // 도달했다면 회원 수가 예상 밖으로 많다는 뜻이므로 자릿수를 늘려 끝낸다
+        log.warn("카카오 임의 이름 생성이 {}회 연속 중복 — UUID로 대체합니다", KAKAO_NAME_ATTEMPTS);
+        return KAKAO_NAME_PREFIX + UUID.randomUUID().toString().substring(0, 8);
     }
 
     // 로그인마다 새 세션의 리프레시 토큰을 발급한다 — 기기별로 따로 살아 있고, 로그아웃도 그 기기만 끊긴다

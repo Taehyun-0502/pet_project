@@ -96,6 +96,32 @@
   text-decoration: underline;
 }
 
+/* 마이페이지 펫 정보 탭의 항목 — 이동이 아니라 펼침이라 <a>가 아니라 <button>이다.
+   버튼의 기본 모양(테두리·배경·폰트)을 걷어내 위 링크 항목과 같은 줄로 보이게 맞춘다 */
+.pet-list li .pet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pet-list li .pet-row:hover {
+  text-decoration: underline;
+}
+
+/* 펼쳐진 수정·삭제 줄 — 항목 안쪽이라 좌우 여백을 행과 맞춘다 */
+.pet-list li .pet-actions {
+  padding: 0 14px 12px;
+}
+
 .muted {
   color: #888;
   font-size: 14px;

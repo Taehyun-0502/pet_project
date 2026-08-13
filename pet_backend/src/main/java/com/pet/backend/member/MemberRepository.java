@@ -30,6 +30,24 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Query("select count(m) > 0 from Member m where lower(m.email) = :normalizedEmail and m.deletedAt is null")
     boolean existsActiveByNormalizedEmail(@Param("normalizedEmail") String normalizedEmail);
 
+    /**
+     * 이름(닉네임) 중복 여부 — 활성 회원 기준, 대소문자 무시.
+     *
+     * <p><b>파라미터는 이미 소문자로 정규화된 값이어야 한다</b> — 이메일 쪽과 같은 규약이다.
+     * SQL에서 {@code lower(:name)}으로 감싸지 않는 이유: 파라미터에 함수를 씌우면 PostgreSQL이
+     * 그 자리의 타입을 추론하지 못해 터지는 경우가 있다(채팅 검색에서 겪은 {@code function lower(bytea)
+     * does not exist} 계열). 정규화를 Java 쪽에 두면 그 위험 자체가 없어진다.
+     *
+     * <p>비교 좌변만 {@code lower(m.name)}인 이유는 저장값이 원문이기 때문이고,
+     * 이 형태가 곧 들어올 {@code lower(name)} 식 부분 UNIQUE 인덱스와도 맞는다.
+     *
+     * <p>지금 쓰는 곳은 카카오 가입의 임의 이름 생성뿐이다(중복이면 다시 뽑는다).
+     * 이름에 UNIQUE 제약이 아직 없어 이 검사가 유일한 방어이며, 검사와 INSERT 사이의 경쟁은
+     * 막지 못한다 — <b>최종 차단은 닉네임 유니크 인덱스를 넣는 F2</b>가 맡는다 (docs/plan-2026-08-13.md).
+     */
+    @Query("select count(m) > 0 from Member m where lower(m.name) = :normalizedName and m.deletedAt is null")
+    boolean existsActiveByNormalizedName(@Param("normalizedName") String normalizedName);
+
     // 카카오 로그인: 외부 식별자로 활성 계정 조회 (ux_pet_member_provider_active 인덱스 사용)
     Optional<Member> findByProviderAndProviderIdAndDeletedAtIsNull(Provider provider, String providerId);
 
