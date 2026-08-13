@@ -1,7 +1,10 @@
 package com.pet.backend.chat.websocket;
 
+import com.pet.backend.chat.ChatErrorCode;
 import com.pet.backend.chat.ChatRoomMemberRepository;
+import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.security.JwtTokenProvider;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -52,7 +55,7 @@ public class ChatStompInterceptor implements ChannelInterceptor {
             // SEND 포함 나머지 전부 거부 (리뷰 백로그 21번).
             // SimpleBroker는 클라이언트 SEND를 검증 없이 구독자 전원에게 중계하므로,
             // "전송은 REST뿐"이라는 설계는 여기서 강제해야 한다 — 발행 prefix 미등록만으로는 막히지 않는다
-            default -> throw reject(message, ErrorCode.FORBIDDEN);
+            default -> throw reject(message, CommonErrorCode.FORBIDDEN);
         }
         return message;
     }
@@ -61,15 +64,15 @@ public class ChatStompInterceptor implements ChannelInterceptor {
     private void authenticate(Message<?> message, StompHeaderAccessor accessor) {
         String header = accessor.getFirstNativeHeader("Authorization");
         if (header == null || !header.startsWith(BEARER_PREFIX)) {
-            throw reject(message, ErrorCode.AUTH_TOKEN_INVALID);
+            throw reject(message, MemberErrorCode.TOKEN_INVALID);
         }
         JwtTokenProvider.TokenPayload payload;
         try {
             payload = jwtTokenProvider.parse(header.substring(BEARER_PREFIX.length()));
         } catch (ExpiredJwtException e) {
-            throw reject(message, ErrorCode.AUTH_TOKEN_EXPIRED);
+            throw reject(message, MemberErrorCode.TOKEN_EXPIRED);
         } catch (JwtException | IllegalArgumentException e) {
-            throw reject(message, ErrorCode.AUTH_TOKEN_INVALID);
+            throw reject(message, MemberErrorCode.TOKEN_INVALID);
         }
         accessor.setUser(new ChatPrincipal(payload.memberId()));
         sessionRegistry.bindMember(accessor.getSessionId(), payload.memberId());
@@ -81,16 +84,16 @@ public class ChatStompInterceptor implements ChannelInterceptor {
         Matcher matcher = destination == null ? null : ROOM_TOPIC.matcher(destination);
         if (matcher == null || !matcher.matches()) {
             // 채팅방 토픽 외에는 열어줄 대상이 없다
-            throw reject(message, ErrorCode.FORBIDDEN);
+            throw reject(message, CommonErrorCode.FORBIDDEN);
         }
         Long memberId = memberIdOf(accessor);
         if (memberId == null) {
-            throw reject(message, ErrorCode.AUTH_TOKEN_INVALID);
+            throw reject(message, MemberErrorCode.TOKEN_INVALID);
         }
         Long roomId = Long.valueOf(matcher.group(1));
         // 나간·강퇴된 회원은 leftAt이 채워져 있어 여기서 함께 걸러진다
         if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
-            throw reject(message, ErrorCode.CHAT_NOT_PARTICIPANT);
+            throw reject(message, ChatErrorCode.NOT_PARTICIPANT);
         }
     }
 
@@ -105,7 +108,7 @@ public class ChatStompInterceptor implements ChannelInterceptor {
 
     // 프레임을 거부한다 — 클라이언트는 ERROR 프레임의 message로 원인을 구분한다
     private MessageDeliveryException reject(Message<?> message, ErrorCode code) {
-        return new MessageDeliveryException(message, code.name());
+        return new MessageDeliveryException(message, code.getCode());
     }
 
     // 세션의 주인. HTTP 인증(SecurityContext의 memberId)과 같은 값을 담는다

@@ -50,14 +50,14 @@ public class ImageStorageClient {
     /** 형식·용량 검증 — 위반은 400. 업로드 호출 전에 반드시 거친다 */
     public void validateImage(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "이미지 파일은 필수입니다.");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "이미지 파일은 필수입니다.");
         }
         if (file.getContentType() == null || !ALLOWED_IMAGE_TYPES.contains(file.getContentType())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "jpeg·png·webp 이미지만 업로드할 수 있습니다.");
         }
         if (file.getSize() > MAX_IMAGE_BYTES) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "이미지는 5MB 이하여야 합니다.");
         }
     }
@@ -71,7 +71,7 @@ public class ImageStorageClient {
      */
     public String upload(String path, byte[] bytes, String mimeType) {
         if (!properties.isConfigured()) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED,
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED,
                     "서버에 Storage 설정이 없습니다. .env의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.");
         }
 
@@ -93,7 +93,7 @@ public class ImageStorageClient {
         } catch (RestClientException e) {
             // 키·정책·네트워크 문제는 사용자가 손쓸 수 없으므로 상세는 로그로만 남긴다
             log.error("프로필 이미지 업로드 실패 path={}", path, e);
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
         return "%s/storage/v1/object/public/%s/%s".formatted(baseUrl, properties.profilesBucket(), path);

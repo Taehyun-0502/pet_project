@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -135,7 +134,7 @@ class PlaceServiceTest {
     @Test
     void 한_카테고리가_실패해도_나머지_카테고리_결과는_반환한다() {
         when(kakaoClient.searchKeyword(eq("동물병원"), anyDouble(), anyDouble(), eq("HP8")))
-                .thenThrow(new BusinessException(ErrorCode.PLACE_SEARCH_FAILED));
+                .thenThrow(new BusinessException(PlaceErrorCode.SEARCH_FAILED));
         when(kakaoClient.searchKeyword(eq("애견카페"), anyDouble(), anyDouble(), eq("CE7")))
                 .thenReturn(new KakaoSearchResponse(List.of(document("멍멍 카페"))));
         when(kakaoClient.searchKeyword(eq("애견호텔"), anyDouble(), anyDouble(), eq("AD5")))
@@ -151,13 +150,13 @@ class PlaceServiceTest {
     @Test
     void 모든_카테고리가_실패하면_예외를_던진다() {
         when(kakaoClient.searchKeyword(anyString(), anyDouble(), anyDouble(), any()))
-                .thenThrow(new BusinessException(ErrorCode.PLACE_SEARCH_FAILED));
+                .thenThrow(new BusinessException(PlaceErrorCode.SEARCH_FAILED));
 
         assertThatThrownBy(() -> placeService.searchAll(
                 List.of(PlaceCategory.HOSPITAL, PlaceCategory.CAFE, PlaceCategory.HOTEL), 37.5, 127.0))
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).getErrorCode())
-                .isEqualTo(ErrorCode.PLACE_SEARCH_FAILED);
+                .isEqualTo(PlaceErrorCode.SEARCH_FAILED);
     }
 
     private KakaoDocument document(String name) {

@@ -2,7 +2,6 @@ package com.pet.backend.member;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -58,7 +57,7 @@ class KakaoOAuthClient {
         if (properties.clientId() == null || properties.clientId().isBlank()) {
             // 부팅은 되게 두고 사용 시점에만 알린다 (백로그 7번 교훈). 설정 문제라 WARN이 아닌 ERROR
             log.error("KAKAO_OAUTH_CLIENT_ID가 비어 있어 카카오 로그인을 수행할 수 없습니다 — .env 확인");
-            throw new BusinessException(ErrorCode.AUTH_SOCIAL_LOGIN_FAILED);
+            throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);
         }
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "authorization_code");
@@ -77,13 +76,13 @@ class KakaoOAuthClient {
             String accessToken = body == null ? null : body.path("access_token").asText(null);
             if (accessToken == null) {
                 log.warn("카카오 토큰 응답에 access_token이 없습니다");
-                throw new BusinessException(ErrorCode.AUTH_SOCIAL_LOGIN_FAILED);
+                throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);
             }
             return accessToken;
         } catch (RestClientException e) {
             // 만료·재사용된 인가 코드, redirect_uri 불일치 등 — 카카오가 400으로 응답하는 정상 실패 경로
             log.warn("카카오 토큰 교환 실패: {}", e.getMessage());
-            throw new BusinessException(ErrorCode.AUTH_SOCIAL_LOGIN_FAILED);
+            throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);
         }
     }
 
@@ -96,7 +95,7 @@ class KakaoOAuthClient {
             String providerId = body == null ? null : body.path("id").asText(null);
             if (providerId == null) {
                 log.warn("카카오 사용자 정보 응답에 id가 없습니다");
-                throw new BusinessException(ErrorCode.AUTH_SOCIAL_LOGIN_FAILED);
+                throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);
             }
             JsonNode account = body.path("kakao_account");
             return new KakaoUserInfo(
@@ -105,7 +104,7 @@ class KakaoOAuthClient {
                     account.path("profile").path("nickname").asText(null));
         } catch (RestClientException e) {
             log.warn("카카오 사용자 정보 조회 실패: {}", e.getMessage());
-            throw new BusinessException(ErrorCode.AUTH_SOCIAL_LOGIN_FAILED);
+            throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);
         }
     }
 }
