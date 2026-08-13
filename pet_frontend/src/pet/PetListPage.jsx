@@ -16,6 +16,7 @@ export default function PetListPage() {
   const navigate = useNavigate()
   const [pets, setPets] = useState(null) // null = 아직 불러오는 중
   const [error, setError] = useState('')
+  const [selectedPetForHealth, setSelectedPetForHealth] = useState(null) // 건강관리 선택 반려견 상태
 
   useEffect(() => {
     getMyPets()
@@ -84,22 +85,198 @@ export default function PetListPage() {
       {pets && pets.length > 0 && (
         <ul className="pet-list">
           {pets.map((pet) => (
-            <li key={pet.id}>
-              {/* 항목 전체를 링크로 — li에 onClick을 걸면 키보드로 접근할 수 없다 */}
-              <Link to={`/pets/${pet.id}`}>
-                {pet.profileImageUrl ? (
-                  <img className="pet-thumb" src={pet.profileImageUrl} alt="" />
-                ) : (
-                  <span className="pet-thumb pet-thumb-empty" aria-hidden="true">🐶</span>
-                )}
-                <strong>{pet.name}</strong>
-                <span className="muted">{pet.breed ?? '품종 미입력'}</span>
-                <span className="muted">{pet.birthDate ?? '생년월일 미입력'}</span>
-              </Link>
+            <li key={pet.id} style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '10px' }}>
+                <Link to={`/pets/${pet.id}`} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', textDecoration: 'none', color: 'inherit' }}>
+                  {pet.profileImageUrl ? (
+                    <img className="pet-thumb" src={pet.profileImageUrl} alt="" />
+                  ) : (
+                    <span className="pet-thumb pet-thumb-empty" aria-hidden="true">🐶</span>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <strong>{pet.name}</strong>
+                    <span className="muted" style={{ fontSize: '13px' }}>{pet.breed ?? '품종 미입력'}</span>
+                    <span className="muted" style={{ fontSize: '12px' }}>{pet.birthDate ?? '생년월일 미입력'}</span>
+                  </div>
+                </Link>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setSelectedPetForHealth(pet)
+                  }}
+                  style={healthButtonStyle}
+                >
+                  🏥 건강관리
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
+
+      {/* 🏥 반려동물 건강관리 & AI 진단 선택 모달 */}
+      {selectedPetForHealth && (
+        <div style={modalOverlayStyle} onClick={() => setSelectedPetForHealth(null)}>
+          <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={modalHeaderStyle}>
+              <h2 style={{ fontSize: '17px', fontWeight: '800', margin: 0, color: '#0F172A' }}>
+                🩺 {selectedPetForHealth.name} AI 건강관리 & 검진
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedPetForHealth(null)}
+                style={modalCloseButtonStyle}
+              >
+                ✕
+              </button>
+            </div>
+            <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 16px 0' }}>
+              원하시는 AI 건강검진 항목을 선택하세요. 반려견 정보가 자동 채워집니다.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* 1. 피부 질환 AI 스크리닝 카드 */}
+              <div style={diagnosisChoiceCardStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '20px' }}>📸</span>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#4F46E5', margin: 0 }}>
+                    피부 질환 AI 스크리닝
+                  </h3>
+                </div>
+                <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                  환부 사진을 찍어 드래그 크롭 영역을 지정하면 1차 정상 스크리닝 및 12종 세부 피부 질환을 AI가 정밀 분석합니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pet = selectedPetForHealth
+                    setSelectedPetForHealth(null)
+                    navigate('/skin/diagnosis', {
+                      state: { petName: pet.name, breed: pet.breed, birthDate: pet.birthDate },
+                    })
+                  }}
+                  style={skinActionButtonStyle}
+                >
+                  📸 피부 AI 스크리닝 시작하기 →
+                </button>
+              </div>
+
+              {/* 2. 바이오센서 스마트 문진 카드 */}
+              <div style={diagnosisChoiceCardStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '20px' }}>🧪</span>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#059669', margin: 0 }}>
+                    바이오센서 스마트 문진
+                  </h3>
+                </div>
+                <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0', lineHeight: 1.4 }}>
+                  CRP·IgG·IL-6 바이오센서 3종 수치와 보호자 증상 메모를 종합 분석하여 ABN/NOR 판정 및 수의사 제출용 PDF 소견서를 발급합니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pet = selectedPetForHealth
+                    setSelectedPetForHealth(null)
+                    navigate('/hybrid/diagnosis', {
+                      state: { petName: pet.name, breed: pet.breed, birthDate: pet.birthDate },
+                    })
+                  }}
+                  style={hybridActionButtonStyle}
+                >
+                  🧪 바이오센서 스마트 문진 시작하기 →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
+}
+
+const healthButtonStyle = {
+  padding: '6px 12px',
+  backgroundColor: '#EEF2FF',
+  color: '#4F46E5',
+  border: '1px solid #C7D2FE',
+  borderRadius: '8px',
+  fontSize: '13px',
+  fontWeight: '700',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  boxShadow: '0 1px 2px rgba(79, 70, 229, 0.1)',
+}
+
+const modalOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(15, 23, 42, 0.6)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  zIndex: 1000,
+  padding: '16px',
+}
+
+const modalContentStyle = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: '16px',
+  padding: '20px',
+  maxWidth: '440px',
+  width: '100%',
+  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+  boxSizing: 'border-box',
+}
+
+const modalHeaderStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+}
+
+const modalCloseButtonStyle = {
+  background: 'none',
+  border: 'none',
+  fontSize: '18px',
+  color: '#64748B',
+  cursor: 'pointer',
+  padding: '4px',
+}
+
+const diagnosisChoiceCardStyle = {
+  border: '1px solid #E2E8F0',
+  borderRadius: '12px',
+  padding: '14px',
+  backgroundColor: '#F8FAFC',
+}
+
+const skinActionButtonStyle = {
+  width: '100%',
+  padding: '10px',
+  backgroundColor: '#4F46E5',
+  color: '#FFFFFF',
+  border: 'none',
+  borderRadius: '8px',
+  fontSize: '13px',
+  fontWeight: '700',
+  cursor: 'pointer',
+  boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+}
+
+const hybridActionButtonStyle = {
+  width: '100%',
+  padding: '10px',
+  backgroundColor: '#059669',
+  color: '#FFFFFF',
+  border: 'none',
+  borderRadius: '8px',
+  fontSize: '13px',
+  fontWeight: '700',
+  cursor: 'pointer',
+  boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
 }

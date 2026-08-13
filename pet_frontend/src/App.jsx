@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import ChatRoomCreatePage from './chat/ChatRoomCreatePage'
 import ChatRoomListPage from './chat/ChatRoomListPage'
 import ChatRoomPage from './chat/ChatRoomPage'
@@ -43,8 +43,12 @@ function App() {
         <Route path="/shorts" element={<ShortsFeed />} />
         {/* 강아지 피부병 12종 AI 진단 (URL 직접 접근 가능) */}
         <Route path="/skin/diagnosis" element={<SkinDiagnosisPage />} />
+        <Route path="/skin" element={<Navigate to="/skin/diagnosis" replace />} />
+        <Route path="/skin-diagnosis" element={<Navigate to="/skin/diagnosis" replace />} />
         {/* 하이브리드 수치+자연어 AI 스마트 문진 진단 (URL 직접 진입 전용) */}
         <Route path="/hybrid/diagnosis" element={<HybridDiagnosisPage />} />
+        <Route path="/hybrid" element={<Navigate to="/hybrid/diagnosis" replace />} />
+        <Route path="/hybrid-diagnosis" element={<Navigate to="/hybrid/diagnosis" replace />} />
 
         {/* 보호 경로 — 이 블록 안에 추가하면 자동으로 로그인이 요구된다 */}
         <Route element={<RequireLogin />}>

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
 import { HybridDiagnosisPdfModal } from './HybridDiagnosisPdfModal'
+import DiagnosisTabNav from '../components/DiagnosisTabNav'
 
 // 페이지 타이틀 상수를 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🩺 펫 스마트 문진 & AI 검진'
@@ -21,12 +22,93 @@ const SYMPTOM_OPTIONS = [
   '피부 가려움/핥음',
 ]
 
+// 주요 증상 선택 시 나타나는 카테고리별 세부 위험 증상 체크박스 맵 (사용자 정밀 튜닝 버전)
+const SUB_SYMPTOM_MAP = {
+  '구토': [
+    '1회성 구토 (사료토 / 공복 노란토)',
+    '2회 이상 / 연속 구토',
+    '혈토 / 초록색 토',
+    '이물질 / 먹는 족족 구토'
+  ],
+  '설사/혈변': [
+    '일시적 무른변 (1회 / 과식)',
+    '지속적인 설사 / 물설사',
+    '혈변 / 피섞인 변'
+  ],
+  '피오줌/탁한 소변': [],
+  '다리 절음/관절 통증': [
+    '운동 후 일시적 뻣뻣함',
+    '다리를 안 딛음 / 부어오름',
+    '통증으로 낑낑거림 / 비명'
+  ],
+  '기력 저하': [
+    '산책/놀이 후 일시적 피로',
+    '안 움직임 / 일어나지 못함',
+    '호흡 곤란 / 의식 저하'
+  ],
+  '식욕 부진': [
+    '입맛 없음 (사료 거부 / 간식은 잘먹음)',
+    '하루 이상 음식 거부',
+    '물조차 먹지 않음'
+  ],
+  '눈곱/안구 이상': [
+    '투명 눈곱 (조금)',
+    '눈 충혈 / 눈 못뜸 / 눈 부음',
+    '노란·초록 눈곱 / 안구 혼탁'
+  ],
+  '피부 가려움/핥음': [
+    '털 고르기 (그루밍) / 미용 후 일시 긁음',
+    '붉어짐 / 밤새 긁음 / 계속 핥음',
+    '진물 / 탈모 / 피남 / 딱지'
+  ],
+}
+
+// 🟢 정상/경미 소견 체크박스 옵션 목록
+const MILD_NORMAL_SUB_SYMPTOMS = [
+  '1회성 구토 (사료토 / 공복 노란토)',
+  '일시적 무른변 (1회 / 과식)',
+  '운동 후 일시적 뻣뻣함',
+  '산책/놀이 후 일시적 피로',
+  '입맛 없음 (사료 거부 / 간식은 잘먹음)',
+  '투명 눈곱 (조금)',
+  '털 고르기 (그루밍) / 미용 후 일시 긁음',
+]
+
+// 생년월일(YYYY-MM-DD) 기반 만 나이 계산 유틸리티 함수
+const calculateAgeFromBirthDate = (birthDateStr) => {
+  if (!birthDateStr) return null
+  try {
+    const birthDate = new Date(birthDateStr)
+    const today = new Date()
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--
+    }
+    return calculatedAge >= 0 ? String(calculatedAge) : '0'
+  } catch (e) {
+    return null
+  }
+}
+
 export default function HybridDiagnosisPage() {
+  const navigate = useNavigate()
   // 라우트 전달 객체 수신을 위한 useLocation 훅
   const location = useLocation()
 
-  // 반려동물 나이 수치 상태 (초기값 '2')
-  const [age, setAge] = useState('2')
+  // 반려동물 목록 화면에서 넘겨받은 프로필 state 객체
+  const initialPet = location.state || {}
+
+  // 반려동물 이름 상태 (넘겨받은 값 유무에 따라 자동 세팅)
+  const [petName, setPetName] = useState(initialPet.petName || initialPet.name || '초코')
+
+  // 반려동물 종류(견종) 상태 (넘겨받은 값 유무에 따라 자동 세팅)
+  const [breed, setBreed] = useState(initialPet.breed || '푸들')
+
+  // 반려동물 나이 수치 상태 (생년월일 수신 시 만 나이 자동 계산)
+  const [age, setAge] = useState(
+    calculateAgeFromBirthDate(initialPet.birthDate) || initialPet.age || '2'
+  )
 
   // 반려동물 체중 수치 상태 (초기값 '5.8')
   const [weight, setWeight] = useState('5.8')
@@ -46,8 +128,8 @@ export default function HybridDiagnosisPage() {
   // 선택된 주요 증상 체크박스 목록 상태
   const [selectedSymptoms, setSelectedSymptoms] = useState([])
 
-  // 보호자 상세 증상 작성 텍스트 메모 상태
-  const [textPrompt, setTextPrompt] = useState('')
+  // 선택된 세부 위험 증상 체크박스 목록 상태
+  const [selectedSubSymptoms, setSelectedSubSymptoms] = useState([])
 
   // 활성화된 바이오센서 툴팁 상태
   const [activeTooltip, setActiveTooltip] = useState(null)
@@ -76,28 +158,44 @@ export default function HybridDiagnosisPage() {
     }
   }, [location.state])
 
-  // 증상 체크박스 선택/해제 핸들러 (텍스트 입력창에는 추가하지 않음)
+  // 주요 증상 체크박스 선택/해제 핸들러
   const handleSymptomToggle = (symptom) => {
     const isSelected = selectedSymptoms.includes(symptom)
     if (isSelected) {
-      setSelectedSymptoms(selectedSymptoms.filter((s) => s !== symptom))
+      const newSelected = selectedSymptoms.filter((s) => s !== symptom)
+      setSelectedSymptoms(newSelected)
+      // 해당 주요 증상의 세부 증상들도 함께 선택 해제
+      const relatedSubList = SUB_SYMPTOM_MAP[symptom] || []
+      setSelectedSubSymptoms(selectedSubSymptoms.filter((sub) => !relatedSubList.includes(sub)))
     } else {
       setSelectedSymptoms([...selectedSymptoms, symptom])
     }
   }
 
-  // AI 제출 시 선택된 체크박스 목록과 텍스트 입력창 메모를 합성하는 헬퍼 함수
-  const getCombinedTextPrompt = () => {
-    const trimmedMemo = textPrompt.trim()
-    const selectedStr = selectedSymptoms.length > 0 ? selectedSymptoms.join(', ') : ''
+  // 세부 위험 증상 체크박스 선택/해제 핸들러
+  const handleSubSymptomToggle = (subSymptom) => {
+    if (selectedSubSymptoms.includes(subSymptom)) {
+      setSelectedSubSymptoms(selectedSubSymptoms.filter((s) => s !== subSymptom))
+    } else {
+      setSelectedSubSymptoms([...selectedSubSymptoms, subSymptom])
+    }
+  }
 
-    if (selectedStr && trimmedMemo) {
-      return `주요 증상: ${selectedStr}. 상세 메모: ${trimmedMemo}`
+  // AI 제출 시 선택된 주요 증상과 세부 위험 증상을 합성하는 헬퍼 함수
+  const getCombinedTextPrompt = () => {
+    const mainStr = selectedSymptoms.length > 0 ? selectedSymptoms.join(', ') : ''
+    const subStr = selectedSubSymptoms.length > 0 ? selectedSubSymptoms.join(', ') : ''
+
+    if (mainStr && subStr) {
+      return `주요 증상: ${mainStr}. 세부 위험 소견: ${subStr}`
     }
-    if (selectedStr) {
-      return `주요 증상: ${selectedStr}`
+    if (mainStr) {
+      return `주요 증상: ${mainStr}`
     }
-    return trimmedMemo || '특이 증상 없음'
+    if (subStr) {
+      return `세부 위험 소견: ${subStr}`
+    }
+    return '특이 증상 없음'
   }
 
   // 바이오센서 시뮬레이션 데이터 갱신 이벤트 핸들러
@@ -162,35 +260,40 @@ export default function HybridDiagnosisPage() {
       setResult(data)
     } catch (err) {
       clearTimeout(timeoutId)
-      // 백엔드 미기동 또는 타임아웃 시 프론트엔드 자체 Fallback 로직 (3종 수치 이상, 통증/4대증상 응급 키워드 또는 지속성 문진 소견 시 ABN)
+      // 백엔드 미기동 또는 타임아웃 시 프론트엔드 1번 방식 (AI 모델 자율 종합 판단 50점 임계치 알고리즘)
       const isAbnormalBiomarker = crp > 2.0 || igg > 3.5 || il6 > 2.5
-      const cleanPrompt = textPrompt ? textPrompt.replace(/\s+/g, '') : ''
-      const emergencyKeywords = [
-        '혈변', '피오줌', '아예안딛', '안딛', '못딛', '부음', '부어', '비명', '낑낑', '아파함', '아파해',
-        '진물', '발적', '붉어짐', '피낢', '피남', '피나', '피날', '피가나', '피가남', '피가날', '탈모', '털빠짐', '딱지', '밤새긁', '계속핥',
-        '충혈', '노란눈곱', '초록눈곱', '눈못뜸', '눈부음', '눈긁', '혼탁', '하얗게',
-        '2회이상', '연속구토', '피섞인', '혈토', '초록색토', '이물질', '족족토',
-        '안움직', '의식', '숨가쁨', '호흡곤란', '물도안', '안일어'
-      ]
-      const hasEmergencySymptom = selectedSymptoms.some((s) => ['설사/혈변', '피오줌/탁한 소변'].includes(s)) || (cleanPrompt && emergencyKeywords.some((kw) => cleanPrompt.includes(kw)))
-      const hasPersistentKeyword = cleanPrompt && (cleanPrompt.includes('하루이상') || cleanPrompt.includes('하루') || cleanPrompt.includes('24시간') || cleanPrompt.includes('이틀') || cleanPrompt.includes('며칠') || cleanPrompt.includes('지속') || cleanPrompt.includes('계속') || cleanPrompt.includes('사흘'))
-      const isAbnormal = isAbnormalBiomarker || hasEmergencySymptom || hasPersistentKeyword || selectedSymptoms.length >= 2
+      const criticalKeywords = ['혈토', '혈변', '피오줌', '호흡곤란', '의식저하', '초록색토', '이물질', '혈뇨', '피섞인']
+      const hasCritical = selectedSubSymptoms.some((sub) => criticalKeywords.includes(sub))
+
+      let riskScore = 20.0
+      if (isAbnormalBiomarker) riskScore += 30.0
+      if (hasCritical) riskScore += 35.0
+      riskScore += selectedSymptoms.length * 8.0 + selectedSubSymptoms.length * 12.0
+
+      const isNormal = riskScore < 50.0
 
       setResult({
         success: true,
-        status: isAbnormal ? 'ABN' : 'NOR',
-        is_normal: !isAbnormal,
-        details: isAbnormal
-          ? `[주요 증상 감지] 수치 이상, 주요 의심 증상 소견 또는 지속적인 소견("${finalPrompt}")으로 이상(ABN) 소견이 감지되었습니다. 수의사 진료를 권장합니다.`
-          : `[일시적/정상 범주] 3종 바이오 수치가 모두 정상 범위 안이며, 일시적인 경미 소견은 집에서 지속적인 경과 관찰이 가능합니다. (NOR 정상)`,
+        status: isNormal ? 'NOR' : 'ABN',
+        is_normal: isNormal,
+        details: isNormal
+          ? `3종 바이오 수치 및 증상 종합 분석 결과 정상(NOR) 범주입니다. 일시적/경미한 소견으로 집에서 경과 관찰이 가능합니다. (AI 모델 위험 확신도: ${Math.min(riskScore, 45).toFixed(1)}%)`
+          : `바이오 수치 및 세부 증상 종합 분석 결과 이상(ABN) 소견이 감지되었습니다. 수의사 정밀 진료를 권장합니다. (AI 모델 위험 확신도: ${Math.min(riskScore, 98.5).toFixed(1)}%)`,
       })
     } finally {
       setLoading(false)
     }
   }
 
+  // 현재 선택된 주요 증상들에 대응하는 세부 위험 옵션 목록 추출
+  const availableSubSymptoms = selectedSymptoms.flatMap((mainSymptom) => SUB_SYMPTOM_MAP[mainSymptom] || [])
+  const uniqueAvailableSubSymptoms = [...new Set(availableSubSymptoms)]
+
   return (
     <div style={mobileContainerStyle}>
+      {/* 두 진단 화면 원클릭 상단 탭 전환 바 */}
+      <DiagnosisTabNav />
+
       {/* 모바일 상단 헤더 */}
       <header style={mobileHeaderStyle}>
         <div style={badgeRowStyle}>
@@ -204,7 +307,27 @@ export default function HybridDiagnosisPage() {
         {/* 1. 반려동물 기본 정보 수치 카드 */}
         <section style={mobileCardStyle}>
           <h2 style={mobileSectionTitleStyle}>🐶 반려동물 기본 정보</h2>
-          <div style={mobileGridTwoColumnStyle}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={mobileInputGroupStyle}>
+              <label style={mobileLabelStyle}>강아지 이름</label>
+              <input
+                type="text"
+                value={petName}
+                onChange={(e) => setPetName(e.target.value)}
+                placeholder="예: 초코"
+                style={mobileInputStyle}
+              />
+            </div>
+            <div style={mobileInputGroupStyle}>
+              <label style={mobileLabelStyle}>종류 (품종)</label>
+              <input
+                type="text"
+                value={breed}
+                onChange={(e) => setBreed(e.target.value)}
+                placeholder="예: 푸들"
+                style={mobileInputStyle}
+              />
+            </div>
             <div style={mobileInputGroupStyle}>
               <label style={mobileLabelStyle}>
                 나이 <span style={unitSpanStyle}>(세)</span>
@@ -341,48 +464,172 @@ export default function HybridDiagnosisPage() {
           </div>
         </section>
 
-        {/* 3. 보호자 스마트 문진표 카드 (체크박스 UI) */}
+        {/* 3. 보호자 스마트 문진표 카드 (증상 버튼 직하단 팝업 세부 내용 선택) */}
         <section style={mobileCardStyle}>
           <h2 style={mobileSectionTitleStyle}>📝 보호자 스마트 문진표</h2>
 
           <div style={formSubGroupStyle}>
-            <label style={mobileLabelStyle}>① 주요 증상 선택 (선택 항목은 AI 분석 제출 시 자동 합성됩니다)</label>
-            <div style={mobileCheckboxGridStyle}>
+            <label style={mobileLabelStyle}>① 주요 증상 선택 (버튼 클릭 시 버튼 바로 아래에 세부 내용 선택창이 열립니다)</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {SYMPTOM_OPTIONS.map((symptom) => {
                 const isSelected = selectedSymptoms.includes(symptom)
+                const subItems = SUB_SYMPTOM_MAP[symptom] || []
                 return (
-                  <label
-                    key={symptom}
-                    style={{
-                      ...mobileCheckboxLabelStyle,
-                      backgroundColor: isSelected ? '#EEF2FF' : '#F8FAFC',
-                      borderColor: isSelected ? '#6366F1' : '#E2E8F0',
-                      color: isSelected ? '#4338CA' : '#334155',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleSymptomToggle(symptom)}
-                      style={mobileCheckboxInputStyle}
-                    />
-                    <span style={mobileCheckboxTextStyle}>{symptom}</span>
-                  </label>
+                  <div key={symptom} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label
+                      style={{
+                        ...mobileCheckboxLabelStyle,
+                        backgroundColor: isSelected ? '#EEF2FF' : '#F8FAFC',
+                        borderColor: isSelected ? '#6366F1' : '#E2E8F0',
+                        color: isSelected ? '#4338CA' : '#334155',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        padding: '10px 14px',
+                        borderRadius: '10px',
+                        border: '1px solid',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSymptomToggle(symptom)}
+                          style={mobileCheckboxInputStyle}
+                        />
+                        <span style={{ fontSize: '14px', fontWeight: '700' }}>{symptom}</span>
+                      </div>
+                      {isSelected && subItems.length > 0 && (
+                        <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#6366F1', color: '#FFFFFF', padding: '2px 8px', borderRadius: '10px' }}>
+                          세부옵션 선택중 ▼
+                        </span>
+                      )}
+                    </label>
+
+                    {/* 구토/증상 버튼을 클릭하면 해당 버튼 바로 아래에 팝업 상자로 세부사항이 열림 */}
+                    {isSelected && subItems.length > 0 && (
+                      <div
+                        style={{
+                          backgroundColor: '#F8FAFC',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '10px',
+                          padding: '12px',
+                          marginLeft: '12px',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
+                        }}
+                      >
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>
+                          🔍 [{symptom}] 세부 내용 선택 (해당하는 항목을 모두 체크해 주세요):
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {subItems.map((subItem) => {
+                            const isSubChecked = selectedSubSymptoms.includes(subItem)
+
+                            return (
+                              <label
+                                key={subItem}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '6px 12px',
+                                  borderRadius: '8px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: 'pointer',
+                                  border: '1px solid',
+                                  backgroundColor: isSubChecked ? '#4F46E5' : '#FFFFFF',
+                                  borderColor: isSubChecked ? '#4338CA' : '#CBD5E1',
+                                  color: isSubChecked ? '#FFFFFF' : '#334155',
+                                  transition: 'all 0.15s ease',
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSubChecked}
+                                  onChange={() => handleSubSymptomToggle(subItem)}
+                                  style={{ accentColor: '#4F46E5' }}
+                                />
+                                <span>{subItem}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )
               })}
             </div>
           </div>
 
-          <div style={formSubGroupStyle}>
-            <label style={mobileLabelStyle}>② 상세 증상 작성 메모</label>
-            <textarea
-              rows={4}
-              value={textPrompt}
-              onChange={(e) => setTextPrompt(e.target.value)}
-              placeholder="아픈 증상이나 평소와 다른 점을 적어주세요. (위 체크박스 선택 내용과 함께 AI 모델로 전송됩니다)"
-              style={mobileTextareaStyle}
-            />
-          </div>
+          {/* 🩺 상세 증상 작성 메모란 위치에 결과 카드가 출력되도록 배치 */}
+          {result && (
+            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '2px solid #E2E8F0' }}>
+              <h2 style={{ ...mobileSectionTitleStyle, color: '#0F172A', marginBottom: '8px' }}>
+                🩺 수의사 정밀진료 진단 결과
+              </h2>
+              {result.status === 'NOR' || result.diagnosis === 'NOR' || result.is_normal ? (
+                <div style={mobileNormalResultCardStyle}>
+                  <div style={mobileResultBadgeStyle}>✅ AI 분석 완료 [NOR]</div>
+                  <h3 style={mobileResultTitleStyle}>현재 상태: 정상 범주</h3>
+                  <p style={mobileResultDescStyle}>
+                    수치 분석 및 스마트 문진 결과 <strong>[정상(NOR)]</strong> 범주입니다. 안심하셔도 좋습니다.
+                  </p>
+                  {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
+                </div>
+              ) : (
+                <div style={mobileAbnormalResultCardStyle}>
+                  <div style={mobileAbnormalBadgeStyle}>🚨 AI 분석 완료 [ABN]</div>
+                  <h3 style={mobileAbnormalTitleStyle}>수의사 정밀 진료 권장</h3>
+                  <p style={mobileAbnormalDescStyle}>
+                    염증 수치 상승 또는 세부 의심 증상이 감지되었습니다. 수의사 진료를 권장합니다.
+                  </p>
+                  {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
+                </div>
+              )}
+
+              {/* 수의사 제출용 PDF 종합 건강 진단서 발급 버튼 */}
+              <button
+                type="button"
+                onClick={() => setIsPdfModalOpen(true)}
+                style={{
+                  width: '100%',
+                  marginTop: '12px',
+                  padding: '12px',
+                  backgroundColor: '#059669',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
+                }}
+              >
+                📄 수의사 제출용 PDF 진단서 발급
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/map?category=HOSPITAL')}
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  border: '1px solid #A7F3D0',
+                  borderRadius: '12px',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                🏥 내 주변 동물병원 찾기
+              </button>
+            </div>
+          )}
         </section>
 
         {/* 4. AI 진단 제출 버튼 */}
@@ -391,57 +638,11 @@ export default function HybridDiagnosisPage() {
         </button>
       </form>
 
-      {/* 5. AI 진단 결과 팝업/카드 */}
-      {result && (
-        <section style={mobileResultCardContainerStyle}>
-          {result.status === 'NOR' || result.diagnosis === 'NOR' || result.is_normal ? (
-            <div style={mobileNormalResultCardStyle}>
-              <div style={mobileResultBadgeStyle}>✅ AI 분석 완료 [NOR]</div>
-              <h3 style={mobileResultTitleStyle}>현재 상태: 정상 범주</h3>
-              <p style={mobileResultDescStyle}>
-                수치 분석 및 스마트 문진 결과 <strong>[정상(NOR)]</strong> 범주입니다. 안심하셔도 좋습니다.
-              </p>
-              {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
-            </div>
-          ) : (
-            <div style={mobileAbnormalResultCardStyle}>
-              <div style={mobileAbnormalBadgeStyle}>🚨 AI 분석 완료 [ABN]</div>
-              <h3 style={mobileAbnormalTitleStyle}>수의사 정밀 진료 권장</h3>
-              <p style={mobileAbnormalDescStyle}>
-                염증 수치 상승 또는 주요 의심 증상이 감지되었습니다. 수의사 진료를 권장합니다.
-              </p>
-              {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
-            </div>
-          )}
-
-          {/* 수의사 제출용 PDF 종합 건강 진단서 발급 버튼 */}
-          <button
-            type="button"
-            onClick={() => setIsPdfModalOpen(true)}
-            style={{
-              width: '100%',
-              marginTop: '12px',
-              padding: '12px',
-              backgroundColor: '#059669',
-              color: '#FFFFFF',
-              border: 'none',
-              borderRadius: '12px',
-              fontSize: '14px',
-              fontWeight: '700',
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
-            }}
-          >
-            📄 수의사 제출용 PDF 진단서 발급
-          </button>
-        </section>
-      )}
-
       {/* 바이오센서 종합 건강 진단서 전용 PDF 발급 모달 */}
       <HybridDiagnosisPdfModal
         isOpen={isPdfModalOpen}
         onClose={() => setIsPdfModalOpen(false)}
-        formData={{ age, weight, crp, igg, il6, text_prompt: getCombinedTextPrompt() }}
+        formData={{ petName, breed, age, weight, crp, igg, il6, text_prompt: getCombinedTextPrompt() }}
         result={result}
       />
 

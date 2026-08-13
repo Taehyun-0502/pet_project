@@ -11,8 +11,16 @@ import React from 'react'
  * @param {object} binaryResult 1차 이진 스크리닝 결과
  * @param {object} multiResult 2차 12종 세부 진단 결과
  * @param {string} previewUrl 사용자가 잘라낸 환부 크롭 이미지 DataURL
+ * @param {object} formData 환자 정보
  */
-export function SkinDiagnosisPdfModal({ isOpen, onClose, binaryResult, multiResult, previewUrl }) {
+export function SkinDiagnosisPdfModal({
+  isOpen,
+  onClose,
+  binaryResult,
+  multiResult,
+  previewUrl,
+  formData,
+}) {
   if (!isOpen) return null
 
   // 1차 스크리닝 Top prediction
@@ -130,6 +138,29 @@ export function SkinDiagnosisPdfModal({ isOpen, onClose, binaryResult, multiResu
           </div>
 
           <hr style={dividerStyle} />
+
+          {/* 개체 기본 프로필 카드 */}
+          <div style={{ ...sectionBoxStyle, marginBottom: '12px' }}>
+            <h3 style={sectionTitleStyle}>🐕 반려동물 신체 프로필</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', textAlign: 'center' }}>
+              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>강아지 이름</span>
+                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.petName || '초코'}</strong>
+              </div>
+              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>종류 (품종)</span>
+                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.breed || '포메라니안'}</strong>
+              </div>
+              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>나이</span>
+                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.age || '3'}세</strong>
+              </div>
+              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>체중</span>
+                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.weight || '4.5'}kg</strong>
+              </div>
+            </div>
+          </div>
 
           {/* 환부 이미지 및 1차 스크리닝 결과 섹션 */}
           <div style={gridTwoColumnStyle}>

@@ -1,6 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
 import { SkinDiagnosisPdfModal } from './SkinDiagnosisPdfModal'
+import DiagnosisTabNav from '../components/DiagnosisTabNav'
+
+// 생년월일(YYYY-MM-DD) 기반 만 나이 계산 유틸리티 함수
+const calculateAgeFromBirthDate = (birthDateStr) => {
+  if (!birthDateStr) return null
+  try {
+    const birthDate = new Date(birthDateStr)
+    const today = new Date()
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--
+    }
+    return calculatedAge >= 0 ? String(calculatedAge) : '0'
+  } catch (e) {
+    return null
+  }
+}
 
 // 페이지 고정 타이틀 상수를 컴포넌트 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🐶 피부 질환 스크리닝 & AI 진단'
@@ -12,6 +31,12 @@ const PAGE_SUBTITLE = '환부 사진을 업로드하고 크롭 영역을 지정�
 const UPLOAD_PLACEHOLDER = '사진을 촬영하거나 파일 선택'
 
 export default function SkinDiagnosisPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // 반려동물 목록 화면에서 넘겨받은 프로필 state 객체
+  const initialPet = location.state || {}
+
   // 비제어 파일 입력 컴포넌트 참조 객체
   const fileInputRef = useRef(null)
 
@@ -47,6 +72,20 @@ export default function SkinDiagnosisPage() {
 
   // 에러 메시지 상태
   const [error, setError] = useState(null)
+
+  // 반려동물 이름 상태 (넘겨받은 값 유무에 따라 자동 세팅)
+  const [petName, setPetName] = useState(initialPet.petName || initialPet.name || '초코')
+
+  // 반려동물 종류(견종) 상태 (넘겨받은 값 유무에 따라 자동 세팅)
+  const [breed, setBreed] = useState(initialPet.breed || '포메라니안')
+
+  // 반려동물 나이 수치 상태 (생년월일 수신 시 만 나이 자동 계산)
+  const [age, setAge] = useState(
+    calculateAgeFromBirthDate(initialPet.birthDate) || initialPet.age || '3'
+  )
+
+  // 반려동물 체중 수치 상태 (초기값 '4.5')
+  const [weight, setWeight] = useState('4.5')
 
   // 캔버스 크롭 진행 상태
   const [isCropping, setIsCropping] = useState(false)
@@ -95,17 +134,20 @@ export default function SkinDiagnosisPage() {
     })
   }
 
-  // 마운트 시 모바일 백그라운드 복귀 및 새로고침으로 파기된 사진 자동 복원
+  // 페이지 진입 마운트 시 기존 세션에 남아있던 사진을 완전 파기하여 매번 클린 상태로 시작
   useEffect(() => {
     try {
-      const savedRawImg = sessionStorage.getItem('pet_skin_raw_image')
-      if (savedRawImg) {
-        setRawImageSrc(savedRawImg)
-        setIsCropping(true)
-      }
+      sessionStorage.removeItem('pet_skin_raw_image')
     } catch (e) {
-      console.warn('sessionStorage 읽기 실패:', e)
+      console.warn('sessionStorage 초기화 실패:', e)
     }
+    setRawImageSrc(null)
+    setCroppedPreviewUrl(null)
+    setCroppedFile(null)
+    setIsCropping(false)
+    setBinaryResult(null)
+    setMultiResult(null)
+    setError(null)
   }, [])
 
   // 이미지 선택 및 파일 검증 이벤트 핸들러 (OOM 새로고침 차단 비동기 다운스케일 적용)
@@ -496,6 +538,9 @@ export default function SkinDiagnosisPage() {
 
   return (
     <div style={mobileContainerStyle}>
+      {/* 두 진단 화면 원클릭 상단 탭 전환 바 */}
+      <DiagnosisTabNav />
+
       {/* 모바일 전용 상단 헤더 바 */}
       <header style={mobileHeaderStyle}>
         <div style={badgeRowStyle}>
@@ -515,6 +560,61 @@ export default function SkinDiagnosisPage() {
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />
+
+        {/* 🐶 반려동물 프로필 정보 입력 카드 */}
+        <section style={mobileCardStyle}>
+          <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#1E293B', margin: '0 0 12px 0' }}>🐶 반려동물 프로필 정보</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>강아지 이름</label>
+              <input
+                type="text"
+                value={petName}
+                onChange={(e) => setPetName(e.target.value)}
+                placeholder="예: 초코"
+                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>종류 (품종)</label>
+              <input
+                type="text"
+                value={breed}
+                onChange={(e) => setBreed(e.target.value)}
+                placeholder="예: 포메라니안"
+                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
+                나이 <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '400' }}>(세)</span>
+              </label>
+              <input
+                type="number"
+                step="1"
+                min="0"
+                value={age}
+                onChange={(e) => setAge(e.target.value)}
+                placeholder="예: 3"
+                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
+                체중 <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '400' }}>(kg)</span>
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={weight}
+                onChange={(e) => setWeight(e.target.value)}
+                placeholder="예: 4.5"
+                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
+              />
+            </div>
+          </div>
+        </section>
 
         {/* 이미지 업로드 및 크롭 섹션 */}
         <section style={mobileCardStyle}>
@@ -758,6 +858,24 @@ export default function SkinDiagnosisPage() {
               >
                 📄 수의사 제출용 PDF 소견서 발급
               </button>
+              <button
+                type="button"
+                onClick={() => navigate('/map?category=HOSPITAL')}
+                style={{
+                  width: '100%',
+                  marginTop: '8px',
+                  padding: '12px',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  border: '1px solid #A7F3D0',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+              >
+                🏥 내 주변 동물병원 찾기
+              </button>
             </div>
           </section>
         )}
@@ -769,6 +887,7 @@ export default function SkinDiagnosisPage() {
           binaryResult={binaryResult}
           multiResult={multiResult}
           previewUrl={croppedPreviewUrl}
+          formData={{ petName, breed, age, weight }}
         />
       </main>
     </div>

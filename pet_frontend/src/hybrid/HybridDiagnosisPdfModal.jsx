@@ -133,7 +133,15 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
             {/* 개체 기본 프로필 */}
             <div style={sectionBoxStyle}>
               <h3 style={sectionTitleStyle}>🐕 반려동물 신체 스펙</h3>
-              <div style={profileGridStyle}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={profileItemStyle}>
+                  <span style={profileLabelStyle}>강아지 이름</span>
+                  <span style={profileValueStyle}>{formData?.petName || '초코'}</span>
+                </div>
+                <div style={profileItemStyle}>
+                  <span style={profileLabelStyle}>종류 (품종)</span>
+                  <span style={profileValueStyle}>{formData?.breed || '푸들'}</span>
+                </div>
                 <div style={profileItemStyle}>
                   <span style={profileLabelStyle}>추정 나이</span>
                   <span style={profileValueStyle}>{formData?.age ?? 2.0}세</span>
@@ -141,12 +149,6 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
                 <div style={profileItemStyle}>
                   <span style={profileLabelStyle}>체중</span>
                   <span style={profileValueStyle}>{formData?.weight ?? 5.8}kg</span>
-                </div>
-                <div style={profileItemStyle}>
-                  <span style={profileLabelStyle}>검사 상태</span>
-                  <span style={{ ...profileValueStyle, color: isNormal ? '#059669' : '#DC2626' }}>
-                    {isNormal ? '정상 관리군' : '정밀 진료 대상'}
-                  </span>
                 </div>
               </div>
             </div>

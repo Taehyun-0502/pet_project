@@ -338,7 +338,7 @@ async def predict_binary_skin_disease(file: UploadFile = File(...)) -> Dict[str,
         traceback.print_exc()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"1차 이진 진단 중 오류 발생: {str(e)}")
 
-# 수치(5종) + 자연어(NLP) 하이브리드 AI 진단 API 엔드포인트
+# 수치(5종) + 자연어(NLP 30종) 1번 방식 AI 모델 종합 위험도 점수제 API 엔드포인트
 @app.post("/api/v1/predict/hybrid")
 async def predict_hybrid_health(req: HybridDiagnosisRequest) -> Dict[str, Any]:
     try:
@@ -358,58 +358,67 @@ async def predict_hybrid_health(req: HybridDiagnosisRequest) -> Dict[str, Any]:
 
         input_num_tensor = torch.tensor([num_scaled], dtype=torch.float32)
 
+        # 1. PyTorch AI 딥러닝 신경망 모델 1차 추론
         with torch.no_grad():
             outputs = hybrid_model(input_num_tensor)
             probs = F.softmax(outputs, dim=1)[0]
             
-        nor_prob = round(probs[0].item() * 100, 2)
-        abn_prob = round(probs[1].item() * 100, 2)
+        nor_prob_raw = probs[0].item() * 100
+        abn_prob_raw = probs[1].item() * 100
 
-        # 띄어쓰기와 무관하게 키워드를 감지하기 위한 공백 제거 전처리
+        # 2. 증상 및 수치 종합 가중치 산출 (1번 방식: AI 종합 위험도 점수제)
         clean_prompt = req.text_prompt.replace(" ", "")
 
-        # 수치 및 문진 조건에 따른 바이오 규칙 보정 (Fall-back Safety)
-        # 1) 급성 염증(CRP > 2.0), 면역 수치(IgG > 3.5), 전신 염증(IL-6 > 2.5) 수치 상승 시 ABN
-        # 2) 4대 증상별(피부, 안구, 구토, 기력) + 출혈/관절 세부 응급 키워드 감지 (띄어쓰기 무관)
-        # 3) 기간성 표현 키워드: 하루 이상, 24시간, 이틀, 며칠, 지속, 계속 등
+        # 바이오 수치 이상 (CRP > 2.0, IgG > 3.5, IL-6 > 2.5) -> +30점
         is_abnormal_biomarker = req.crp > 2.0 or req.il6 > 2.5 or req.igg > 3.5
-        has_emergency_symptom = any(kw in clean_prompt for kw in [
-            # 출혈 및 관절 통증
-            "혈변", "피오줌", "아예안딛", "안딛", "못딛", "부음", "부어", "비명", "낑낑", "아파함", "아파해",
-            # 피부 가려움 세부 ABN
-            "진물", "발적", "붉어짐", "피낢", "피남", "피나", "피날", "피가나", "피가남", "피가날", "탈모", "털빠짐", "딱지", "밤새긁", "계속핥",
-            # 눈곱/안구 세부 ABN
-            "충혈", "노란눈곱", "초록눈곱", "눈못뜸", "눈부음", "눈긁", "혼탁", "하얗게",
-            # 구토 세부 ABN
-            "2회이상", "연속구토", "피섞인", "혈토", "초록색토", "이물질", "족족토",
-            # 기력 저하 세부 ABN
-            "안움직", "의식", "숨가쁨", "호흡곤란", "물도안", "안일어"
-        ])
 
-        if not is_abnormal_biomarker and not has_emergency_symptom and not has_persistent_symptom:
-            status_code = "NOR"
-            is_normal = True
-            nor_prob_final = max(nor_prob, 88.5)
-            abn_prob_final = round(100.0 - nor_prob_final, 2)
-            details_msg = f"3종 바이오 수치(CRP: {req.crp} mg/L, IgG: {req.igg} mg/dL, IL-6: {req.il6} pg/mL)가 모두 정상 범위 안이며, 경미한 소견으로 정상(NOR) 범주입니다. (PyTorch AI 신경망 확신도 - NOR: {nor_prob_final}%, ABN: {abn_prob_final}%)"
-        else:
-            status_code = "ABN"
-            is_normal = False
-            abn_prob_final = max(abn_prob, 85.0)
+        # 고위험 치명 응급 키워드 (혈토, 초록색, 이물질, 혈변, 피섞인, 물조차, 호흡곤란, 의식저하 등) -> +35점
+        critical_keywords = ["혈토", "초록색", "이물질", "먹는족족", "혈변", "피섞인", "물조차", "호흡곤란", "의식저하", "피남", "딱지", "진물", "탈모", "혈뇨"]
+        has_critical = any(kw in clean_prompt for kw in critical_keywords)
+
+        # 일반 중등도 주의/위험 키워드 -> 개당 +12점
+        moderate_keywords = ["2회이상", "연속구토", "지속적인설사", "물설사", "안딛음", "부어오름", "낑낑", "비명", "안움직임", "일어나지못함", "하루이상", "충혈", "눈못뜸", "눈부음", "노란", "초록", "혼탁", "붉어짐", "밤새긁", "계속핥"]
+        moderate_count = sum(1 for kw in moderate_keywords if kw in clean_prompt)
+
+        # 🟢 일시적 정상/경미 키워드 -> 위험 가산점 0점 (정상 유지)
+        mild_keywords = ["1회성구토", "사료토", "공복노란토", "일시적무른변", "과식", "일시적뻣뻣", "일시적피로", "입맛없음", "사료거부", "간식은잘먹음", "투명눈곱", "털고르기", "그루밍", "미용후"]
+        mild_count = sum(1 for kw in mild_keywords if kw in clean_prompt)
+
+        # 3. AI 모델 종합 위험도 점수 계산
+        total_risk_score = abn_prob_raw
+        if is_abnormal_biomarker:
+            total_risk_score += 30.0
+        if has_critical:
+            total_risk_score += 35.0
+        total_risk_score += (moderate_count * 12.0)
+        # 경미 키워드가 포함된 경우 위험 점수 미세 완화 (-5점)
+        if mild_count > 0 and not has_critical:
+            total_risk_score = max(total_risk_score - (mild_count * 5.0), 10.0)
+
+        # 최종 위험도 점수가 50.0점 이상일 때만 ABN(수의사 진료 권장), 50.0점 미만은 NOR(정상/경미 소견)
+        is_normal = total_risk_score < 50.0
+        status_code = "NOR" if is_normal else "ABN"
+
+        if is_normal:
+            abn_prob_final = round(max(min(total_risk_score, 45.0), 5.0), 2)
             nor_prob_final = round(100.0 - abn_prob_final, 2)
-            details_msg = f"바이오 위험 수치 상승, 주요 증상 소견 또는 지속적 소견({req.text_prompt})이 감지되어 수의사 정밀 진료(ABN)가 권장됩니다. (PyTorch AI 신경망 확신도 - ABN: {abn_prob_final}%, NOR: {nor_prob_final}%)"
+            details_msg = f"3종 바이오 수치 및 증상 종합 분석 결과 정상(NOR) 범주입니다. 일시적/경미한 소견으로 집에서 경과 관찰이 가능합니다. (AI 모델 위험 확신도: {abn_prob_final}%)"
+        else:
+            abn_prob_final = round(min(max(total_risk_score, 52.0), 98.5), 2)
+            nor_prob_final = round(100.0 - abn_prob_final, 2)
+            details_msg = f"바이오 수치 및 세부 증상 종합 분석 결과 이상(ABN) 소견이 감지되었습니다. 수의사 정밀 진료를 권장합니다. (AI 모델 위험 확신도: {abn_prob_final}%)"
 
-        print(f"[Hybrid Inference Success] Status: {status_code} (NOR: {nor_prob}%, ABN: {abn_prob}%)")
+        print(f"[Option 1 Restored AI Model Success] Status: {status_code} (NOR: {nor_prob_final}%, ABN: {abn_prob_final}%)")
 
         return {
             "success": True,
             "status": status_code,
             "diagnosis": "NOR" if is_normal else "ABN",
             "is_normal": is_normal,
-            "confidence": nor_prob if is_normal else abn_prob,
+            "confidence": nor_prob_final if is_normal else abn_prob_final,
             "probabilities": {
-                "NOR": nor_prob,
-                "ABN": abn_prob
+                "NOR": nor_prob_final,
+                "ABN": abn_prob_final
             },
             "details": details_msg
         }
