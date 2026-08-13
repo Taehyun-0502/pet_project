@@ -57,9 +57,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import PetMap from '../../components/PetMap'
-import { CATEGORY_META } from '../../components/categoryMeta'
+import PlaceListItem from '../../components/PlaceListItem'
 import SearchBar from '../../components/SearchBar'
-import { distanceMeters, formatDistanceLabel } from '../../common/geo'
+import { distanceMeters } from '../../common/geo'
 import { DEFAULT_CENTER } from '../../common/mapDefaults'
 import { useGeolocation } from '../../hooks/useGeolocation'
 import { askChat, getNearbyPlaces } from './mapApi'
@@ -522,38 +522,16 @@ function MapPage() {
                 }
                 ref={setListToggleSlotNode}
               />
-              <ul className="map-page__place-list">
-                {displayedPlaces.map((place, index) => {
-                  const meta = CATEGORY_META[place.category]
-                  const infoLine = [
-                    place.phone,
-                    location
-                      ? `내 위치에서 약 ${formatDistanceLabel(
-                          distanceMeters(location, { lat: place.lat, lng: place.lng }),
-                        )}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(' · ')
-                  return (
-                    <li key={`${place.name}-${place.lat}-${place.lng}-${index}`} className="map-page__place-item">
-                      {meta && (
-                        <span
-                          className="map-page__place-dot"
-                          style={{ background: meta.color }}
-                          aria-hidden="true"
-                        />
-                      )}
-                      <div className="map-page__place-body">
-                        <span className="map-page__place-name">{place.name}</span>
-                        {place.address && (
-                          <span className="map-page__place-address">{place.address}</span>
-                        )}
-                        {infoLine && <span className="map-page__place-info">{infoLine}</span>}
-                      </div>
-                    </li>
-                  )
-                })}
+              {/* 아이템 UI는 PlaceListItem 공용 컴포넌트 (2026-08-13 — AI 검색 결과·
+                  NearbyPlaces와 마크업 공유. 리스트 모양 수정은 그 한 곳에서) */}
+              <ul className="place-list">
+                {displayedPlaces.map((place, index) => (
+                  <PlaceListItem
+                    key={`${place.name}-${place.lat}-${place.lng}-${index}`}
+                    place={place}
+                    currentLocation={location}
+                  />
+                ))}
               </ul>
             </div>
           </div>

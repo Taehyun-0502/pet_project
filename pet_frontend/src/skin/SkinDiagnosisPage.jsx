@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { BACKEND_URL } from '../config'
+// 주변 동물병원 지도+리스트 공용 섹션 (2026-08-13 추가 — 페이지 소유자와 공유 필요)
+import NearbyPlaces from '../components/NearbyPlaces'
 
 // 페이지 고정 타이틀 상수를 컴포넌트 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🐶 피부 질환 스크리닝 & AI 진단'
@@ -738,6 +740,11 @@ export default function SkinDiagnosisPage() {
             </div>
           </section>
         )}
+
+        {/* 주변 동물병원 — 병원 전용 지도(PetMap categories={['HOSPITAL']}) + 리스트.
+            조회·지도·리스트가 모두 NearbyPlaces 공용 컴포넌트 안에 있다
+            (2026-08-13 추가 — 페이지 소유자와 공유 필요) */}
+        <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />
       </main>
     </div>
   )

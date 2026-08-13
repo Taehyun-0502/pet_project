@@ -1,0 +1,19 @@
+/* NearbyPlaces — "주변 동물병원" 섹션 스타일 (지도+리스트는 기존 UI 재사용,
+   여기는 섹션 배치만). #root 전역 text-align: center를 상쇄한다. */
+
+.nearby-places {
+  margin: 24px 0 8px;
+  text-align: left;
+}
+
+.nearby-places__title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.nearby-places__status {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text);
+}
