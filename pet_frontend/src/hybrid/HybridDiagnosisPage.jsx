@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
+import { HybridDiagnosisPdfModal } from './HybridDiagnosisPdfModal'
 
 // 페이지 타이틀 상수를 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🩺 펫 스마트 문진 & AI 검진'
@@ -38,6 +39,9 @@ export default function HybridDiagnosisPage() {
 
   // IL-6 전신 염증 바이오센서 수치 상태 (정상 기준 0 ~ 2.5 pg/mL)
   const [il6, setIl6] = useState(1.2)
+
+  // PDF 종합 건강 진단서 발급 모달 상태
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
 
   // 선택된 주요 증상 체크박스 목록 상태
   const [selectedSymptoms, setSelectedSymptoms] = useState([])
@@ -409,8 +413,37 @@ export default function HybridDiagnosisPage() {
               {result.details && <div style={mobileDetailsBoxStyle}>{result.details}</div>}
             </div>
           )}
+
+          {/* 수의사 제출용 PDF 종합 건강 진단서 발급 버튼 */}
+          <button
+            type="button"
+            onClick={() => setIsPdfModalOpen(true)}
+            style={{
+              width: '100%',
+              marginTop: '12px',
+              padding: '12px',
+              backgroundColor: '#059669',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '14px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
+            }}
+          >
+            📄 수의사 제출용 PDF 진단서 발급
+          </button>
         </section>
       )}
+
+      {/* 바이오센서 종합 건강 진단서 전용 PDF 발급 모달 */}
+      <HybridDiagnosisPdfModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        formData={{ age, weight, crp, igg, il6, text_prompt: getCombinedTextPrompt() }}
+        result={result}
+      />
 
       {error && !result && (
         <div style={mobileErrorMessageContainerStyle}>

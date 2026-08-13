@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { BACKEND_URL } from '../config'
+import { SkinDiagnosisPdfModal } from './SkinDiagnosisPdfModal'
 
 // 페이지 고정 타이틀 상수를 컴포넌트 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🐶 피부 질환 스크리닝 & AI 진단'
@@ -34,6 +35,9 @@ export default function SkinDiagnosisPage() {
 
   // 2차 12종 세부 질환 정밀 진단 결과 상태
   const [multiResult, setMultiResult] = useState(null)
+
+  // PDF 진단 소견서 발급 모달 열림 상태
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
 
   // 1차 스크리닝 서버 로딩 상태
   const [loadingBinary, setLoadingBinary] = useState(false)
@@ -726,7 +730,7 @@ export default function SkinDiagnosisPage() {
               ))}
             </div>
 
-            {/* 수의사 진료 안내 주의 배너 */}
+            {/* 수의사 진료 안내 주의 배너 및 PDF 소견서 발급 버튼 */}
             <div style={mobileDisclaimerCardStyle}>
               <div style={mobileDisclaimerHeaderStyle}>
                 <span style={{ fontSize: '18px' }}>🩺</span>
@@ -735,9 +739,37 @@ export default function SkinDiagnosisPage() {
               <p style={mobileDisclaimerTextStyle}>
                 본 진단은 AI 스크리닝 보조 도구입니다. 가려움이나 병변이 심해지면 반드시 <strong>가까운 동물병원 수의사</strong>의 정밀 진료를 받으세요.
               </p>
+              <button
+                type="button"
+                onClick={() => setIsPdfModalOpen(true)}
+                style={{
+                  width: '100%',
+                  marginTop: '12px',
+                  padding: '12px',
+                  backgroundColor: '#4F46E5',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+                }}
+              >
+                📄 수의사 제출용 PDF 소견서 발급
+              </button>
             </div>
           </section>
         )}
+
+        {/* 피부 AI 진단 전용 PDF 발급 모달 */}
+        <SkinDiagnosisPdfModal
+          isOpen={isPdfModalOpen}
+          onClose={() => setIsPdfModalOpen(false)}
+          binaryResult={binaryResult}
+          multiResult={multiResult}
+          previewUrl={croppedPreviewUrl}
+        />
       </main>
     </div>
   )
