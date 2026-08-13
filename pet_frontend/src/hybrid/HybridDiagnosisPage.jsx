@@ -619,24 +619,6 @@ export default function HybridDiagnosisPage() {
               >
                 📄 수의사 제출용 PDF 진단서 발급
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('/map?category=HOSPITAL')}
-                style={{
-                  width: '100%',
-                  marginTop: '8px',
-                  padding: '12px',
-                  backgroundColor: '#ECFDF5',
-                  color: '#059669',
-                  border: '1px solid #A7F3D0',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                🏥 내 주변 동물병원 찾기
-              </button>
             </div>
           )}
         </section>
