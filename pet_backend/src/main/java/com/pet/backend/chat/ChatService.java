@@ -273,15 +273,17 @@ public class ChatService {
             if (room.getMaxMembers() != null && countActive(roomId) >= room.getMaxMembers()) {
                 throw new BusinessException(ChatErrorCode.ROOM_FULL);
             }
-            boolean inserted = false;
+            // 내가 INSERT한 행의 id — 보상은 이 행만 대상으로 한다 (백로그 114번)
+            Long joinedId = null;
             try {
                 // 입장 전 메시지는 읽은 것으로 취급 — 입장 시점의 최신 메시지 id로 읽음 위치 초기화
                 // (없으면 null. 오래된 방 입장 직후 "안 읽음 수천 개" 배지를 막는다 — 2026-08-10 확정)
                 Long latestMessageId = chatMessageRepository.findTopByRoomIdOrderByIdDesc(roomId)
                         .map(ChatMessage::getId)
                         .orElse(null);
-                chatRoomMemberRepository.save(ChatRoomMember.join(roomId, memberId, latestMessageId));
-                inserted = true;
+                joinedId = chatRoomMemberRepository
+                        .save(ChatRoomMember.join(roomId, memberId, latestMessageId))
+                        .getId();
             } catch (DataIntegrityViolationException e) {
                 // 흡수해도 되는 것은 **중복 입장**(ux_chat_room_member_active 위반)뿐이다 —
                 // 다른 요청이 먼저 참여시킨 경우라 멱등 정책상 성공으로 취급한다.
@@ -292,8 +294,8 @@ public class ChatService {
                     throw e;
                 }
             }
-            if (inserted) {
-                revertIfJoinLost(room, memberId);
+            if (joinedId != null) {
+                revertIfJoinLost(room, memberId, joinedId);
                 // 실제로 새로 참여했고 재확인까지 통과했을 때만 알린다
                 eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
             }
@@ -308,8 +310,13 @@ public class ChatService {
      * ② 다른 입장이 커밋되면 정원이 초과된다. 걸리면 방금 넣은 행을 left 처리하고 거부한다.
      * 정원 경계에서 경쟁이 겹치면 양쪽 다 되돌려 둘 다 409를 받을 수 있다 — 초과 입장을 허용하는 것보다
      * 안전한 쪽을 택했다(재시도하면 남은 자리만큼만 들어간다).
+     *
+     * <p>되돌리는 대상은 **내가 INSERT한 행(joinedId)**이다 (백로그 114번). 방·회원으로 다시 조회하면
+     * 그 사이 다른 요청이 만든 행을 끊을 수 있는 형태가 된다 — 조회 조건에 memberId가 있어
+     * 남의 행은 닿지 않지만, "자진 나가기 → 재입장"이 끼면 자기 계정의 **다른** 행을 끊는다.
+     * `leftAtIsNull` 조건이 함께 붙는 이유는 리포지토리 주석 참조(이미 강퇴된 행을 덮으면 안 된다).
      */
-    private void revertIfJoinLost(ChatRoom room, Long memberId) {
+    private void revertIfJoinLost(ChatRoom room, Long memberId, Long joinedId) {
         boolean kickedRace = chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftReason(
                 room.getId(), memberId, ChatLeftReason.KICKED);
         boolean overCapacity = room.getMaxMembers() != null
@@ -317,7 +324,7 @@ public class ChatService {
         if (!kickedRace && !overCapacity) {
             return;
         }
-        chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(room.getId(), memberId)
+        chatRoomMemberRepository.findByIdAndLeftAtIsNull(joinedId)
                 .ifPresent(joined -> {
                     joined.leave();
                     chatRoomMemberRepository.save(joined);

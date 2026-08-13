@@ -15,6 +15,16 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     // 참여 중인 행 조회 — 나가기·강퇴·지명·위임의 대상 행
     Optional<ChatRoomMember> findByRoomIdAndMemberIdAndLeftAtIsNull(Long roomId, Long memberId);
 
+    /**
+     * 특정 행이 아직 참여 중인가 — join 보상(`revertIfJoinLost`)이 **자기가 INSERT한 행만** 되돌리기 위한 조회
+     * (리뷰 백로그 114번).
+     *
+     * <p>`leftAtIsNull` 조건이 함께 있어야 한다. 그 사이 강퇴가 커밋돼 이미 종료된 행이라면
+     * 보상이 `leave()`를 덮어써 **`KICKED` 이력이 `LEFT`로 바뀌고 재입장 차단이 풀린다** —
+     * 보상 대상을 좁히려다 강퇴를 무력화하는 셈이라, id로 좁히는 것과 이 조건은 한 쌍이다.
+     */
+    Optional<ChatRoomMember> findByIdAndLeftAtIsNull(Long id);
+
     // 강퇴 이력 검사 — 입장 시 재입장 차단 (부분 인덱스 ix_chat_room_member_kicked)
     boolean existsByRoomIdAndMemberIdAndLeftReason(Long roomId, Long memberId, ChatLeftReason leftReason);
 
