@@ -57,6 +57,20 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
                                      @Param("graceCutoff") Instant graceCutoff);
 
     /**
+     * 이 토큰이 지금 그 사유로 폐기돼 있는가 — **DB의 현재 값**을 읽는다 (리뷰 백로그 109번).
+     *
+     * <p>엔티티가 아니라 스칼라 집계를 조회하는 것이 핵심이다. 회전 대상 토큰은 이미 영속성 컨텍스트에
+     * 올라와 있고 그 스냅샷은 **검증 시점의 낡은 값**이라, 그 사이 다른 트랜잭션이 커밋한 폐기를 보지 못한다.
+     * 엔티티로 다시 조회해도 1차 캐시가 돌려주므로 낡은 값 그대로다.
+     *
+     * <p>이 조회를 왜 회전 **전에** 해야 하는지: 낡은 스냅샷으로 회전하면 `revoke(ROTATED)`의
+     * dirty update가 DB에 찍혀 있던 `DEVICE_REVOKED`를 **덮어쓴다**. 회전 뒤에 확인하면
+     * 방금 스스로 지운 흔적을 찾는 꼴이라 언제나 통과한다 (2026-08-13 검증에서 13라운드 중 4건 실측).
+     */
+    @Query("select count(t) > 0 from RefreshToken t where t.id = :tokenId and t.revokedReason = :reason")
+    boolean isRevokedWithReason(@Param("tokenId") Long tokenId, @Param("reason") RevokedReason reason);
+
+    /**
      * {@link #expireRotationGraceBySession}의 회원 전체 판 — 재사용 감지 전용.
      *
      * <p>감지가 발동해도 유예 중 토큰이 살아남으면 30초 안에 새 활성 토큰을 하나 더 만들 수 있어

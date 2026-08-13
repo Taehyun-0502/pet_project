@@ -73,4 +73,23 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForShare(@Param("id") Long id);
+
+    /**
+     * 기기 원격 로그아웃 전용 — 활성 회원 행을 **배타 잠금**으로 읽는다
+     * (PostgreSQL `FOR UPDATE`, 리뷰 백로그 109번).
+     *
+     * <p>회원 행을 고치려는 것이 아니라 {@link #findByIdForShare}(재발급)와 **충돌시키는 것이 목적**이다.
+     * 잠금이 없으면 "재발급이 새 토큰을 INSERT(아직 미커밋) → 원격 로그아웃의 일괄 UPDATE가 그 행을
+     * 보지 못하고 지나감 → 둘 다 커밋" 순서가 성립해 **끊었다고 응답한 기기가 새 토큰으로 살아남는다.**
+     * 사후 재확인은 이 순서를 잡지 못한다 — 그 시점엔 원격 로그아웃이 아직 커밋 전이다.
+     *
+     * <p>배타 잠금이라야 하는 이유: 공유 잠금끼리는 서로 막지 않아 재발급과 직렬화되지 않는다.
+     * 비밀번호 변경이 회원 행 UPDATE로 얻던 직렬화를, 이 기능은 행을 안 고치므로 잠금으로 직접 얻는다.
+     * 원격 로그아웃은 드물고 재발급끼리는 여전히 공유 잠금이라 서로 막지 않는다.
+     *
+     * <p>활성 조건을 쿼리에 넣어 기존 활성 검사 조회를 이 한 번으로 대체한다 (쿼리 추가 없음).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id and m.deletedAt is null")
+    Optional<Member> findActiveByIdForUpdate(@Param("id") Long id);
 }

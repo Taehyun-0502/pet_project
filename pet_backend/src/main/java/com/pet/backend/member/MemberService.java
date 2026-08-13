@@ -243,6 +243,14 @@ public class MemberService {
                 .filter(m -> !m.isDeleted())
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN));
 
+        // 잠금을 얻은 **뒤에** 이 기기가 그 사이 원격 로그아웃당했는지 DB에서 다시 본다 (리뷰 백로그 109번).
+        // 위의 토큰 검증은 잠금 밖에서 끝나 그 창에 커밋된 세션 폐기를 놓치는데, 비밀번호 변경과 달리
+        // tokens_valid_from을 건드리지 않아 바로 아래 검사에도 걸리지 않는다.
+        // 회전보다 앞이어야 한다 — 회전이 옛 스냅샷으로 DEVICE_REVOKED를 덮어쓰면 그 뒤엔 확인할 흔적이 없다
+        if (refreshTokenService.isRevokedByDeviceLogout(token)) {
+            throw new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
         // 비밀번호 변경 이전에 발급된 토큰은 거부한다. 일괄 폐기(revokeAllByMemberId)는
         // "그 순간 살아 있던 행"만 잡기 때문에 **회전 유예(30초) 안이라 이미 ROTATED로 폐기돼 있던 토큰**을
         // 건드리지 못한다 — 그 토큰은 유예 규칙상 재발급을 통과하므로, 이 검사가 없으면
@@ -313,7 +321,12 @@ public class MemberService {
      */
     @Transactional
     public void revokeSession(Long memberId, String rawSessionId, String rawRefreshToken) {
-        findActiveMemberOrThrow(memberId);
+        // 활성 검사를 **배타 잠금 조회로** 한다 (리뷰 백로그 109번) — 회원 행을 고치려는 게 아니라
+        // 재발급의 공유 잠금(findByIdForShare)과 충돌시켜 둘을 직렬화하는 것이 목적이다.
+        // 잠금이 없으면 재발급이 INSERT한(아직 미커밋) 새 토큰을 아래 일괄 UPDATE가 못 보고 지나가,
+        // 200으로 끊었다고 응답한 기기가 그대로 살아남는다. 활성 조건이 쿼리에 있어 조회 추가는 없다
+        memberRepository.findActiveByIdForUpdate(memberId)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
         UUID sessionId;
         try {
             sessionId = UUID.fromString(rawSessionId);
