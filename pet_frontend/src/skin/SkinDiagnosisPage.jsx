@@ -1,26 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
-import { SkinDiagnosisPdfModal } from './SkinDiagnosisPdfModal'
-import DiagnosisTabNav from '../components/DiagnosisTabNav'
-import NearbyPlaces from '../components/NearbyPlaces'
-
-// 생년월일(YYYY-MM-DD) 기반 만 나이 계산 유틸리티 함수
-const calculateAgeFromBirthDate = (birthDateStr) => {
-  if (!birthDateStr) return null
-  try {
-    const birthDate = new Date(birthDateStr)
-    const today = new Date()
-    let calculatedAge = today.getFullYear() - birthDate.getFullYear()
-    const monthDiff = today.getMonth() - birthDate.getMonth()
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      calculatedAge--
-    }
-    return calculatedAge >= 0 ? String(calculatedAge) : '0'
-  } catch (e) {
-    return null
-  }
-}
 
 // 페이지 고정 타이틀 상수를 컴포넌트 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🐶 피부 질환 스크리닝 & AI 진단'
@@ -880,19 +860,6 @@ export default function SkinDiagnosisPage() {
             </div>
           </section>
         )}
-
-        {/* 피부 AI 진단 전용 PDF 발급 모달 */}
-        <SkinDiagnosisPdfModal
-          isOpen={isPdfModalOpen}
-          onClose={() => setIsPdfModalOpen(false)}
-          binaryResult={binaryResult}
-          multiResult={multiResult}
-          previewUrl={croppedPreviewUrl}
-          formData={{ petName, breed, age, weight }}
-        />
-
-        {/* 주변 동물병원 — 병원 전용 지도(PetMap categories={['HOSPITAL']}) + 리스트 */}
-        <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />
       </main>
     </div>
   )

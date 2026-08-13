@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
+// 주변 동물병원 지도+리스트 공용 섹션 (2026-08-13 추가 — 페이지 소유자와 공유 필요)
+import NearbyPlaces from '../components/NearbyPlaces'
 
 // 페이지 타이틀 상수를 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🩺 펫 스마트 문진 & AI 검진'
