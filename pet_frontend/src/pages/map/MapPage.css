@@ -345,56 +345,9 @@
   width: max-content;
 }
 
-.map-page__place-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  text-align: left; /* #root 전역 text-align:center 상쇄 */
-}
-
-.map-page__place-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-}
-
-.map-page__place-item:first-child {
-  border-top: none;
-}
-
-/* 마커 색과 동일한 카테고리 점 (PetMap CATEGORY_META 색 공유) */
-.map-page__place-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-  margin-top: 5px;
-}
-
-.map-page__place-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.map-page__place-name {
-  color: var(--text-h);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.map-page__place-address {
-  color: var(--text);
-  font-size: 13px;
-}
-
-.map-page__place-info {
-  color: var(--text);
-  font-size: 12px;
-}
+/* 장소 리스트 아이템 스타일(.map-page__place-*)은 components/PlaceList.css의
+   .place-list__*로 승격·이동됨 (2026-08-13 — 지도 목록 시트·AI 검색·NearbyPlaces
+   3곳 공용). 여기 다시 추가하지 말 것. */
 
 /* "검색 결과 없음" 센터 팝업 (2026-08-06 사용자 결정 — 토스트에서 변경).
    3초 후 자동 소멸, 배경 차단 없음(pointer-events: none — 팝업이 떠 있어도 지도 조작 가능) */

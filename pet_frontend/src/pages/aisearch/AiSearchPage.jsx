@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import SearchBar from '../../components/SearchBar'
-import { CATEGORY_META } from '../../components/categoryMeta'
+import PlaceListItem from '../../components/PlaceListItem'
 import {
   clearRecentSearches,
   loadRecentSearches,
@@ -22,9 +22,6 @@ import {
   saveRecentSearch,
 } from '../../common/recentSearches'
 import { askChat } from '../map/mapApi'
-// 장소 리스트는 지도 목록 시트(MapPage)의 기존 아이템 UI를 그대로 재사용한다
-// (.map-page__place-list 등) — 같은 시각 언어를 새로 베끼지 않고 클래스를 공유한다.
-import '../map/MapPage.css'
 import './AiSearchPage.css'
 
 // 서버 집계(인기 검색어) API가 아직 없어 화면 자리만 채우는 목 데이터.
@@ -211,33 +208,15 @@ function AiSearchPage() {
                 {places.length === 0 ? (
                   <p className="aisearch-page__empty">조건에 맞는 장소가 없습니다.</p>
                 ) : (
-                  <ul className="map-page__place-list">
-                    {places.map((place, index) => {
-                      const meta = CATEGORY_META[place.category]
-                      return (
-                        <li
-                          key={`${place.name}-${place.lat}-${place.lng}-${index}`}
-                          className="map-page__place-item"
-                        >
-                          {meta && (
-                            <span
-                              className="map-page__place-dot"
-                              style={{ background: meta.color }}
-                              aria-hidden="true"
-                            />
-                          )}
-                          <div className="map-page__place-body">
-                            <span className="map-page__place-name">{place.name}</span>
-                            {place.address && (
-                              <span className="map-page__place-address">{place.address}</span>
-                            )}
-                            {place.phone && (
-                              <span className="map-page__place-info">{place.phone}</span>
-                            )}
-                          </div>
-                        </li>
-                      )
-                    })}
+                  // 아이템 UI는 PlaceListItem 공용 컴포넌트 (2026-08-13 — 지도 목록
+                  // 시트·NearbyPlaces와 마크업 공유)
+                  <ul className="place-list">
+                    {places.map((place, index) => (
+                      <PlaceListItem
+                        key={`${place.name}-${place.lat}-${place.lng}-${index}`}
+                        place={place}
+                      />
+                    ))}
                   </ul>
                 )}
               </section>
