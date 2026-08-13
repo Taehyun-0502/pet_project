@@ -52,6 +52,9 @@ export default function MyPageEdit() {
   const nameForm = useForm({
     initialValues: { name: user.name },
     validate: validateName,
+    // 이름 중복(409)은 폼 하단이 아니라 이름 칸에 붙인다 — 가입 폼과 같은 규칙.
+    // 서버가 이 화면에 details를 주지는 않으므로(검증 실패가 아니라 업무 오류다) 코드로 매핑한다
+    mapError: (err) => (err.code === 'AUTH_NAME_DUPLICATED' ? { name: err.message } : null),
     onSubmit: async (values) => {
       setNameNotice('')
       const updated = await updateMyName({ name: values.name.trim() })

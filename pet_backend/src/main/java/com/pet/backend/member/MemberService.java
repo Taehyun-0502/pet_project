@@ -202,9 +202,9 @@ public class MemberService {
         for (int attempt = 0; attempt < KAKAO_NAME_ATTEMPTS; attempt++) {
             String candidate = KAKAO_NAME_PREFIX
                     + ThreadLocalRandom.current().nextInt(100_000, 1_000_000);
-            // 리포지토리 규약대로 소문자로 정규화해 넘긴다 (이 후보는 한글+숫자라 바뀌지 않지만,
+            // 리포지토리 규약대로 정규화해 넘긴다 (이 후보는 한글+숫자라 값이 바뀌지 않지만,
             // 규약을 여기서 어기면 다른 호출부가 그대로 따라 한다)
-            if (!memberRepository.existsActiveByNormalizedName(candidate.toLowerCase(Locale.ROOT))) {
+            if (!memberRepository.existsActiveByNormalizedName(normalizeName(candidate))) {
                 return candidate;
             }
         }
@@ -437,6 +437,20 @@ public class MemberService {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * 이름(닉네임) 중복 검사용 정규화. 저장값은 원문이고 <b>비교할 때만</b> 이 형태를 쓴다
+     * (이메일과 달리 이름은 대소문자를 보존해 보여줘야 한다).
+     *
+     * <p>{@code Locale.ROOT} 이유는 normalizeEmail과 같다. 이 값은
+     * {@code MemberRepository.existsActiveByNormalizedName}의 파라미터 규약이자
+     * {@code lower(name)} 부분 UNIQUE 인덱스와 짝이다 — 셋이 같은 규칙이어야 검사와 최종 차단이 일치한다.
+     *
+     * @param name 이미 trim된 이름
+     */
+    private String normalizeName(String name) {
+        return name.toLowerCase(Locale.ROOT);
+    }
+
     // 활성 조건이 쿼리에 있는 조회로 통일 (백로그 95번 해소 — 이전에는 findById().filter 복붙이 4곳)
     private Member findActiveMemberOrThrow(Long memberId) {
         return memberRepository.findByIdAndDeletedAtIsNull(memberId)
@@ -447,7 +461,17 @@ public class MemberService {
     @Transactional
     public MemberResponse updateName(Long memberId, NameUpdateRequest request) {
         Member member = findActiveMemberOrThrow(memberId);
-        member.changeName(request.name().trim());
+        String name = request.name().trim();
+        // 자기 이름은 검사에서 뺀다 — 안 그러면 아무것도 안 바꾸고 저장만 눌러도 "중복"으로 거부된다.
+        // 대소문자만 바꾸는 것도 자기 행이라 허용된다(부분 UNIQUE는 lower(name) 기준이므로 충돌하지 않는다)
+        if (!name.equalsIgnoreCase(member.getName())
+                && memberRepository.existsActiveByNormalizedName(normalizeName(name))) {
+            throw new BusinessException(MemberErrorCode.NAME_DUPLICATED);
+        }
+        // 여기서 지는 경쟁(검사 통과 후 남이 먼저 그 이름을 차지)은 커밋 시점의 UNIQUE 위반이 된다.
+        // 변경 감지로 나가는 UPDATE라 이 메서드 안에서 잡을 자리가 없고,
+        // GlobalExceptionHandler의 DataIntegrityViolationException 백스톱이 409로 응답한다
+        member.changeName(name);
         return MemberResponse.from(member);
     }
 
