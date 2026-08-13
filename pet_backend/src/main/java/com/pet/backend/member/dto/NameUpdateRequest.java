@@ -12,4 +12,10 @@ public record NameUpdateRequest(
         @NotBlank(message = "이름은 필수입니다.")
         @Size(max = 50, message = "이름은 50자 이하여야 합니다.")
         String name
-) {}
+) {
+
+    // 검증 전에 앞뒤 공백 제거 — 가입과 같은 규칙이다 (근거는 SignupRequest의 같은 자리, 백로그 96번)
+    public NameUpdateRequest {
+        name = name == null ? null : name.trim();
+    }
+}

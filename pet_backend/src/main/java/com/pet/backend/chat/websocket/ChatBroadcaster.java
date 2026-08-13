@@ -4,6 +4,7 @@ import com.pet.backend.chat.ChatMemberKickedEvent;
 import com.pet.backend.chat.ChatMembersChangedEvent;
 import com.pet.backend.chat.ChatMessageCreatedEvent;
 import com.pet.backend.chat.ChatPinChangedEvent;
+import com.pet.backend.member.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,20 @@ public class ChatBroadcaster {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMemberKicked(ChatMemberKickedEvent event) {
+        sessionRegistry.disconnectMember(event.memberId());
+    }
+
+    /**
+     * 탈퇴 회원의 연결 끊기 (리뷰 백로그 110번) — 강퇴와 같은 경로를 재사용한다.
+     *
+     * <p>탈퇴가 참여 행을 정리해도 <b>이미 맺어진 구독은 계속 수신한다</b>(참여자 검증은 SUBSCRIBE 시점에만).
+     * REST는 `ChatService.requireActiveMember`가 막지만 WS에는 그런 상한이 없어 여기서 끊는다.
+     *
+     * <p>이 클래스가 member 도메인의 이벤트를 받는 유일한 자리다 — 의존 방향은 여전히
+     * 전달 수단(websocket) → 도메인 한쪽이고, MemberService는 WebSocket을 모른다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onMemberWithdrawn(MemberWithdrawnEvent event) {
         sessionRegistry.disconnectMember(event.memberId());
     }
 

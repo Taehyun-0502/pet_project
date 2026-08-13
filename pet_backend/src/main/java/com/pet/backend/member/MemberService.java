@@ -27,6 +27,7 @@ import com.pet.backend.member.dto.TokenResponse;
 import com.pet.backend.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -62,6 +63,10 @@ public class MemberService {
     // **같은 트랜잭션**에서 해야 해서(중간 실패 시 함께 롤백) 이벤트로 분리할 수 없다.
     // 서비스가 아니라 리포지토리를 물어 chat 도메인 규칙(권한 검증 등)은 끌어오지 않는다
     private final ChatRoomMemberRepository chatRoomMemberRepository;
+    // 탈퇴한 회원의 WebSocket 연결을 끊는 신호를 던진다 (백로그 110번).
+    // 위 리포지토리 의존과 달리 이쪽은 같은 트랜잭션일 필요가 없어 이벤트로 분리했다 —
+    // 이 서비스는 WebSocket을 모르고, 수신은 chat.websocket.ChatBroadcaster가 한다
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public MemberResponse signup(SignupRequest request) {
@@ -69,9 +74,11 @@ public class MemberService {
         if (memberRepository.existsActiveByNormalizedEmail(email)) {
             throw new BusinessException(MemberErrorCode.EMAIL_DUPLICATED);
         }
-        // 이름도 앞뒤 공백을 떼고 저장한다 — 안 하면 "  홍길동"과 "홍길동"이 서로 다른 이름이 되어
-        // 중복 검사와 UNIQUE 인덱스를 나란히 빠져나간다 (이름 수정은 원래부터 trim했다)
-        String name = request.name().trim();
+        // 이름은 **DTO(compact constructor)에서 이미 trim됐다** (백로그 96번).
+        // 그래야 검증과 저장이 같은 값을 본다 — 여기서 다듬으면 @Size가 원문을 본 뒤라 늦다.
+        // trim 자체가 필요한 이유는 그대로다: 안 하면 "  홍길동"과 "홍길동"이 서로 다른 이름이 되어
+        // 중복 검사와 UNIQUE 인덱스를 나란히 빠져나간다
+        String name = request.name();
         if (memberRepository.existsActiveByNormalizedName(normalizeName(name))) {
             throw new BusinessException(MemberErrorCode.NAME_DUPLICATED);
         }
@@ -293,6 +300,11 @@ public class MemberService {
             throw new BusinessException(MemberErrorCode.PASSWORD_UNCHANGED);
         }
         member.changePassword(passwordEncoder.encode(request.newPassword()));
+        // **flush를 여기서 명시한다** (리뷰 백로그 97번). 이 UPDATE가 실제로 나가는 것은 지금까지
+        // 뒤이은 일괄 폐기(revokeAllByMemberId)의 `flushAutomatically = true`에 얹혀 있었다 —
+        // 누군가 그 옵션을 떼면 **비밀번호 변경만 조용히 유실되고 토큰은 폐기되는** 상태가 된다.
+        // 순서가 뒤집혀도 안 된다: 폐기가 먼저면 방금 발급한 토큰까지 쓸려 나간다 (RefreshTokenService 주석)
+        memberRepository.saveAndFlush(member);
         // 기존 세션 체인이 일괄 폐기로 끊기므로 새 세션으로 시작한다 (UA 재수집 — api-spec.md 1절 5차)
         return refreshTokenService.reissueAfterPasswordChange(memberId, deviceInfo);
     }
@@ -365,6 +377,10 @@ public class MemberService {
         member.withdraw(); // deleted_at + tokens_valid_from (Member.withdraw 주석 참조)
         chatRoomMemberRepository.leaveAllByMemberId(memberId, Instant.now(), ChatLeftReason.LEFT);
         refreshTokenService.revokeAllOnWithdraw(memberId);
+        // 이미 맺어진 WebSocket 구독은 위 정리로 끊기지 않는다 — 참여자 검증이 SUBSCRIBE 시점에만 돌기 때문에
+        // 참여 행을 지워도 기존 구독은 계속 수신한다. 커밋 후 연결 자체를 끊는다 (백로그 110번).
+        // 롤백된 탈퇴로 멀쩡한 연결을 끊지 않도록 수신부가 AFTER_COMMIT이다
+        eventPublisher.publishEvent(new MemberWithdrawnEvent(memberId));
     }
 
     /**
@@ -470,11 +486,11 @@ public class MemberService {
                 .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
     }
 
-    // 이름 수정 (docs/api-spec.md 1절). 검증 규칙은 가입과 동일, 저장 전 trim
+    // 이름 수정 (docs/api-spec.md 1절). 검증 규칙·trim 시점 모두 가입과 동일 (DTO에서 처리 — 백로그 96번)
     @Transactional
     public MemberResponse updateName(Long memberId, NameUpdateRequest request) {
         Member member = findActiveMemberOrThrow(memberId);
-        String name = request.name().trim();
+        String name = request.name();
         // 자기 이름은 검사에서 뺀다 — 안 그러면 아무것도 안 바꾸고 저장만 눌러도 "중복"으로 거부된다.
         // 대소문자만 바꾸는 것도 자기 행이라 허용된다(부분 UNIQUE는 lower(name) 기준이므로 충돌하지 않는다)
         if (!name.equalsIgnoreCase(member.getName())

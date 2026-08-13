@@ -109,18 +109,30 @@ export default function ChatRoomPage() {
 
     // afterId 이후를 받아 병합한다. 첫 로드(afterId 없음 = 최근 50개)와
     // 재연결 복구가 같은 경로를 쓴다 (docs/api-spec.md 7절)
+    //
+    // **이어받기는 지역 커서(cursor)로 돈다** (리뷰 백로그 112번). 전역 lastIdRef를 매 회차 다시 읽으면,
+    // 그 사이 도착한 WS 푸시가 같은 ref를 최신 id로 밀어 올려 **조회하지 않은 구간이 통째로 건너뛰어진다**
+    // (커서 100 → 복구가 101~600 반환 → 그때 WS로 5000 도착 → 이어받기가 afterId=5000을 물어
+    //  601~4999가 조회되지 않는다). lastIdRef는 max로만 합류하므로(advanceLastId) 이 지역 커서가
+    // WS가 앞서 놓은 값을 되돌리는 일도 없다.
     const loadSince = async () => {
       try {
-        const initial = lastIdRef.current === null
-        const data = await getMessages(roomId, lastIdRef.current)
-        if (cancelled) return
-        // 첫 로드가 한 페이지 미만이면 이 방의 대화 전체를 이미 다 받았다 — 과거 로드 불필요
-        if (initial && data.length < PAGE_SIZE) setHasMore(false)
-        if (data.length === 0) return
-        advanceLastId(data)
-        mergeMessages(data)
-        // 복구가 상한(500)에 걸렸으면 아직 밀린 메시지가 있다 — 마지막 id로 이어받는다 (7절 3차)
-        if (!initial && data.length === RECOVERY_LIMIT) await loadSince()
+        let cursor = lastIdRef.current
+        const initial = cursor === null
+        // 재귀가 아니라 루프인 이유: onReady 콜백에 그대로 넘기는 함수라(인자를 받으면 커서로 오인된다)
+        // 이어받기 상태를 파라미터가 아닌 지역 변수로 들고 있어야 한다
+        for (;;) {
+          const data = await getMessages(roomId, cursor)
+          if (cancelled) return
+          // 첫 로드가 한 페이지 미만이면 이 방의 대화 전체를 이미 다 받았다 — 과거 로드 불필요
+          if (initial && data.length < PAGE_SIZE) setHasMore(false)
+          if (data.length === 0) return
+          cursor = Math.max(...data.map((m) => m.id))
+          advanceLastId(data)
+          mergeMessages(data)
+          // 복구가 상한(500)에 걸렸으면 아직 밀린 메시지가 있다 — 마지막 id로 이어받는다 (7절 3차)
+          if (initial || data.length < RECOVERY_LIMIT) return
+        }
       } catch (err) {
         if (cancelled) return
         // 회복 불가능한 오류(미참여 403 / 토큰 만료 401 / 방 없음 404)만 화면을 멈춘다.

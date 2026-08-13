@@ -9,6 +9,7 @@ import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ImageStorageClient;
 import com.pet.backend.member.Member;
+import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.member.MemberRepository;
 import java.io.IOException;
 import java.time.Instant;
@@ -38,7 +39,8 @@ public class ChatService {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
-    private final MemberRepository memberRepository; // 발신자 이름 조회용
+    // 발신자 이름 조회 + 탈퇴 회원 차단 (백로그 110번 — requireActiveMember 주석 참고)
+    private final MemberRepository memberRepository;
     private final ImageStorageClient imageStorageClient; // 채팅 이미지 업로드 (F10b)
     // 이미지 메시지 저장만 담당하는 짧은 트랜잭션 — 업로드는 트랜잭션 밖이어야 한다 (클래스 주석 참고)
     private final ChatImageMessageWriter chatImageMessageWriter;
@@ -48,6 +50,7 @@ public class ChatService {
     // 방 생성 + 생성자의 OWNER 참여를 한 트랜잭션으로 — 참여자 없는 방이 생기지 않게
     @Transactional
     public ChatRoomResponse createRoom(Long memberId, ChatRoomSaveRequest request) {
+        requireActiveMember(memberId);
         ChatRoom room = ChatRoom.create(request.name().trim(), memberId, request.category(),
                 normalizeDescription(request.description()), request.maxMembers());
         chatRoomRepository.save(room);
@@ -61,6 +64,7 @@ public class ChatService {
      */
     @Transactional
     public ChatRoomResponse updateRoom(Long actorId, Long roomId, ChatRoomSaveRequest request) {
+        requireActiveMember(actorId);
         ChatRoom room = getActiveRoom(roomId);
         requireOwner(roomId, actorId);
         room.updateProfile(request.name().trim(), request.category(),
@@ -180,6 +184,7 @@ public class ChatService {
      */
     @Transactional
     public void pinRoom(Long memberId, Long roomId) {
+        requireActiveMember(memberId);
         // 방 활성 검사가 먼저다. 방을 지워도 참여 행은 활성으로 남는 설계라, 이 검사가 없으면
         // **삭제된 방을 고정할 수 있다**(검증에서 실측). 목록에도 안 보이고 상한 집계에도 안 잡히는
         // 유령 고정이 생기고, 오류도 403이 아닌 엉뚱한 것이 나간다
@@ -202,7 +207,31 @@ public class ChatService {
      */
     @Transactional
     public void unpinRoom(Long memberId, Long roomId) {
+        requireActiveMember(memberId);
         requireParticipantRow(roomId, memberId).unpin();
+    }
+
+    /**
+     * 탈퇴(또는 없는) 회원의 접근 차단 — {@code PetService}와 같은 404 `USER_NOT_FOUND` (리뷰 백로그 110번).
+     *
+     * <p>액세스 토큰은 탈퇴 뒤에도 최대 15분 유효하고 필터는 서명만 본다. 그동안 이 회원은
+     * 방을 만들고 글을 쓸 수 있었다 — 특히 <b>탈퇴 뒤 만든 방</b>은 탈퇴가 막는 "방장인 방"
+     * 검사(409 `WITHDRAW_CHAT_OWNER`)의 밖이라, 방장이 존재하지 않는 복구 불가 방이 생긴다.
+     *
+     * <p><b>조회에는 걸지 않는다 — 8번이 `PetService`에서 정한 규칙과 의도적으로 다르다.</b>
+     * 채팅은 읽기 빈도가 압도적이라(메시지·참여자·방 목록) 매 조회에 회원 조회를 한 번씩 더하면
+     * 원격 DB 왕복이 그만큼 늘어 14번(폴링 1회당 검증 SELECT 3회)의 병목과 정확히 겹친다.
+     * 조회로 새는 것은 15분 창 안의 <b>열람</b>뿐이고, 그 사이 상태를 바꾸는 경로는 전부 여기서 막힌다.
+     * 같은 이유로 {@link #markRead}도 제외했다 — mutation이지만 프론트가 1초 디바운스로 호출하는
+     * 조회급 빈도이고, 탈퇴가 참여 행을 일괄 정리하므로 벌크 UPDATE가 어차피 0행 no-op이다.
+     *
+     * <p>전역 필터에서 검사하지 않는 이유도 같다: 인증된 모든 요청에 DB 왕복 1회를 더하는 비용이,
+     * 최대 15분짜리 창(행위자는 방금 탈퇴한 본인)에 비해 과하다.
+     */
+    private void requireActiveMember(Long memberId) {
+        if (!memberRepository.existsByIdAndDeletedAtIsNull(memberId)) {
+            throw new BusinessException(MemberErrorCode.NOT_FOUND);
+        }
     }
 
     /**
@@ -261,6 +290,7 @@ public class ChatService {
      * 그 경쟁의 확정 판정은 INSERT가 끝난 뒤에만 가능하다 — {@link #revertIfJoinLost}.
      */
     public ChatRoomResponse join(Long memberId, Long roomId) {
+        requireActiveMember(memberId);
         ChatRoom room = getActiveRoom(roomId);
         // 강퇴 이력이 있으면 재입장 불가 (docs/api-spec.md 7절 2차 정책)
         if (chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftReason(
@@ -342,6 +372,7 @@ public class ChatService {
 
     @Transactional
     public ChatMessageResponse sendMessage(Long memberId, Long roomId, ChatMessageCreateRequest request) {
+        requireActiveMember(memberId);
         getActiveRoom(roomId);
         requireParticipant(roomId, memberId);
         // 발신자 조회를 INSERT보다 먼저 — INSERT 후 추가 왕복이 있으면
@@ -370,6 +401,7 @@ public class ChatService {
      * 반대 순서(먼저 저장 → 업로드)면 URL 없는 이미지 메시지가 남아 화면이 깨지므로 이쪽이 낫다.
      */
     public ChatMessageResponse sendImage(Long memberId, Long roomId, MultipartFile file) {
+        requireActiveMember(memberId);
         getActiveRoom(roomId);
         requireParticipant(roomId, memberId);
         imageStorageClient.validateImage(file); // 형식·용량 — 프로필 사진과 같은 규칙
@@ -456,6 +488,7 @@ public class ChatService {
     // 나가기 — OWNER는 위임(delegate) 전에는 나갈 수 없다
     @Transactional
     public void leave(Long memberId, Long roomId) {
+        requireActiveMember(memberId);
         getActiveRoom(roomId);
         ChatRoomMember me = chatRoomMemberRepository
                 .findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
@@ -470,6 +503,7 @@ public class ChatService {
     // 강퇴 — 강퇴된 회원은 이 방에 재입장할 수 없다
     @Transactional
     public void kick(Long actorId, Long roomId, Long targetMemberId) {
+        requireActiveMember(actorId);
         getActiveRoom(roomId);
         ChatRoomMember actor = chatRoomMemberRepository
                 .findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, actorId)
@@ -491,6 +525,7 @@ public class ChatService {
     // MANAGER 지명·해제 — OWNER만. OWNER로의 변경은 delegate가 담당
     @Transactional
     public void changeRole(Long actorId, Long roomId, Long targetMemberId, ChatRole newRole) {
+        requireActiveMember(actorId);
         getActiveRoom(roomId);
         requireOwner(roomId, actorId);
         if (newRole == ChatRole.OWNER) {
@@ -509,6 +544,7 @@ public class ChatService {
     // 방장 위임 — 대상이 OWNER가 되고 기존 방장은 MEMBER로. 한 트랜잭션이라 방마다 OWNER는 항상 1명
     @Transactional
     public void delegate(Long actorId, Long roomId, Long targetMemberId) {
+        requireActiveMember(actorId);
         getActiveRoom(roomId);
         ChatRoomMember actor = requireOwner(roomId, actorId);
         if (actorId.equals(targetMemberId)) {
@@ -529,6 +565,7 @@ public class ChatService {
     // 방 삭제(소프트) — 참여 행·메시지는 그대로 두고, 모든 조회가 삭제된 방을 걸러낸다
     @Transactional
     public void deleteRoom(Long actorId, Long roomId) {
+        requireActiveMember(actorId);
         ChatRoom room = getActiveRoom(roomId);
         requireOwner(roomId, actorId);
         room.delete();
@@ -537,6 +574,7 @@ public class ChatService {
     // 공지 고정 — OWNER·MANAGER, 이미 있으면 교체 (docs/api-spec.md 7절 3차)
     @Transactional
     public void pinMessage(Long actorId, Long roomId, Long messageId) {
+        requireActiveMember(actorId);
         ChatRoom room = getActiveRoom(roomId);
         requireOwnerOrManager(roomId, actorId);
         // 소속 검증을 쿼리에 — 다른 방 메시지·없는 id 모두 404 (존재 여부 비노출 규칙)
@@ -549,6 +587,7 @@ public class ChatService {
     // 공지 해제 — 핀이 없어도 성공 (멱등, 동시 해제 경쟁 무해화). 바뀐 게 없으면 신호도 안 보낸다
     @Transactional
     public void unpinMessage(Long actorId, Long roomId) {
+        requireActiveMember(actorId);
         ChatRoom room = getActiveRoom(roomId);
         requireOwnerOrManager(roomId, actorId);
         if (room.getPinnedMessageId() == null) {

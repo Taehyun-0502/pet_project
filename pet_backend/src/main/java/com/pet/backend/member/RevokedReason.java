@@ -23,6 +23,17 @@ public enum RevokedReason {
      * REPLACED_BY_LOGIN은 로그인 응답(Set-Cookie) 유실·탭 경합. 전체 폐기로 응수하면
      * 정상 사용자의 전 기기가 로그아웃된다 (2026-08-10 비밀번호 변경 검증에서 실측한 그 결함과 동일 계열).
      * (WITHDRAWN은 어차피 전 토큰이 폐기된 뒤라 실해는 없지만, 침해 WARN 로그가 남지 않게 같은 취급)
+     *
+     * <p><b>LOGOUT과 ROTATED가 빠진 것은 누락이 아니라 의도다</b> (리뷰 백로그 107번).
+     * <ul>
+     *   <li><b>LOGOUT</b>: 32번이 "로그아웃이 무력해지면 안 되므로 유예·면제 없음"으로 정한 결과다.
+     *       로그아웃한 토큰의 재제출은 실제로 재사용 감지를 발동시켜 그 회원의 활성 토큰을 전부 끊고
+     *       침해 WARN을 남긴다(2026-08-12 실측). 쿠키는 브라우저 전체가 공유하므로 정상 사용자가
+     *       밟기 어려운 경로이기도 하다. <b>여기에 LOGOUT을 넣으면 로그아웃이 무력해진다.</b>
+     *       그 WARN을 보고 진짜 유출로 오해하지도, 반대로 "누락"으로 보고 추가하지도 말 것.</li>
+     *   <li><b>ROTATED</b>: 면제가 필요 없다. 회전 유예(30초) 안이면 애초에 정상 회전으로 통과하고,
+     *       유예를 넘긴 제출은 정의상 침해로 봐야 하는 경우다 ({@link RefreshTokenService#ROTATION_GRACE}).</li>
+     * </ul>
      */
     public boolean exemptFromReuseDetection() {
         return this == PASSWORD_CHANGED || this == REPLACED_BY_LOGIN
