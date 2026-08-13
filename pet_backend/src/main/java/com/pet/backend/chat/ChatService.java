@@ -6,7 +6,7 @@ import com.pet.backend.chat.dto.ChatMessageResponse;
 import com.pet.backend.chat.dto.ChatRoomResponse;
 import com.pet.backend.chat.dto.ChatRoomSaveRequest;
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.member.Member;
 import com.pet.backend.member.MemberRepository;
 import java.util.ArrayList;
@@ -105,7 +105,7 @@ public class ChatService {
         try {
             return ChatCategory.valueOf(category);
         } catch (IllegalArgumentException e) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "category는 WALK·TRAINING·HEALTH·FREE 중 하나여야 합니다.");
         }
     }
@@ -118,7 +118,7 @@ public class ChatService {
         if (sort.equals("popular")) {
             return true;
         }
-        throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+        throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                 "sort는 recent 또는 popular여야 합니다.");
     }
 
@@ -148,13 +148,13 @@ public class ChatService {
         // 강퇴 이력이 있으면 재입장 불가 (docs/api-spec.md 7절 2차 정책)
         if (chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftReason(
                 roomId, memberId, ChatLeftReason.KICKED)) {
-            throw new BusinessException(ErrorCode.CHAT_KICKED);
+            throw new BusinessException(ChatErrorCode.KICKED);
         }
         if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
             // 정원 사전 검사 — 가득 찬 방을 INSERT 없이 빠르게 거부. 이미 참여 중인 멱등 호출은
             // 재입장이 아니므로 검사 대상이 아니다 (docs/api-spec.md 7절 3차)
             if (room.getMaxMembers() != null && countActive(roomId) >= room.getMaxMembers()) {
-                throw new BusinessException(ErrorCode.CHAT_ROOM_FULL);
+                throw new BusinessException(ChatErrorCode.ROOM_FULL);
             }
             boolean inserted = false;
             try {
@@ -205,7 +205,7 @@ public class ChatService {
                     joined.leave();
                     chatRoomMemberRepository.save(joined);
                 });
-        throw new BusinessException(kickedRace ? ErrorCode.CHAT_KICKED : ErrorCode.CHAT_ROOM_FULL);
+        throw new BusinessException(kickedRace ? ChatErrorCode.KICKED : ChatErrorCode.ROOM_FULL);
     }
 
     // 방 하나의 참여 중 인원 (일괄 집계 쿼리 재사용)
@@ -242,7 +242,7 @@ public class ChatService {
     @Transactional(readOnly = true)
     public List<ChatMessageResponse> getMessages(Long memberId, Long roomId, Long afterId, Long beforeId) {
         if (afterId != null && beforeId != null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "afterId와 beforeId는 함께 사용할 수 없습니다.");
         }
         getActiveRoom(roomId);
@@ -308,9 +308,9 @@ public class ChatService {
         getActiveRoom(roomId);
         ChatRoomMember me = chatRoomMemberRepository
                 .findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_NOT_PARTICIPANT));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_PARTICIPANT));
         if (me.getRole() == ChatRole.OWNER) {
-            throw new BusinessException(ErrorCode.CHAT_OWNER_CANNOT_LEAVE);
+            throw new BusinessException(ChatErrorCode.OWNER_CANNOT_LEAVE);
         }
         me.leave();
         eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
@@ -322,14 +322,14 @@ public class ChatService {
         getActiveRoom(roomId);
         ChatRoomMember actor = chatRoomMemberRepository
                 .findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, actorId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_NOT_PARTICIPANT));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_PARTICIPANT));
         if (actorId.equals(targetMemberId)) {
             // 자기 자신은 강퇴 대상이 아니다 — 나가기를 쓴다
-            throw new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN);
+            throw new BusinessException(ChatErrorCode.ROLE_FORBIDDEN);
         }
         ChatRoomMember target = getActiveMember(roomId, targetMemberId);
         if (!canKick(actor.getRole(), target.getRole())) {
-            throw new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN);
+            throw new BusinessException(ChatErrorCode.ROLE_FORBIDDEN);
         }
         target.kick();
         // 이미 구독 중인 강퇴자는 SUBSCRIBE 검사로 막을 수 없다 — 커밋 후 연결을 끊는다
@@ -343,11 +343,11 @@ public class ChatService {
         getActiveRoom(roomId);
         requireOwner(roomId, actorId);
         if (newRole == ChatRole.OWNER) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "OWNER로의 변경은 위임 API(/delegate)를 사용해야 합니다.");
         }
         if (actorId.equals(targetMemberId)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "자기 자신의 역할은 변경할 수 없습니다.");
         }
         getActiveMember(roomId, targetMemberId).changeRole(newRole);
@@ -361,7 +361,7 @@ public class ChatService {
         getActiveRoom(roomId);
         ChatRoomMember actor = requireOwner(roomId, actorId);
         if (actorId.equals(targetMemberId)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "자기 자신에게는 위임할 수 없습니다.");
         }
         ChatRoomMember target = getActiveMember(roomId, targetMemberId);
@@ -390,7 +390,7 @@ public class ChatService {
         requireOwnerOrManager(roomId, actorId);
         // 소속 검증을 쿼리에 — 다른 방 메시지·없는 id 모두 404 (존재 여부 비노출 규칙)
         chatMessageRepository.findByIdAndRoomId(messageId, roomId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MESSAGE_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MESSAGE_NOT_FOUND));
         room.pin(messageId);
         eventPublisher.publishEvent(new ChatPinChangedEvent(roomId));
     }
@@ -439,20 +439,20 @@ public class ChatService {
     private ChatRoomMember requireOwner(Long roomId, Long memberId) {
         return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
                 .filter(member -> member.getRole() == ChatRole.OWNER)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.ROLE_FORBIDDEN));
     }
 
     // OWNER·MANAGER 검증 — 공지 핀은 강퇴와 같은 권한 급 (docs/api-spec.md 7절 3차)
     private ChatRoomMember requireOwnerOrManager(Long roomId, Long memberId) {
         return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
                 .filter(member -> member.getRole() != ChatRole.MEMBER)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROLE_FORBIDDEN));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.ROLE_FORBIDDEN));
     }
 
     // 강퇴·지명·위임의 대상 행 조회 — 참여 중이 아니면 404
     private ChatRoomMember getActiveMember(Long roomId, Long memberId) {
         return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_MEMBER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.MEMBER_NOT_FOUND));
     }
 
     // 빈 문자열("")로 온 선택 입력은 NULL로 통일 (pet의 normalizeBreed와 같은 원칙)
@@ -464,13 +464,13 @@ public class ChatService {
     private ChatRoom getActiveRoom(Long roomId) {
         return chatRoomRepository.findById(roomId)
                 .filter(room -> !room.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHAT_ROOM_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.ROOM_NOT_FOUND));
     }
 
     // 참여자 검증 — 이 도메인의 소유자 격리 (docs/conventions.md 5절 패턴)
     private void requireParticipant(Long roomId, Long memberId) {
         if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
-            throw new BusinessException(ErrorCode.CHAT_NOT_PARTICIPANT);
+            throw new BusinessException(ChatErrorCode.NOT_PARTICIPANT);
         }
     }
 }

@@ -32,6 +32,49 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
                            @Param("now") Instant now, @Param("reason") RevokedReason reason);
 
     /**
+     * 세션 폐기가 놓치는 **회전 유예 안의 토큰**을 함께 무력화한다 (리뷰 백로그 108번).
+     *
+     * <p>위 {@link #revokeAllBySession}은 `revoked_at is null`만 잡는데, 유예 중인 토큰은
+     * 회전으로 이미 `revoked_at`이 찍혀 있어 그 조건에 걸리지 않는다. 그대로 두면 원격 로그아웃 직후
+     * 그 토큰을 재제출해 같은 `session_id`를 상속한 새 토큰을 받을 수 있다 — **끊은 기기가 되살아난다.**
+     *
+     * <p>그래서 `revoked_at`이 아니라 **사유만** 바꾼다. 유예 자격은 사유가 `ROTATED`일 때만 주어지므로
+     * (`RefreshToken.isWithinRotationGrace`) 사유가 바뀌는 순간 유예에서 빠진다.
+     * `revoked_at`을 다시 쓰지 않는 것이 중요하다 — 그것이 108번의 원인이었다.
+     *
+     * <p>대상을 `revokedAt > :graceCutoff`로 좁히는 이유: 유예를 이미 넘긴 옛 `ROTATED` 토큰까지 사유를 바꾸면
+     * 그 토큰의 재제출이 재사용 감지(전체 폐기)가 아니라 단순 401로 떨어져 **감지가 약해진다.**
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update RefreshToken t set t.revokedReason = :reason
+            where t.memberId = :memberId and t.sessionId = :sessionId
+              and t.revokedReason = :rotated and t.revokedAt > :graceCutoff
+            """)
+    int expireRotationGraceBySession(@Param("memberId") Long memberId, @Param("sessionId") UUID sessionId,
+                                     @Param("reason") RevokedReason reason,
+                                     @Param("rotated") RevokedReason rotated,
+                                     @Param("graceCutoff") Instant graceCutoff);
+
+    /**
+     * {@link #expireRotationGraceBySession}의 회원 전체 판 — 재사용 감지 전용.
+     *
+     * <p>감지가 발동해도 유예 중 토큰이 살아남으면 30초 안에 새 활성 토큰을 하나 더 만들 수 있어
+     * **세션을 완전히 끊지 못한다.** 비밀번호 변경·탈퇴는 같은 구멍이 있어도 `tokens_valid_from`(백로그 77번)이
+     * 재발급을 막으므로 이 처리가 필요 없다 — 그래서 호출부는 재사용 감지 한 곳뿐이다.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update RefreshToken t set t.revokedReason = :reason
+            where t.memberId = :memberId
+              and t.revokedReason = :rotated and t.revokedAt > :graceCutoff
+            """)
+    int expireRotationGraceByMember(@Param("memberId") Long memberId,
+                                    @Param("reason") RevokedReason reason,
+                                    @Param("rotated") RevokedReason rotated,
+                                    @Param("graceCutoff") Instant graceCutoff);
+
+    /**
      * 회원의 활성 토큰 일괄 폐기 (재사용 감지 시). 건별로 읽어 고치지 않고 UPDATE 한 번으로 끝낸다 —
      * `ix_refresh_tokens_member_active` 부분 인덱스를 그대로 쓴다.
      */

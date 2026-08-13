@@ -6,9 +6,11 @@ import ChatRoomPage from './chat/ChatRoomPage'
 import KakaoCallbackPage from './member/KakaoCallbackPage'
 import LoginPage from './member/LoginPage'
 import MyPage from './member/MyPage'
+import MyPageEdit from './member/MyPageEdit'
+import MyPagePets from './member/MyPagePets'
+import MyPagePosts from './member/MyPagePosts'
 import MyPageProfile from './member/MyPageProfile'
 import MyPageSecurity from './member/MyPageSecurity'
-import MyPageWithdraw from './member/MyPageWithdraw'
 import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import WelcomePage from './member/WelcomePage'
@@ -56,11 +58,17 @@ function App() {
           <Route path="/pets/new" element={<PetCreatePage />} />
           <Route path="/pets/:petId" element={<PetDetailPage />} />
           <Route path="/pets/:petId/edit" element={<PetEditPage />} />
-          {/* 마이페이지 — 탭이 곧 URL인 중첩 라우트 (MyPage.jsx가 탭 네비 + Outlet 레이아웃) */}
+          {/* 마이페이지 — 탭이 곧 URL인 중첩 라우트 (MyPage.jsx가 탭 네비 + Outlet 레이아웃).
+              탭은 내 정보·펫 정보·내 게시물 3개이고, edit·security는 "내 정보"에서 버튼으로
+              들어가는 하위 화면이라 탭 네비에 없다 (2026-08-13 개편) */}
           <Route path="/mypage" element={<MyPage />}>
             <Route index element={<MyPageProfile />} />
+            <Route path="edit" element={<MyPageEdit />} />
             <Route path="security" element={<MyPageSecurity />} />
-            <Route path="withdraw" element={<MyPageWithdraw />} />
+            <Route path="pets" element={<MyPagePets />} />
+            <Route path="posts" element={<MyPagePosts />} />
+            {/* 구 URL 보존 — 탈퇴가 보안 화면 안으로 들어갔다. 남아 있는 링크·북마크가 깨지지 않게 */}
+            <Route path="withdraw" element={<Navigate to="/mypage/security" replace />} />
           </Route>
           <Route path="/chat" element={<ChatRoomListPage />} />
           <Route path="/chat/new" element={<ChatRoomCreatePage />} />

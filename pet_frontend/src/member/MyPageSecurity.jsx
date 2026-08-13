@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Field from '../common/Field'
 import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { changePassword, getSessions, revokeSession } from './memberApi'
+import MyPageWithdraw from './MyPageWithdraw'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
 
 // 서버(PasswordChangeRequest)와 같은 규칙 — 가입 폼과 passwordRules 모듈을 공유한다
@@ -30,8 +32,16 @@ function formatTime(iso) {
   return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-// 마이페이지 — 보안 탭 (비밀번호 변경 + 로그인된 기기). 레이아웃·분리 배경은 MyPage.jsx 주석 참조.
-// 세션 목록 API는 이 탭에 들어와야 호출된다 — 한 페이지 시절의 "진입 즉시 전부 로드"가 사라진 부수 효과
+/**
+ * 마이페이지 — 보안 화면 (비밀번호 변경 + 로그인된 기기 + 회원 탈퇴).
+ *
+ * 탭이 아니라 "내 정보"에서 버튼으로 들어오는 하위 화면이라 **복귀 링크가 필수**다
+ * (MyPage.jsx 주석 참조). 세션 목록 API는 이 화면에 들어와야 호출된다 —
+ * 한 페이지 시절의 "진입 즉시 전부 로드"가 사라진 부수 효과.
+ *
+ * 회원 탈퇴는 2026-08-13 개편으로 독립 탭에서 이 화면 하단으로 들어왔다.
+ * 컴포넌트(MyPageWithdraw)를 그대로 렌더해 검증까지 끝난 탈퇴 로직은 손대지 않는다.
+ */
 export default function MyPageSecurity() {
   const { user } = useAuth()
 
@@ -90,6 +100,9 @@ export default function MyPageSecurity() {
 
   return (
     <>
+      <p className="mypage-back">
+        <Link to="/mypage">← 내 정보</Link>
+      </p>
       {/* 소셜 계정은 비밀번호 자체가 없어(password NULL) 폼을 보여줄 이유가 없다 —
           서버도 401로 거부하지만 폼을 숨기는 것이 1차 안내다 (api-spec.md 1절 4차) */}
       {user.provider !== 'LOCAL' && (
@@ -159,6 +172,9 @@ export default function MyPageSecurity() {
           </ul>
         )}
       </section>
+
+      {/* 위험 영역 — 화면 맨 아래에 둔다. 비밀번호·기기를 보러 온 사람이 탈퇴 버튼을 먼저 만나지 않게 */}
+      <MyPageWithdraw />
     </>
   )
 }

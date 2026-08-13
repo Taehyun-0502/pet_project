@@ -1,8 +1,9 @@
 package com.pet.backend.pet;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ImageStorageClient;
+import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.member.MemberRepository;
 import java.io.IOException;
 import java.time.Instant;
@@ -85,7 +86,7 @@ public class PetService {
         try {
             bytes = file.getBytes();
         } catch (IOException e) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
         // 확장자 없는 고정 경로 — 형식이 바뀌어도 같은 객체를 덮어써 고아 파일이 없다 (ImageStorageClient 주석)
         String url = imageStorageClient.upload("pet-" + petId, bytes, file.getContentType());
@@ -99,7 +100,7 @@ public class PetService {
     // 탈퇴(또는 없는) 회원의 접근 차단 — MemberService의 조회와 같은 404 USER_NOT_FOUND
     private void requireActiveMember(Long memberId) {
         if (!memberRepository.existsByIdAndDeletedAtIsNull(memberId)) {
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(MemberErrorCode.NOT_FOUND);
         }
     }
 
@@ -110,7 +111,7 @@ public class PetService {
      */
     private Pet getMyPetOrThrow(Long memberId, Long petId) {
         return petRepository.findByIdAndMemberIdAndDeletedAtIsNull(petId, memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PET_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(PetErrorCode.NOT_FOUND));
     }
 
     // 빈 문자열("")로 온 선택 입력은 NULL로 통일 — "품종 없음"의 표현이 두 가지가 되는 것을 방지

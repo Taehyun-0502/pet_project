@@ -3,6 +3,7 @@ package com.pet.backend.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.backend.common.ApiResponse;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.member.MemberErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -25,10 +26,10 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
-        ErrorCode code = ErrorCode.AUTH_TOKEN_INVALID;
+        ErrorCode code = MemberErrorCode.TOKEN_INVALID;
         response.setStatus(code.getStatus().value());
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write(objectMapper.writeValueAsString(
-                ApiResponse.fail(code.name(), code.getDefaultMessage())));
+                ApiResponse.fail(code.getCode(), code.getDefaultMessage())));
     }
 }

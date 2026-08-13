@@ -1,10 +1,12 @@
 package com.pet.backend.shorts;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.member.Member;
+import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.member.MemberRepository;
 import com.pet.backend.pet.Pet;
+import com.pet.backend.pet.PetErrorCode;
 import com.pet.backend.pet.PetRepository;
 import java.io.IOException;
 import java.security.SecureRandom;
@@ -58,7 +60,7 @@ public class ShortsService {
     @Transactional
     public LikeToggleResponse toggleLike(Long memberId, Long shortId) {
         if (!shortsRepository.existsByIdAndDeletedAtIsNull(shortId)) {
-            throw new BusinessException(ErrorCode.SHORTS_NOT_FOUND);
+            throw new BusinessException(ShortsErrorCode.NOT_FOUND);
         }
 
         boolean liked;
@@ -91,25 +93,25 @@ public class ShortsService {
      */
     public ShortsVideoResponse uploadVideo(Long memberId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "올릴 영상 파일이 없습니다.");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "올릴 영상 파일이 없습니다.");
         }
         if (file.getSize() > MAX_VIDEO_BYTES) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "영상은 %dMB 이하만 올릴 수 있습니다.".formatted(MAX_VIDEO_BYTES / 1024 / 1024));
         }
         if (!VIDEO_MIME.equals(file.getContentType())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR, "mp4 영상만 올릴 수 있습니다.");
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "mp4 영상만 올릴 수 있습니다.");
         }
 
         byte[] bytes;
         try {
             bytes = file.getBytes();
         } catch (IOException e) {
-            throw new BusinessException(ErrorCode.SHORTS_UPLOAD_FAILED, "영상 파일을 읽을 수 없습니다.");
+            throw new BusinessException(ShortsErrorCode.UPLOAD_FAILED, "영상 파일을 읽을 수 없습니다.");
         }
         // Content-Type은 클라이언트가 보낸 값이라 위조할 수 있다. 내용으로 한 번 더 확인한다
         if (!isMp4(bytes)) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "mp4 영상이 아닙니다. 확장자만 바꾼 파일은 올릴 수 없습니다.");
         }
 
@@ -127,7 +129,7 @@ public class ShortsService {
         // 응답에 올린 사람 이름이 필요하고, 탈퇴 회원의 업로드를 막는 검사도 겸한다
         Member member = memberRepository.findById(memberId)
                 .filter(found -> !found.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
 
         // 고르지 않았으면 빈 목록. 골랐다면 전부 "내 것, 활성"이어야 한다
         List<Pet> pets = findMyPets(memberId, request.petIds());
@@ -159,7 +161,7 @@ public class ShortsService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .map(petId -> petRepository.findByIdAndMemberIdAndDeletedAtIsNull(petId, memberId)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.PET_NOT_FOUND)))
+                        .orElseThrow(() -> new BusinessException(PetErrorCode.NOT_FOUND)))
                 .toList();
     }
 
@@ -322,7 +324,7 @@ public class ShortsService {
                 .map(String::trim)
                 .filter(topic -> !topic.isEmpty())
                 .map(topic -> ShortsTopic.from(topic)
-                        .orElseThrow(() -> new BusinessException(ErrorCode.VALIDATION_ERROR,
+                        .orElseThrow(() -> new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                                 "'%s'는 선택할 수 없는 주제입니다. 다음 중에서 골라주세요: %s"
                                         .formatted(topic, String.join(", ", ShortsTopic.labels())))))
                 .map(ShortsTopic::label)

@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
         ErrorCode code = e.getErrorCode();
         return ResponseEntity.status(code.getStatus())
-                .body(ApiResponse.fail(code.name(), e.getMessage()));
+                .body(ApiResponse.fail(code.getCode(), e.getMessage()));
     }
 
     /**
@@ -49,15 +49,15 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.toMap(
                         FieldError::getField,
                         error -> error.getDefaultMessage() == null
-                                ? ErrorCode.VALIDATION_ERROR.getDefaultMessage()
+                                ? CommonErrorCode.VALIDATION_ERROR.getDefaultMessage()
                                 : error.getDefaultMessage(),
                         (first, ignored) -> first,
                         LinkedHashMap::new));
         String message = details.entrySet().stream()
                 .map(entry -> entry.getKey() + ": " + entry.getValue())
                 .collect(Collectors.joining(", "));
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), message, details));
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(), message, details));
     }
 
     // @RequestParam/@RequestBody 없이 쿼리 파라미터 자체에 붙인 Bean Validation 제약 위반
@@ -68,9 +68,9 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getDefaultMessage())
                 .filter(msg -> msg != null && !msg.isBlank())
                 .collect(Collectors.joining(", "));
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(),
-                        message.isBlank() ? ErrorCode.VALIDATION_ERROR.getDefaultMessage() : message));
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(),
+                        message.isBlank() ? CommonErrorCode.VALIDATION_ERROR.getDefaultMessage() : message));
     }
 
     // @Validated(클래스 레벨) AOP 경로로 검증할 때 던져지는 예외 — 위 핸들러와 함께 방어적으로 둔다.
@@ -79,15 +79,15 @@ public class GlobalExceptionHandler {
         String message = e.getConstraintViolations().stream()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .collect(Collectors.joining(", "));
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), message));
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(), message));
     }
 
     // 필수 쿼리 파라미터 자체가 없는 경우 (예: GET /api/places에 lat 누락)
     @ExceptionHandler(MissingServletRequestParameterException.class)
     ResponseEntity<ApiResponse<Void>> handleMissingParameter(MissingServletRequestParameterException e) {
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(),
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(),
                         e.getParameterName() + "는 필수입니다."));
     }
 
@@ -110,8 +110,8 @@ public class GlobalExceptionHandler {
         } else {
             message = e.getName() + "의 형식이 올바르지 않습니다.";
         }
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), message));
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(), message));
     }
 
     // 요청 자체(e.getRequiredType())와 원인 체인(ConversionFailedException) 양쪽에서
@@ -132,8 +132,8 @@ public class GlobalExceptionHandler {
     // 깨진 JSON, 타입 불일치 등 본문 자체를 읽지 못한 경우 — 클라이언트 잘못이므로 400
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     ResponseEntity<ApiResponse<Void>> handleUnreadable(Exception e) {
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(), "요청 본문을 읽을 수 없습니다."));
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(), "요청 본문을 읽을 수 없습니다."));
     }
 
     // ───────── 라우팅·프로토콜 오류 (리뷰 백로그 3·79번) ─────────
@@ -145,25 +145,25 @@ public class GlobalExceptionHandler {
     // 로그를 남기지 않는 이유: 오타·스캐너 요청이 대부분이라 기록해도 노이즈만 된다
     @ExceptionHandler(NoResourceFoundException.class)
     ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException e) {
-        return ResponseEntity.status(ErrorCode.NOT_FOUND.getStatus())
-                .body(ApiResponse.fail(ErrorCode.NOT_FOUND.name(),
-                        ErrorCode.NOT_FOUND.getDefaultMessage()));
+        return ResponseEntity.status(CommonErrorCode.NOT_FOUND.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.NOT_FOUND.getCode(),
+                        CommonErrorCode.NOT_FOUND.getDefaultMessage()));
     }
 
     // 경로는 맞지만 메서드가 다른 경우 (예: DELETE /api/pets)
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
-        return ResponseEntity.status(ErrorCode.METHOD_NOT_ALLOWED.getStatus())
-                .body(ApiResponse.fail(ErrorCode.METHOD_NOT_ALLOWED.name(),
+        return ResponseEntity.status(CommonErrorCode.METHOD_NOT_ALLOWED.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.METHOD_NOT_ALLOWED.getCode(),
                         e.getMethod() + " 메서드는 이 경로에서 지원하지 않습니다."));
     }
 
     // Content-Type 불일치 (예: multipart 엔드포인트에 application/json으로 요청)
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     ResponseEntity<ApiResponse<Void>> handleMediaTypeNotSupported(HttpMediaTypeNotSupportedException e) {
-        return ResponseEntity.status(ErrorCode.UNSUPPORTED_MEDIA_TYPE.getStatus())
-                .body(ApiResponse.fail(ErrorCode.UNSUPPORTED_MEDIA_TYPE.name(),
-                        ErrorCode.UNSUPPORTED_MEDIA_TYPE.getDefaultMessage()));
+        return ResponseEntity.status(CommonErrorCode.UNSUPPORTED_MEDIA_TYPE.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.UNSUPPORTED_MEDIA_TYPE.getCode(),
+                        CommonErrorCode.UNSUPPORTED_MEDIA_TYPE.getDefaultMessage()));
     }
 
     // ───────── multipart 업로드 (리뷰 백로그 79번) ─────────
@@ -173,8 +173,8 @@ public class GlobalExceptionHandler {
     // "파일 누락 = 400"이라는 명세를 지키는 자리는 서비스가 아니라 여기다
     @ExceptionHandler(MissingServletRequestPartException.class)
     ResponseEntity<ApiResponse<Void>> handleMissingPart(MissingServletRequestPartException e) {
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(),
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(),
                         e.getRequestPartName() + " 파일을 첨부해 주세요."));
     }
 
@@ -183,16 +183,16 @@ public class GlobalExceptionHandler {
     // 같은 사용자 실수가 파일 크기에 따라 400과 500으로 갈리지 않게 한다
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     ResponseEntity<ApiResponse<Void>> handleMaxUploadSize(MaxUploadSizeExceededException e) {
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(),
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(),
                         "파일 용량이 너무 큽니다."));
     }
 
     // 깨진 multipart 본문 등 나머지 (용량 초과는 더 구체적인 위 핸들러가 먼저 잡는다)
     @ExceptionHandler(MultipartException.class)
     ResponseEntity<ApiResponse<Void>> handleMultipart(MultipartException e) {
-        return ResponseEntity.status(ErrorCode.VALIDATION_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.VALIDATION_ERROR.name(),
+        return ResponseEntity.status(CommonErrorCode.VALIDATION_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.VALIDATION_ERROR.getCode(),
                         "파일 업로드 요청 형식이 올바르지 않습니다."));
     }
 
@@ -202,9 +202,9 @@ public class GlobalExceptionHandler {
     // 500으로 되돌아가 있던 것을 복구한다 (2026-08-12 확인 — fec6447의 해당 hunk만 사라져 있었다)
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     ResponseEntity<ApiResponse<Void>> handleOptimisticLock(ObjectOptimisticLockingFailureException e) {
-        return ResponseEntity.status(ErrorCode.CONCURRENT_UPDATE.getStatus())
-                .body(ApiResponse.fail(ErrorCode.CONCURRENT_UPDATE.name(),
-                        ErrorCode.CONCURRENT_UPDATE.getDefaultMessage()));
+        return ResponseEntity.status(CommonErrorCode.CONCURRENT_UPDATE.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.CONCURRENT_UPDATE.getCode(),
+                        CommonErrorCode.CONCURRENT_UPDATE.getDefaultMessage()));
     }
 
     // DB 제약 위반. 도메인이 의미를 아는 위반(가입 이메일 중복·채팅 중복 입장 등)은 각 Service가 직접
@@ -215,17 +215,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException e) {
         log.error("DB 제약 위반 — 도메인이 흡수하지 못한 경로", e);
-        return ResponseEntity.status(ErrorCode.CONCURRENT_UPDATE.getStatus())
-                .body(ApiResponse.fail(ErrorCode.CONCURRENT_UPDATE.name(),
-                        ErrorCode.CONCURRENT_UPDATE.getDefaultMessage()));
+        return ResponseEntity.status(CommonErrorCode.CONCURRENT_UPDATE.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.CONCURRENT_UPDATE.getCode(),
+                        CommonErrorCode.CONCURRENT_UPDATE.getDefaultMessage()));
     }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiResponse<Void>> handleUnknown(Exception e) {
         // 상세는 로그로만 남기고 응답에는 노출하지 않는다
         log.error("처리되지 않은 예외", e);
-        return ResponseEntity.status(ErrorCode.INTERNAL_ERROR.getStatus())
-                .body(ApiResponse.fail(ErrorCode.INTERNAL_ERROR.name(),
-                        ErrorCode.INTERNAL_ERROR.getDefaultMessage()));
+        return ResponseEntity.status(CommonErrorCode.INTERNAL_ERROR.getStatus())
+                .body(ApiResponse.fail(CommonErrorCode.INTERNAL_ERROR.getCode(),
+                        CommonErrorCode.INTERNAL_ERROR.getDefaultMessage()));
     }
 }

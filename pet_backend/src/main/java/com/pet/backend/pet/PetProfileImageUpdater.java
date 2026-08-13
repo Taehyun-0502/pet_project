@@ -1,7 +1,6 @@
 package com.pet.backend.pet;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,7 +29,7 @@ class PetProfileImageUpdater {
     @Transactional
     Pet apply(Long memberId, Long petId, String profileImageUrl) {
         Pet pet = petRepository.findByIdAndMemberIdAndDeletedAtIsNull(petId, memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PET_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(PetErrorCode.NOT_FOUND));
         pet.changeProfileImage(profileImageUrl);
         return pet;
     }

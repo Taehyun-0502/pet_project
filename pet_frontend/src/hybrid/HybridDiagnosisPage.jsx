@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
-import { HybridDiagnosisPdfModal } from './HybridDiagnosisPdfModal'
-import DiagnosisTabNav from '../components/DiagnosisTabNav'
 
 // 페이지 타이틀 상수를 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🩺 펫 스마트 문진 & AI 검진'
@@ -260,15 +258,22 @@ export default function HybridDiagnosisPage() {
       setResult(data)
     } catch (err) {
       clearTimeout(timeoutId)
-      // 백엔드 미기동 또는 타임아웃 시 프론트엔드 1번 방식 (AI 모델 자율 종합 판단 50점 임계치 알고리즘)
+      // 백엔드 미기동 또는 타임아웃 시 프론트엔드 폴백
       const isAbnormalBiomarker = crp > 2.0 || igg > 3.5 || il6 > 2.5
-      const criticalKeywords = ['혈토', '혈변', '피오줌', '호흡곤란', '의식저하', '초록색토', '이물질', '혈뇨', '피섞인']
-      const hasCritical = selectedSubSymptoms.some((sub) => criticalKeywords.includes(sub))
+      const criticalKeywords = ['혈토', '혈변', '피오줌', '호흡곤란', '의식저하', '초록색', '이물질', '혈뇨', '피섞인', '물설사']
+      const hasCritical = selectedSubSymptoms.some((sub) => criticalKeywords.some((kw) => sub.includes(kw)))
+
+      const mildSubCount = selectedSubSymptoms.filter((sub) => MILD_NORMAL_SUB_SYMPTOMS.includes(sub)).length
+      const moderateSubCount = selectedSubSymptoms.length - mildSubCount
 
       let riskScore = 20.0
       if (isAbnormalBiomarker) riskScore += 30.0
       if (hasCritical) riskScore += 35.0
-      riskScore += selectedSymptoms.length * 8.0 + selectedSubSymptoms.length * 12.0
+      riskScore += moderateSubCount * 12.0
+
+      if (mildSubCount > 0 && !hasCritical) {
+        riskScore = Math.max(riskScore - mildSubCount * 5.0, 10.0)
+      }
 
       const isNormal = riskScore < 50.0
 
@@ -651,6 +656,10 @@ export default function HybridDiagnosisPage() {
           ⚠️ 통신 오류 발생: {error}
         </div>
       )}
+
+      {/* 주변 동물병원 — 병원 전용 지도(PetMap categories={['HOSPITAL']}) + 리스트.
+          조회·지도·리스트가 모두 NearbyPlaces 공용 컴포넌트 안에 있다 */}
+      <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />
     </div>
   )
 }

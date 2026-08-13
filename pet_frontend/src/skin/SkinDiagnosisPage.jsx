@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
 import { SkinDiagnosisPdfModal } from './SkinDiagnosisPdfModal'
 import DiagnosisTabNav from '../components/DiagnosisTabNav'
+import NearbyPlaces from '../components/NearbyPlaces'
 
 // 생년월일(YYYY-MM-DD) 기반 만 나이 계산 유틸리티 함수
 const calculateAgeFromBirthDate = (birthDateStr) => {
@@ -889,6 +890,9 @@ export default function SkinDiagnosisPage() {
           previewUrl={croppedPreviewUrl}
           formData={{ petName, breed, age, weight }}
         />
+
+        {/* 주변 동물병원 — 병원 전용 지도(PetMap categories={['HOSPITAL']}) + 리스트 */}
+        <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />
       </main>
     </div>
   )

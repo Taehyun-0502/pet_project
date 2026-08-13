@@ -1,25 +1,41 @@
-import { Link, NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import '../common/forms.css'
 import './member.css'
 
 /**
- * 마이페이지 레이아웃 — 탭 네비 + 자식 탭(<Outlet>). 실제 내용은 탭별 파일에 있다:
- * MyPageProfile(내 정보) · MyPageSecurity(보안 — 비밀번호·기기) · MyPageWithdraw(탈퇴).
+ * 마이페이지 레이아웃 — 탭 네비 + 자식 화면(<Outlet>).
  *
- * 한 파일에 4개 섹션의 무관한 상태가 섞여 360줄이 되어 탭 단위로 분리했다 (2026-08-11).
+ * 탭은 3개(내 정보·펫 정보·내 게시물)이고, **정보 수정·보안은 탭이 아니라 "내 정보"에서
+ * 버튼으로 들어가는 하위 화면**이다 (2026-08-13 확정, docs/plan-2026-08-13.md F1).
+ * 회원 탈퇴는 독립 탭이 아니라 보안 화면 안에 들어간다 — 구 `/mypage/withdraw`는
+ * App.jsx에서 보안으로 리다이렉트하므로 남아 있는 링크가 깨지지 않는다.
+ *
  * 탭을 useState가 아니라 **URL(중첩 라우트)**로 두는 이유: 새로고침·뒤로가기에서 탭이 유지되고,
- * 특정 탭을 링크로 공유할 수 있다. 방문 목적이 대부분 단일 작업(비밀번호만·기기만)이라
- * 목적 탭으로 바로 가는 구조가 스크롤 나열보다 맞고, 탈퇴(위험 영역)도 격리된다.
+ * 특정 탭을 링크로 공유할 수 있다. 방문 목적이 대부분 단일 작업(비밀번호만·펫만)이라
+ * 목적 화면으로 바로 가는 구조가 스크롤 나열보다 맞다.
  */
+
+// "내 정보" 탭이 아닌 탭들의 경로. 여기 없는 /mypage/* 는 전부 "내 정보" 계열로 본다 —
+// 정보 수정(/mypage/edit)·보안(/mypage/security)처럼 탭 네비에 없는 하위 화면에서도
+// "내 정보" 탭이 켜져 있어야 사용자가 자기 위치를 잃지 않는다.
+// 화이트리스트(내 정보 계열을 나열)가 아니라 블랙리스트인 이유: 하위 화면이 늘어도 이 목록은 그대로다
+const OTHER_TAB_PREFIXES = ['/mypage/pets', '/mypage/posts']
+
 export default function MyPage() {
+  const { pathname } = useLocation()
+  const infoActive = !OTHER_TAB_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+
   return (
     <main className="auth-page">
       <h1>마이페이지</h1>
       <nav className="mypage-tabs">
-        {/* end: "/mypage"가 자식 경로에서도 active로 남지 않게 정확 일치만 */}
-        <NavLink to="/mypage" end>내 정보</NavLink>
-        <NavLink to="/mypage/security">보안</NavLink>
-        <NavLink to="/mypage/withdraw">회원 탈퇴</NavLink>
+        {/* NavLink의 자동 active 대신 직접 계산한다 (위 주석).
+            className을 **함수로** 주는 것이 핵심이다 — 문자열로 주면 NavLink가 자기 판단의
+            'active'를 뒤에 덧붙이는데, `end`가 없는 "/mypage"는 하위 경로 전부에 매칭돼
+            /mypage/pets에서도 이 탭이 함께 켜진다(실측으로 확인). 함수는 반환값이 그대로 쓰인다 */}
+        <NavLink to="/mypage" className={() => (infoActive ? 'active' : '')}>내 정보</NavLink>
+        <NavLink to="/mypage/pets">펫 정보</NavLink>
+        <NavLink to="/mypage/posts">내 게시물</NavLink>
       </nav>
       <Outlet />
       <p className="auth-switch">

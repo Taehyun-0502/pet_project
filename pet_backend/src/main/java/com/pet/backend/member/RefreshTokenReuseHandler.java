@@ -26,7 +26,15 @@ class RefreshTokenReuseHandler {
     void revokeAllOf(Long memberId) {
         int revoked = refreshTokenRepository.revokeAllByMemberId(
                 memberId, Instant.now(), RevokedReason.REUSE_DETECTED);
+        // 활성 토큰 폐기만으로는 **회전 유예 안의 토큰이 살아남는다** — 이미 revoked_at이 찍혀 있어
+        // `revoked_at is null` 조건에서 빠지기 때문. 그대로 두면 감지 직후 30초 안에 그 토큰으로
+        // 새 활성 토큰을 하나 더 만들 수 있어 세션을 완전히 끊지 못한다 (리뷰 백로그 108번).
+        // 비밀번호 변경·탈퇴에는 같은 처리가 필요 없다 — tokens_valid_from(77번)이 재발급을 막는다
+        int graceExpired = refreshTokenRepository.expireRotationGraceByMember(
+                memberId, RevokedReason.REUSE_DETECTED,
+                RevokedReason.ROTATED, RefreshTokenService.rotationGraceCutoff());
         // 정상 사용에서는 나오지 않는 경로다 — 흔적을 남겨 사후에 확인할 수 있게 한다
-        log.warn("리프레시 토큰 재사용 감지 — memberId={}, 폐기한 활성 토큰 {}개", memberId, revoked);
+        log.warn("리프레시 토큰 재사용 감지 — memberId={}, 폐기한 활성 토큰 {}개 + 유예 토큰 {}개",
+                memberId, revoked, graceExpired);
     }
 }
