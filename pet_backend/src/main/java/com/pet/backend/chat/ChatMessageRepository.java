@@ -1,8 +1,11 @@
 package com.pet.backend.chat;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
 
@@ -21,4 +24,22 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 
     // 공지 핀의 메시지 소속 검증 (3차) — 방 조건을 쿼리에 걸어 다른 방 메시지·없는 id를 모두 404로 통일
     Optional<ChatMessage> findByIdAndRoomId(Long id, Long roomId);
+
+    // 내 방 목록의 "마지막 대화" 정렬 키 (F7)
+    interface RoomLastMessage {
+        Long getRoomId();
+        Instant getLastMessageAt();
+    }
+
+    /**
+     * 방별 마지막 메시지 시각을 쿼리 한 번으로 (F7 — ix_chat_message_room 사용).
+     * 방마다 따로 조회하면 N+1이 된다. 메시지가 없는 방은 결과에 없으므로 호출부가 기본값을 채운다.
+     */
+    @Query("""
+            select msg.roomId as roomId, max(msg.createdAt) as lastMessageAt
+            from ChatMessage msg
+            where msg.roomId in :roomIds
+            group by msg.roomId
+            """)
+    List<RoomLastMessage> findLastMessageAtByRoomIds(@Param("roomIds") List<Long> roomIds);
 }

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { useAuth } from '../member/AuthContext'
 import {
   changeMemberRole, delegateOwner, deleteRoom, getMessages, getPinnedMessage, getRoomMembers,
-  joinRoom, kickMember, leaveRoom, markRead, pinMessage, sendMessage, unpinMessage, updateRoom,
+  joinRoom, kickMember, leaveRoom, markRead, pinMessage, sendImageMessage, sendMessage,
+  unpinMessage, updateRoom,
 } from './chatApi'
 import { subscribeRoom } from './chatSocket'
+import { linkify } from './linkify'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './chat.css'
@@ -33,6 +36,7 @@ export default function ChatRoomPage() {
   const [fatalError, setFatalError] = useState(null) // 연결을 접게 만든 오류 ({ code, message })
   const [sendError, setSendError] = useState('') // 전송 오류 — 따로 두어 다른 알림에 지워지지 않게
   const [sending, setSending] = useState(false)
+  const [sendingImage, setSendingImage] = useState(false) // 사진 전송 중 (F10b)
   const [retryKey, setRetryKey] = useState(0) // 입장 성공 후 재연결하는 트리거
   const [members, setMembers] = useState(null) // 참여자 목록 — null = 아직 안 불러옴
   const [pinned, setPinned] = useState(null) // 공지 핀 메시지 — null = 없음 (3차)
@@ -357,6 +361,28 @@ export default function ChatRoomPage() {
     }
   }
 
+  /**
+   * 이미지 전송 (F10b). 텍스트 전송과 같은 흐름이라 스크롤 규칙(stickBottomRef)도 그대로 따른다.
+   * 고르는 즉시 전송한다 — v1은 **이미지 단독 메시지**라 캡션을 입력할 단계가 없다 (2026-08-13 확정).
+   */
+  const onImageChange = async (e) => {
+    const file = e.target.files[0]
+    e.target.value = '' // 같은 파일을 다시 골라도 change 이벤트가 나도록 초기화
+    if (!file) return
+    setSendError('')
+    setSendingImage(true)
+    stickBottomRef.current = true // 텍스트 전송과 같은 이유 — onSend 주석 참조
+    try {
+      // 형식·용량 검증 + 512px 축소 (프로필·펫 사진과 같은 규칙). 원본은 보존하지 않는다
+      const prepared = await prepareImage(file)
+      mergeMessages([await sendImageMessage(roomId, prepared)])
+    } catch (err) {
+      setSendError(err.message)
+    } finally {
+      setSendingImage(false)
+    }
+  }
+
   const onSend = async (e) => {
     e.preventDefault()
     const trimmed = content.trim()
@@ -502,7 +528,10 @@ export default function ChatRoomPage() {
       {pinned && (
         <div className="pin-banner">
           <span className="pin-content">
-            📌 <strong>{pinned.senderName}</strong> {pinned.content}
+            {/* 배너도 같은 content를 렌더한다 — 말풍선에서만 링크가 되면 "공지로 올리면 링크가 죽는" 셈이 된다.
+                이미지 메시지를 공지로 고정하면 content가 null이라 아무것도 안 보이므로 대체 문구를 쓴다 (F10b) */}
+            📌 <strong>{pinned.senderName}</strong>{' '}
+            {pinned.imageUrl ? '사진' : linkify(pinned.content)}
           </span>
           {canPin && (
             <button type="button" onClick={onUnpin}>해제</button>
@@ -527,7 +556,15 @@ export default function ChatRoomPage() {
                 {message.senderName}
               </span>
             )}
-            {message.content}
+            {/* 이미지 메시지는 content가 null이다 (F10b) — 둘 중 하나만 값이 있다.
+                본문의 URL은 링크로 (F10a). HTML 문자열을 만들지 않는 이유는 linkify 주석 참조 */}
+            {message.imageUrl ? (
+              <a href={message.imageUrl} target="_blank" rel="noopener noreferrer">
+                <img className="chat-image" src={message.imageUrl} alt="보낸 사진" />
+              </a>
+            ) : (
+              linkify(message.content)
+            )}
             {/* 공지 고정 버튼 — 권한자(OWNER·MANAGER)에게만. 이미 고정된 메시지에는 표시하지 않는다 */}
             {canPin && pinned?.id !== message.id && (
               <button
@@ -543,11 +580,21 @@ export default function ChatRoomPage() {
 
       {sendError && <p className="submit-error">{sendError}</p>}
       <form className="chat-send" onSubmit={onSend}>
+        {/* 사진 첨부 (F10b) — label이 file input을 연다. input을 display:none으로 숨기면
+            Tab으로 도달할 수 없으므로 CSS에서 visually-hidden으로만 가린다 (백로그 84번) */}
+        <label className="chat-image-button" title="사진 보내기">
+          {sendingImage ? '…' : '📷'}
+          <span className="visually-hidden-text">사진 보내기</span>
+          <input
+            type="file" accept={IMAGE_ACCEPT}
+            onChange={onImageChange} disabled={sendingImage || sending}
+          />
+        </label>
         <input
           type="text" value={content} onChange={(e) => setContent(e.target.value)}
           placeholder="메시지를 입력하세요 (1000자 이내)" maxLength={1000}
         />
-        <button type="submit" disabled={sending}>
+        <button type="submit" disabled={sending || sendingImage}>
           전송
         </button>
       </form>

@@ -7,29 +7,41 @@ import com.pet.backend.chat.dto.ChatRoomResponse;
 import com.pet.backend.chat.dto.ChatRoomSaveRequest;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.CommonErrorCode;
+import com.pet.backend.common.ImageStorageClient;
 import com.pet.backend.member.Member;
 import com.pet.backend.member.MemberRepository;
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
 public class ChatService {
 
+    // 한 사람이 고정할 수 있는 방 개수 (F7, 2026-08-13 확정). 넘으면 400 ROOM_PIN_LIMIT.
+    // 상한을 바꾸면 ChatErrorCode.ROOM_PIN_LIMIT의 안내 문구도 함께 고칠 것
+    private static final int MAX_PINNED_ROOMS = 5;
+
     private final ChatRoomRepository chatRoomRepository;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final MemberRepository memberRepository; // 발신자 이름 조회용
+    private final ImageStorageClient imageStorageClient; // 채팅 이미지 업로드 (F10b)
+    // 이미지 메시지 저장만 담당하는 짧은 트랜잭션 — 업로드는 트랜잭션 밖이어야 한다 (클래스 주석 참고)
+    private final ChatImageMessageWriter chatImageMessageWriter;
     // 실시간 통지는 이벤트로 넘긴다 — Service는 WebSocket을 모른다 (수신자는 ChatBroadcaster)
     private final ApplicationEventPublisher eventPublisher;
 
@@ -95,6 +107,111 @@ public class ChatService {
                 .map(room -> ChatRoomResponse.of(room, counts.getOrDefault(room.getId(), 0L),
                         unreads.get(room.getId())))
                 .toList();
+    }
+
+    /**
+     * 내가 참여 중인 방 목록 (F7 — docs/plan-2026-08-13.md).
+     *
+     * <p>정렬은 <b>고정된 방 먼저(최근 고정 순) → 마지막 대화가 최근인 순</b>이다.
+     * 대화가 한 번도 없는 방은 방 생성 시각을 대신 쓴다 — 새로 만든 방이 목록 맨 아래로 가라앉지 않게.
+     *
+     * <p>전체 목록(getRooms)과 달리 검색·필터를 받지 않는다. 참여 중인 방은 대개 몇 개뿐이라
+     * 거를 이유가 없고, 화면에서도 이 목록은 상단 고정 섹션이라 필터가 붙지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public List<ChatRoomResponse> getMyRooms(Long memberId) {
+        List<ChatRoomMember> memberships = chatRoomMemberRepository.findActiveByMemberId(memberId);
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        List<Long> roomIds = memberships.stream().map(ChatRoomMember::getRoomId).toList();
+        Map<Long, ChatRoom> rooms = chatRoomRepository.findAllById(roomIds).stream()
+                .collect(Collectors.toMap(ChatRoom::getId, room -> room));
+        // 참여자 수·안 읽은 수는 전체 목록과 같은 일괄 집계를 재사용한다 (방마다 조회하면 N+1)
+        Map<Long, Long> counts = chatRoomMemberRepository.countActiveByRoomIds(roomIds).stream()
+                .collect(Collectors.toMap(
+                        ChatRoomMemberRepository.RoomParticipantCount::getRoomId,
+                        ChatRoomMemberRepository.RoomParticipantCount::getParticipantCount));
+        Map<Long, Long> unreads = chatRoomMemberRepository.countUnreadByMember(memberId).stream()
+                .collect(Collectors.toMap(
+                        ChatRoomMemberRepository.RoomUnreadCount::getRoomId,
+                        ChatRoomMemberRepository.RoomUnreadCount::getUnreadCount));
+        Map<Long, Instant> lastMessages = chatMessageRepository.findLastMessageAtByRoomIds(roomIds).stream()
+                .collect(Collectors.toMap(
+                        ChatMessageRepository.RoomLastMessage::getRoomId,
+                        ChatMessageRepository.RoomLastMessage::getLastMessageAt));
+
+        // 정렬은 메모리에서 한다 — 정렬 키(고정 시각·마지막 대화)를 위에서 이미 전부 모았고,
+        // 참여 방 수는 사람당 수십 개 수준이라 쿼리로 옮길 이득이 없다 (참여자순 정렬과 같은 판단)
+        Comparator<ChatRoomMember> order = Comparator
+                // 고정된 방이 먼저. 같은 고정끼리는 최근에 고정한 것이 위로
+                .comparing((ChatRoomMember m) -> m.getPinnedAt() == null ? 1 : 0)
+                .thenComparing(m -> m.getPinnedAt() == null ? Instant.EPOCH : m.getPinnedAt(),
+                        Comparator.reverseOrder())
+                .thenComparing(m -> lastActivityAt(m.getRoomId(), rooms, lastMessages),
+                        Comparator.reverseOrder());
+
+        return memberships.stream()
+                .filter(m -> rooms.containsKey(m.getRoomId())) // 방이 사라진 행 방어 (조회 사이 삭제)
+                .sorted(order)
+                .map(m -> ChatRoomResponse.ofMine(rooms.get(m.getRoomId()),
+                        counts.getOrDefault(m.getRoomId(), 0L),
+                        unreads.get(m.getRoomId()),
+                        m.isPinned()))
+                .toList();
+    }
+
+    // 마지막 대화 시각 — 대화가 없으면 방 생성 시각으로 갈음한다
+    private Instant lastActivityAt(Long roomId, Map<Long, ChatRoom> rooms,
+                                   Map<Long, Instant> lastMessages) {
+        Instant lastMessage = lastMessages.get(roomId);
+        if (lastMessage != null) {
+            return lastMessage;
+        }
+        ChatRoom room = rooms.get(roomId);
+        return room == null ? Instant.EPOCH : room.getCreatedAt();
+    }
+
+    /**
+     * 방 고정 (F7). 참여 중인 방만 고정할 수 있고, 상한은 {@link #MAX_PINNED_ROOMS}개다.
+     *
+     * <p><b>이미 고정된 방은 no-op</b>이다(멱등). 다시 눌렀을 때 pinnedAt만 갱신되면
+     * 목록 순서가 이유 없이 바뀌고, 상한 검사도 자기 자신 때문에 걸린다.
+     */
+    @Transactional
+    public void pinRoom(Long memberId, Long roomId) {
+        // 방 활성 검사가 먼저다. 방을 지워도 참여 행은 활성으로 남는 설계라, 이 검사가 없으면
+        // **삭제된 방을 고정할 수 있다**(검증에서 실측). 목록에도 안 보이고 상한 집계에도 안 잡히는
+        // 유령 고정이 생기고, 오류도 403이 아닌 엉뚱한 것이 나간다
+        getActiveRoom(roomId);
+        ChatRoomMember membership = requireParticipantRow(roomId, memberId);
+        if (membership.isPinned()) {
+            return;
+        }
+        if (chatRoomMemberRepository.countActivePins(memberId) >= MAX_PINNED_ROOMS) {
+            throw new BusinessException(ChatErrorCode.ROOM_PIN_LIMIT);
+        }
+        membership.pin();
+    }
+
+    /**
+     * 고정 해제 — 이미 해제된 방도 200 (멱등, 공지 핀 해제와 같은 규칙).
+     *
+     * <p>고정과 달리 <b>방 활성 검사를 하지 않는다.</b> 지워진 방의 고정을 걷어내는 것까지 막으면
+     * 정리할 방법이 없어진다 — 해제는 되돌리는 방향이라 막을 이유도 없다.
+     */
+    @Transactional
+    public void unpinRoom(Long memberId, Long roomId) {
+        requireParticipantRow(roomId, memberId).unpin();
+    }
+
+    /**
+     * 참여 중인 행을 가져온다. 미참여·나간 방은 403 — 남의 참여 정보를 건드릴 수 없다.
+     * 존재 검사만 하는 {@code requireParticipant}와 달리 <b>행을 고쳐야 할 때</b> 쓴다.
+     */
+    private ChatRoomMember requireParticipantRow(Long roomId, Long memberId) {
+        return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
+                .orElseThrow(() -> new BusinessException(ChatErrorCode.NOT_PARTICIPANT));
     }
 
     // 카테고리 필터 파싱 — 빈 값은 전체(null), 목록에 없는 값은 400
@@ -232,6 +349,33 @@ public class ChatService {
         // 실제 push는 커밋 후에 일어난다 — 이벤트 발행 자체는 메모리 작업이라 위 구간을 넓히지 않는다
         eventPublisher.publishEvent(new ChatMessageCreatedEvent(roomId, response));
         return response;
+    }
+
+    /**
+     * 이미지 메시지 전송 (F10b — docs/api-spec.md 7절 4차).
+     *
+     * <p><b>의도적으로 트랜잭션이 없다.</b> Storage 업로드가 외부 HTTP라, 트랜잭션 안에서 하면
+     * 그 왕복 내내 DB 커넥션을 잡는다 — 풀이 작아(5) 몇 건만 겹쳐도 전면 장애가 된다
+     * (conventions.md 1절 규약, 백로그 76번이 카카오 로그인에서 실측한 그 문제).
+     * 저장은 {@link ChatImageMessageWriter}의 짧은 트랜잭션이 맡는다.
+     *
+     * <p>실패해도 남는 것은 <b>참조되지 않는 Storage 파일</b>뿐이다(메시지가 안 만들어지므로).
+     * 반대 순서(먼저 저장 → 업로드)면 URL 없는 이미지 메시지가 남아 화면이 깨지므로 이쪽이 낫다.
+     */
+    public ChatMessageResponse sendImage(Long memberId, Long roomId, MultipartFile file) {
+        getActiveRoom(roomId);
+        requireParticipant(roomId, memberId);
+        imageStorageClient.validateImage(file); // 형식·용량 — 프로필 사진과 같은 규칙
+        // 경로는 UUID다. 공개 버킷이라 URL을 아는 사람은 방 밖에서도 볼 수 있으므로,
+        // roomId-messageId 같은 열거 가능한 경로를 쓰면 남의 대화 사진이 전수 열람된다
+        String path = "room-%d/%s".formatted(roomId, UUID.randomUUID());
+        String imageUrl;
+        try {
+            imageUrl = imageStorageClient.uploadChatImage(path, file.getBytes(), file.getContentType());
+        } catch (IOException e) {
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+        return chatImageMessageWriter.write(roomId, memberId, imageUrl);
     }
 
     /**

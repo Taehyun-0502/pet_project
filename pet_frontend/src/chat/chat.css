@@ -197,6 +197,80 @@
 }
 
 /* 채팅방 화면 (2덩어리에서 사용) */
+/* 사진 보내기 버튼 (F10b) — 입력창 왼쪽. label이 file input을 연다 */
+.chat-image-button {
+  position: relative;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  align-self: center;
+}
+
+/* file input·보조 텍스트는 **화면에서만** 숨긴다 (visually-hidden).
+   display:none으로 감추면 input이 포커스 트리에서 빠져 마우스 없이는 사진을 보낼 수 없다
+   (백로그 84번 — pet.css·member.css의 사진 등록 label과 같은 규칙) */
+.chat-image-button input,
+.visually-hidden-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* 숨긴 input이 포커스를 받으면 label에 포커스 링을 그린다 — 키보드 사용자가 위치를 볼 수 있게 */
+.chat-image-button:focus-within {
+  outline: 2px solid #2a7;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 말풍선 안 이미지 (F10b) — 원본 크기로 두면 목록이 무너진다. 눌러서 원본 열기는 <a>가 맡는다 */
+.chat-image {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* 내 방 섹션 (F7) — 검색·필터 위에 고정. 전체 목록과 시각적으로 구분되게 제목을 둔다 */
+.chat-my-rooms h2,
+.chat-section-title {
+  font-size: 14px;
+  color: #555;
+  text-align: left;
+  margin: 16px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #eee;
+}
+
+/* 고정 버튼 — 켜져 있으면 진하게, 꺼져 있으면 흐리게 (같은 아이콘의 상태 표시) */
+.room-pin {
+  background: none;
+  border: 0;
+  padding: 4px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+
+.room-pin.active {
+  opacity: 1;
+  filter: none;
+}
+
+.room-pin:disabled {
+  cursor: default;
+}
+
 .chat-messages {
   list-style: none;
   padding: 0;
@@ -215,6 +289,9 @@
   background: #f1f1f1;
   align-self: flex-start;
   max-width: 80%;
+  /* 공백 없는 긴 문자열(주로 URL — F10a)이 말풍선을 가로로 밀어내지 않게 강제로 접는다.
+     max-width만으로는 부족하다: 브라우저는 끊을 곳이 없는 토큰을 넘치게 두기 때문 */
+  overflow-wrap: anywhere;
 }
 
 .chat-messages li.mine {

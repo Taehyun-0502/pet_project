@@ -73,6 +73,22 @@ public class ChatRoomMember {
     private Long lastReadMessageId;
 
     /**
+     * 이 방을 목록 위에 고정한 시각 (F7 — docs/plan-2026-08-13.md). NULL = 고정 안 함.
+     *
+     * <p>고정은 <b>방이 아니라 참여 관계의 속성</b>이다. {@code chat_room}에 두면 한 사람이 고정한 방이
+     * 다른 사람 화면에서도 위로 올라간다.
+     *
+     * <p>불리언이 아니라 시각인 이유: 여러 개를 고정했을 때 "최근에 고정한 것부터"라는 순서가
+     * 컬럼 하나로 공짜로 나온다.
+     *
+     * <p>이 컬럼은 lastReadMessageId와 달리 <b>엔티티 변경</b>으로 갱신한다(@Version이 올라간다).
+     * 읽음 보고처럼 잦은 갱신이 아니라 사용자가 직접 누르는 드문 동작이라, 권한 변경과 겹쳐
+     * 409가 나더라도 재시도가 자연스럽다.
+     */
+    @Column(name = "pinned_at")
+    private Instant pinnedAt;
+
+    /**
      * 낙관적 잠금 (리뷰 백로그 22번).
      * 위임·나가기·강퇴·지명이 같은 행을 동시에 고치면 나중 커밋이 앞 커밋을 통째로 덮어써
      * "나간 사람이 방장으로 부활"·"활성 OWNER 0명/2명" 같은 상태가 만들어졌다.
@@ -116,5 +132,19 @@ public class ChatRoomMember {
     // MANAGER 지명·해제, 방장 위임의 role 전환 — 권한·대상 검증은 Service가 한다
     public void changeRole(ChatRole role) {
         this.role = role;
+    }
+
+    // 방 고정 (F7). 개수 상한 검사는 Service가 한다. 이미 고정된 방에 다시 부르면 시각만 갱신되므로
+    // Service가 먼저 걸러 "다시 눌러도 순서가 바뀌지 않게" 한다
+    public void pin() {
+        this.pinnedAt = Instant.now();
+    }
+
+    public void unpin() {
+        this.pinnedAt = null;
+    }
+
+    public boolean isPinned() {
+        return pinnedAt != null;
     }
 }

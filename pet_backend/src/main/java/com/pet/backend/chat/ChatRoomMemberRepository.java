@@ -21,6 +21,30 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     // 참여자 목록 — 입장순. role 우선 정렬은 Service가 담당
     List<ChatRoomMember> findByRoomIdAndLeftAtIsNullOrderByJoinedAtAsc(Long roomId);
 
+    /**
+     * 내가 참여 중인 방들의 참여 행 (F7 — 내 방 목록).
+     *
+     * <p>삭제된 방은 제외한다. 방을 지워도 참여 행은 활성으로 남는 설계라
+     * (existsActiveOwnedRoom 주석 참조) 이 조건이 없으면 없어진 방이 내 목록에 계속 보인다.
+     */
+    @Query("""
+            select crm from ChatRoomMember crm
+            where crm.memberId = :memberId and crm.leftAt is null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    List<ChatRoomMember> findActiveByMemberId(@Param("memberId") Long memberId);
+
+    /**
+     * 고정한 방 개수 (F7 — 상한 검사). 위와 같은 이유로 <b>삭제된 방의 고정은 세지 않는다</b> —
+     * 없어진 방이 고정 한도를 조용히 잡아먹으면 사용자는 이유를 알 수 없다.
+     */
+    @Query("""
+            select count(crm) from ChatRoomMember crm
+            where crm.memberId = :memberId and crm.leftAt is null and crm.pinnedAt is not null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    long countActivePins(@Param("memberId") Long memberId);
+
     // 방 목록의 참여자 수 집계용 프로젝션
     interface RoomParticipantCount {
         Long getRoomId();
