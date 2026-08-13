@@ -1,7 +1,6 @@
 package com.pet.backend.place;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -83,7 +82,7 @@ class KakaoClient {
                     .body(KakaoSearchResponse.class);
         } catch (RestClientException e) {
             log.warn("카카오 로컬 API 호출 실패: query={}", query, e);
-            throw new BusinessException(ErrorCode.PLACE_SEARCH_FAILED);
+            throw new BusinessException(PlaceErrorCode.SEARCH_FAILED);
         }
     }
 }

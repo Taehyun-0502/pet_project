@@ -1,7 +1,6 @@
 package com.pet.backend.member;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +25,7 @@ class MemberProfileImageUpdater {
     @Transactional
     Member apply(Long memberId, String profileImageUrl) {
         Member member = memberRepository.findByIdAndDeletedAtIsNull(memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
         member.changeProfileImage(profileImageUrl);
         return member;
     }

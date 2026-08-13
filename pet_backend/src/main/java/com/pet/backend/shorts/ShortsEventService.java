@@ -1,7 +1,7 @@
 package com.pet.backend.shorts;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.CommonErrorCode;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,16 +44,16 @@ public class ShortsEventService {
     public void record(Long memberId, Long shortId, ShortsEventCreateRequest request) {
         ShortsEventType type = ShortsEventType.from(request.type())
                 .filter(CLIENT_ALLOWED::contains)
-                .orElseThrow(() -> new BusinessException(ErrorCode.VALIDATION_ERROR,
+                .orElseThrow(() -> new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                         "기록할 수 없는 이벤트 종류입니다. view / watch / skip 중 하나여야 합니다."));
 
         if (!shortsRepository.existsByIdAndDeletedAtIsNull(shortId)) {
-            throw new BusinessException(ErrorCode.SHORTS_NOT_FOUND);
+            throw new BusinessException(ShortsErrorCode.NOT_FOUND);
         }
 
         // 완료율을 계산할 수 없으면 watch/skip은 알고리즘에 쓸모가 없다 — 받는 시점에 막는다
         if (type != ShortsEventType.VIEW && request.watchMs() == null) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "%s 이벤트에는 watchMs가 필요합니다.".formatted(type.dbValue()));
         }
         // view는 '떴다'는 사실만 남긴다 (가이드 1절 — watch_ms는 시청 이벤트에만 채움)

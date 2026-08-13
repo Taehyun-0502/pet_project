@@ -3,6 +3,7 @@ package com.pet.backend.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pet.backend.common.ApiResponse;
 import com.pet.backend.common.ErrorCode;
+import com.pet.backend.member.MemberErrorCode;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -67,10 +68,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     List.of(new SimpleGrantedAuthority("ROLE_" + payload.role().name())));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         } catch (ExpiredJwtException e) {
-            writeError(response, ErrorCode.AUTH_TOKEN_EXPIRED);
+            writeError(response, MemberErrorCode.TOKEN_EXPIRED);
             return;
         } catch (JwtException | IllegalArgumentException e) {
-            writeError(response, ErrorCode.AUTH_TOKEN_INVALID);
+            writeError(response, MemberErrorCode.TOKEN_INVALID);
             return;
         }
         filterChain.doFilter(request, response);

@@ -1,7 +1,6 @@
 package com.pet.backend.member;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -183,14 +182,14 @@ public class RefreshTokenService {
      */
     RefreshToken findUsableOrThrow(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+            throw new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN);
         }
         // 폐기된 토큰도 찾아야 재사용을 감지할 수 있어 상태로 거르지 않고 조회한다
         RefreshToken token = refreshTokenRepository.findByTokenHash(hash(rawToken))
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN));
 
         if (token.isExpired()) {
-            throw new BusinessException(ErrorCode.AUTH_REFRESH_EXPIRED);
+            throw new BusinessException(MemberErrorCode.REFRESH_EXPIRED);
         }
         if (token.isRevoked() && !token.isWithinRotationGrace(ROTATION_GRACE)) {
             // 폐기당한 쪽이 폐기 사실을 모른 채 재제출하는 것이 **보장된 정상 동작**인 사유들이 있다 —
@@ -198,12 +197,12 @@ public class RefreshTokenService {
             // 로그인 응답 유실·탭 경합. 재사용 감지로 취급하면 그 revokeAll이 정상 기기의 새 토큰까지 죽여
             // "현재 기기는 유지"가 무력화된다. 전체 폐기 없이 재로그인만 요구한다 (RevokedReason 주석 참조).
             if (token.getRevokedReason().exemptFromReuseDetection()) {
-                throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+                throw new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN);
             }
             // 유예를 넘긴 폐기 토큰 제출 — 정상 플로우에서는 나올 수 없다. 유출로 보고 세션을 전부 끊는다.
             // 아래 예외가 이 요청의 트랜잭션을 롤백시키므로 폐기는 별도 트랜잭션에서 커밋해야 한다
             reuseHandler.revokeAllOf(token.getMemberId());
-            throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+            throw new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN);
         }
         // 유예 안의 회전된 토큰은 그대로 진행한다 — 호출자가 다시 revoke하고 새 토큰을 발급한다.
         // 그 사이 발급됐던 토큰도 살아 있게 되지만(고아, 백로그 37번), 정상 사용자를

@@ -3,7 +3,7 @@ package com.pet.backend.member;
 import com.pet.backend.chat.ChatLeftReason;
 import com.pet.backend.chat.ChatRoomMemberRepository;
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ImageStorageClient;
 import java.io.IOException;
 import java.time.Instant;
@@ -55,7 +55,7 @@ public class MemberService {
     public MemberResponse signup(SignupRequest request) {
         String email = normalizeEmail(request.email());
         if (memberRepository.existsActiveByNormalizedEmail(email)) {
-            throw new BusinessException(ErrorCode.AUTH_EMAIL_DUPLICATED);
+            throw new BusinessException(MemberErrorCode.EMAIL_DUPLICATED);
         }
         Member member = Member.createLocalMember(
                 email,
@@ -66,7 +66,7 @@ public class MemberService {
         } catch (DataIntegrityViolationException e) {
             // 중복 검사와 INSERT 사이에 같은 이메일이 먼저 가입한 경쟁 상황 —
             // DB 부분 UNIQUE 인덱스(ux_pet_member_email_active) 위반을 409로 변환
-            throw new BusinessException(ErrorCode.AUTH_EMAIL_DUPLICATED);
+            throw new BusinessException(MemberErrorCode.EMAIL_DUPLICATED);
         }
         return MemberResponse.from(member);
     }
@@ -78,10 +78,10 @@ public class MemberService {
     @Transactional
     public LoginResult login(LoginRequest request, String priorRefreshToken, String deviceInfo) {
         Member member = memberRepository.findActiveByNormalizedEmail(normalizeEmail(request.email()))
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INVALID_CREDENTIALS));
         // password가 NULL인 소셜 계정은 자체 로그인 불가
         if (member.getPassword() == null || !matchesSafely(request.password(), member.getPassword())) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+            throw new BusinessException(MemberErrorCode.INVALID_CREDENTIALS);
         }
         return issueLoginTokens(member, priorRefreshToken, deviceInfo);
     }
@@ -118,7 +118,7 @@ public class MemberService {
         // 같은 이메일의 자체 가입 계정이 있으면 자동 연결하지 않고 거부한다 —
         // 카카오 이메일 검증을 신뢰하면 계정 탈취 벡터가 되고, 한 계정 = 한 provider 스키마와도 맞지 않는다
         if (email != null && memberRepository.existsActiveByNormalizedEmail(email)) {
-            throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
+            throw new BusinessException(MemberErrorCode.SOCIAL_EMAIL_CONFLICT);
         }
         String name = (userInfo.nickname() == null || userInfo.nickname().isBlank())
                 ? "카카오 회원"
@@ -143,7 +143,7 @@ public class MemberService {
                         // 먼저 가입한 경우만 409로 안내하고, 그 밖의 제약 위반(예: provider 무결성 CHECK)은
                         // 원인을 "이메일 충돌"로 덮어쓰지 않고 그대로 올린다
                         if (email != null && memberRepository.existsActiveByNormalizedEmail(email)) {
-                            throw new BusinessException(ErrorCode.AUTH_SOCIAL_EMAIL_CONFLICT);
+                            throw new BusinessException(MemberErrorCode.SOCIAL_EMAIL_CONFLICT);
                         }
                         throw e;
                     });
@@ -177,14 +177,14 @@ public class MemberService {
         // 일괄 폐기를 빠져나간 토큰이 14일 살아남는다. 유출 대응이 목적인 기능이라 그 창을 남기지 않는다
         Member member = memberRepository.findByIdForShare(token.getMemberId())
                 .filter(m -> !m.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN));
 
         // 비밀번호 변경 이전에 발급된 토큰은 거부한다. 일괄 폐기(revokeAllByMemberId)는
         // "그 순간 살아 있던 행"만 잡기 때문에 **회전 유예(30초) 안이라 이미 ROTATED로 폐기돼 있던 토큰**을
         // 건드리지 못한다 — 그 토큰은 유예 규칙상 재발급을 통과하므로, 이 검사가 없으면
         // 비밀번호를 바꿔도 공격자가 새 토큰을 받아 간다
         if (member.isTokenInvalidated(token.getCreatedAt())) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_REFRESH_TOKEN);
+            throw new BusinessException(MemberErrorCode.INVALID_REFRESH_TOKEN);
         }
 
         String newRawToken = refreshTokenService.rotate(token);
@@ -213,12 +213,12 @@ public class MemberService {
         Member member = findActiveMemberOrThrow(memberId);
         if (member.getPassword() == null
                 || !matchesSafely(request.currentPassword(), member.getPassword())) {
-            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+            throw new BusinessException(MemberErrorCode.INVALID_CREDENTIALS);
         }
         // 같은 비밀번호로의 "변경"은 거부한다 (2026-08-10 확정) — 유출 대응이 목적인 기능인데
         // 같은 값이면 아무것도 바뀌지 않으면서 다른 기기만 로그아웃되는 어리둥절한 결과가 된다
         if (matchesSafely(request.newPassword(), member.getPassword())) {
-            throw new BusinessException(ErrorCode.AUTH_PASSWORD_UNCHANGED);
+            throw new BusinessException(MemberErrorCode.PASSWORD_UNCHANGED);
         }
         member.changePassword(passwordEncoder.encode(request.newPassword()));
         // 기존 세션 체인이 일괄 폐기로 끊기므로 새 세션으로 시작한다 (UA 재수집 — api-spec.md 1절 5차)
@@ -256,14 +256,14 @@ public class MemberService {
         } catch (IllegalArgumentException e) {
             // 형식 오류도 404 — 존재 여부 비노출(5절 규칙)과 일치하고, 경로 타입 오류가 500이 되는
             // 계열(백로그 13번)을 새로 만들지 않기 위해 UUID 파싱을 여기서 흡수한다
-            throw new BusinessException(ErrorCode.AUTH_SESSION_NOT_FOUND);
+            throw new BusinessException(MemberErrorCode.SESSION_NOT_FOUND);
         }
         if (sessionId.equals(refreshTokenService.findSessionIdOf(rawRefreshToken))) {
-            throw new BusinessException(ErrorCode.AUTH_SESSION_CURRENT);
+            throw new BusinessException(MemberErrorCode.SESSION_CURRENT);
         }
         // memberId 조건이 쿼리에 있어 남의 세션은 0행 → 404 (존재 여부가 새지 않는다)
         if (refreshTokenService.revokeSession(memberId, sessionId) == 0) {
-            throw new BusinessException(ErrorCode.AUTH_SESSION_NOT_FOUND);
+            throw new BusinessException(MemberErrorCode.SESSION_NOT_FOUND);
         }
     }
 
@@ -279,7 +279,7 @@ public class MemberService {
         // 방장(OWNER)인 활성 방이 있으면 거부 — "방장은 위임 후에만 나가기"와 일관.
         // 방치하면 위임·삭제가 영구 불가능한 방장 부재 방이 남는다 (2026-08-11 확정)
         if (chatRoomMemberRepository.existsActiveOwnedRoom(memberId)) {
-            throw new BusinessException(ErrorCode.WITHDRAW_CHAT_OWNER);
+            throw new BusinessException(MemberErrorCode.WITHDRAW_CHAT_OWNER);
         }
         // 엔티티 변경은 반드시 벌크 UPDATE들보다 **먼저** — 아래 벌크의 clearAutomatically가
         // 영속성 컨텍스트를 비워 member가 detach되면, 그 뒤의 변경은 커밋에 반영되지 않고 유실된다
@@ -298,12 +298,12 @@ public class MemberService {
         if (member.getProvider() == Provider.LOCAL) {
             if (member.getPassword() == null
                     || !matchesSafely(request.password(), member.getPassword())) {
-                throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+                throw new BusinessException(MemberErrorCode.INVALID_CREDENTIALS);
             }
             return;
         }
         if (!WITHDRAW_CONFIRM_PHRASE.equals(request.confirmPhrase())) {
-            throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "확인 문구가 일치하지 않습니다. \"" + WITHDRAW_CONFIRM_PHRASE + "\"를 입력해 주세요.");
         }
     }
@@ -340,7 +340,7 @@ public class MemberService {
         try {
             bytes = file.getBytes();
         } catch (IOException e) {
-            throw new BusinessException(ErrorCode.IMAGE_UPLOAD_FAILED);
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
         // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지 (ImageStorageClient 주석)
         String url = imageStorageClient.upload("member-" + memberId, bytes, file.getContentType());
@@ -376,7 +376,7 @@ public class MemberService {
     // 활성 조건이 쿼리에 있는 조회로 통일 (백로그 95번 해소 — 이전에는 findById().filter 복붙이 4곳)
     private Member findActiveMemberOrThrow(Long memberId) {
         return memberRepository.findByIdAndDeletedAtIsNull(memberId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
     }
 
     // 이름 수정 (docs/api-spec.md 1절). 검증 규칙은 가입과 동일, 저장 전 trim

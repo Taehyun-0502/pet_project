@@ -1,7 +1,6 @@
 package com.pet.backend.walk;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -92,7 +91,7 @@ class KmaClient {
                     ncstBase.baseDate() + ncstBase.baseTime());
         } catch (RestClientException e) {
             log.warn("기상청 API 호출 실패 — nx={}, ny={}", nx, ny, e);
-            throw new BusinessException(ErrorCode.WALK_WEATHER_FETCH_FAILED);
+            throw new BusinessException(WalkErrorCode.WEATHER_FETCH_FAILED);
         }
     }
 
@@ -149,7 +148,7 @@ class KmaClient {
         String raw = values.get(category);
         if (raw == null) {
             log.warn("기상청 응답에 카테고리 {} 값이 없습니다.", category);
-            throw new BusinessException(ErrorCode.WALK_WEATHER_FETCH_FAILED);
+            throw new BusinessException(WalkErrorCode.WEATHER_FETCH_FAILED);
         }
         return Double.parseDouble(raw);
     }
@@ -165,7 +164,7 @@ class KmaClient {
                 .map(item -> Integer.parseInt(item.fcstValue()))
                 .orElseThrow(() -> {
                     log.warn("기상청 응답에 SKY 예보 값이 없습니다.");
-                    return new BusinessException(ErrorCode.WALK_WEATHER_FETCH_FAILED);
+                    return new BusinessException(WalkErrorCode.WEATHER_FETCH_FAILED);
                 });
     }
 

@@ -1,7 +1,6 @@
 package com.pet.backend.shorts;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -32,7 +31,7 @@ public class ShortsStorageClient {
      */
     public String upload(String path, byte[] bytes, String mimeType) {
         if (!properties.isConfigured()) {
-            throw new BusinessException(ErrorCode.SHORTS_UPLOAD_FAILED,
+            throw new BusinessException(ShortsErrorCode.UPLOAD_FAILED,
                     "서버에 Storage 설정이 없습니다. .env의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.");
         }
 
@@ -54,7 +53,7 @@ public class ShortsStorageClient {
         } catch (RestClientException e) {
             // 키·정책·네트워크 문제는 사용자가 손쓸 수 없으므로 상세는 로그로만 남긴다
             log.error("Supabase Storage 업로드 실패 path={}", path, e);
-            throw new BusinessException(ErrorCode.SHORTS_UPLOAD_FAILED);
+            throw new BusinessException(ShortsErrorCode.UPLOAD_FAILED);
         }
 
         return "%s/storage/v1/object/public/%s/%s".formatted(baseUrl, properties.shortsBucket(), path);

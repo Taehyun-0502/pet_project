@@ -3,7 +3,6 @@ package com.pet.backend.place;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +64,7 @@ public class PlaceService {
         }
 
         if (!categories.isEmpty() && failedCount == categories.size()) {
-            throw new BusinessException(ErrorCode.PLACE_SEARCH_FAILED);
+            throw new BusinessException(PlaceErrorCode.SEARCH_FAILED);
         }
         return merged;
     }

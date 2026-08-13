@@ -1,8 +1,9 @@
 package com.pet.backend.shorts;
 
 import com.pet.backend.common.BusinessException;
-import com.pet.backend.common.ErrorCode;
+import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.member.Member;
+import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.member.MemberRepository;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -38,7 +39,7 @@ public class ShortsCommentService {
     @Transactional(readOnly = true)
     public ShortsCommentListResponse list(Long shortId, Long viewerId) {
         if (!shortsRepository.existsByIdAndDeletedAtIsNull(shortId)) {
-            throw new BusinessException(ErrorCode.SHORTS_NOT_FOUND);
+            throw new BusinessException(ShortsErrorCode.NOT_FOUND);
         }
 
         List<ShortsCommentRow> rows = commentRepository.findRowsByShortId(shortId);
@@ -76,24 +77,24 @@ public class ShortsCommentService {
     @Transactional
     public ShortsCommentResponse write(Long memberId, Long shortId, ShortsCommentCreateRequest request) {
         if (!shortsRepository.existsByIdAndDeletedAtIsNull(shortId)) {
-            throw new BusinessException(ErrorCode.SHORTS_NOT_FOUND);
+            throw new BusinessException(ShortsErrorCode.NOT_FOUND);
         }
 
         // 응답에 작성자 이름·프로필 사진이 필요하고, 탈퇴 회원의 작성을 막는 검사도 겸한다
         Member member = memberRepository.findById(memberId)
                 .filter(found -> !found.isDeleted())
-                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
 
         Long parentId = request.parentId();
         if (parentId != null) {
             ShortsComment parent = commentRepository.findByIdAndDeletedAtIsNull(parentId)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.SHORTS_COMMENT_NOT_FOUND));
+                    .orElseThrow(() -> new BusinessException(ShortsErrorCode.COMMENT_NOT_FOUND));
             if (!parent.getShortId().equals(shortId)) {
-                throw new BusinessException(ErrorCode.SHORTS_COMMENT_NOT_FOUND,
+                throw new BusinessException(ShortsErrorCode.COMMENT_NOT_FOUND,
                         "다른 영상의 댓글에는 답글을 달 수 없습니다.");
             }
             if (parent.isReply()) {
-                throw new BusinessException(ErrorCode.VALIDATION_ERROR,
+                throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                         "답글에는 다시 답글을 달 수 없습니다.");
             }
         }
@@ -115,7 +116,7 @@ public class ShortsCommentService {
     @Transactional
     public LikeToggleResponse toggleLike(Long memberId, Long commentId) {
         if (commentRepository.findByIdAndDeletedAtIsNull(commentId).isEmpty()) {
-            throw new BusinessException(ErrorCode.SHORTS_COMMENT_NOT_FOUND);
+            throw new BusinessException(ShortsErrorCode.COMMENT_NOT_FOUND);
         }
 
         boolean liked;
