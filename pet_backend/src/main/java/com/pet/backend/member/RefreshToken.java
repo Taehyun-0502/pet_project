@@ -22,6 +22,10 @@ import org.hibernate.annotations.CreationTimestamp;
  * **원문은 저장하지 않는다** — DB가 통째로 새어도 그것만으로 남의 세션을 이어받을 수 없도록
  * SHA-256 해시만 보관하고, 원문은 HttpOnly 쿠키로만 오간다.
  * 재발급 시 회전(기존 토큰 폐기 + 새로 발급)하므로 한 토큰은 한 번만 쓰인다.
+ *
+ * <p><b>이 "한 번만"에는 유예라는 예외가 있다</b> — 회전 직후 30초 안의 재제출은 정상 사용으로 보고
+ * 통과시킨다(백로그 32번: 재발급 응답이 닿기 전 새로고침·탭 경합). 그래서 한 토큰이 여러 번 쓰일 수 있고,
+ * 대신 그 창이 **고정 30초를 넘지 않는 것**이 불변식이다 — {@link #revoke}가 폐기 시각을 덮지 않는 이유.
  */
 @Entity
 @Table(name = "refresh_tokens")
@@ -88,7 +92,21 @@ public class RefreshToken {
         return new RefreshToken(memberId, tokenHash, expiresAt, sessionId, deviceInfo, sessionStartedAt);
     }
 
+    /**
+     * 폐기한다. **이미 폐기된 토큰이면 아무것도 바꾸지 않는다** (리뷰 백로그 108번).
+     *
+     * <p>유예 판정({@link #isWithinRotationGrace})이 `revokedAt`을 기준으로 삼기 때문에,
+     * 유예 안의 재제출을 회전할 때 이 값을 다시 쓰면 **유예 시작점이 계속 뒤로 밀려**
+     * 30초마다 재제출하는 것만으로 폐기된 토큰을 만료일까지 쓸 수 있게 된다.
+     * 재사용 감지도 영원히 발동하지 않는다. 그래서 폐기 시각은 **최초 1회만** 기록한다.
+     *
+     * <p>사유(reason)를 바꿔야 하는 경우는 벌크 UPDATE가 담당한다
+     * ({@link RefreshTokenRepository#expireRotationGraceBySession}) — 그쪽은 `revokedAt`을 건드리지 않는다.
+     */
     public void revoke(RevokedReason reason) {
+        if (revokedAt != null) {
+            return;
+        }
         this.revokedAt = Instant.now();
         this.revokedReason = reason;
     }

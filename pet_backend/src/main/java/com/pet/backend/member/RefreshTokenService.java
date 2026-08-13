@@ -34,8 +34,16 @@ public class RefreshTokenService {
      * 서버는 회전을 커밋했는데 쿠키는 옛 토큰으로 남아, 다음 재발급이 **반드시** 재사용으로 판정된다.
      * 탭 두 개가 동시에 재발급할 때도 같다(프론트의 single-flight는 탭 하나 안에서만 유효).
      * 응답 유실·탭 경합은 수 초 안에 끝나므로 30초면 넉넉하고, 그만큼만 감지가 느슨해진다.
+     *
+     * <p>package-private인 이유: 유예 중 토큰을 함께 무력화해야 하는 곳
+     * ({@link RefreshTokenReuseHandler})이 같은 기준 시각을 써야 하기 때문 (백로그 108번).
      */
-    private static final Duration ROTATION_GRACE = Duration.ofSeconds(30);
+    static final Duration ROTATION_GRACE = Duration.ofSeconds(30);
+
+    /** 이 시각보다 뒤에 폐기된 `ROTATED` 토큰이 아직 유예 안에 있는 것들이다. */
+    static Instant rotationGraceCutoff() {
+        return Instant.now().minus(ROTATION_GRACE);
+    }
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -143,14 +151,26 @@ public class RefreshTokenService {
     }
 
     /**
-     * 기기(세션) 원격 로그아웃 — 그 세션의 활성 토큰을 **전부** 폐기한다 (api-spec.md 1절 5차).
-     * 세션 단위 폐기라 회전 유예 안의 직전 토큰·유예 중복 회전이 남긴 고아까지 함께 죽는다.
-     * 반환값은 폐기된 행 수 — 0이면 그 세션은 이 회원 것이 아니거나 이미 끊겨 있다.
+     * 기기(세션) 원격 로그아웃 — 그 세션의 토큰을 **전부** 끊는다 (api-spec.md 1절 5차).
+     * 반환값은 처리된 행 수 — 0이면 그 세션은 이 회원 것이 아니거나 이미 끊겨 있다.
+     *
+     * <p><b>두 문장이 필요한 이유 (백로그 108번)</b>: 활성 토큰 폐기(`revoked_at is null`)만으로는
+     * **회전 유예 안의 토큰을 잡지 못한다** — 그 토큰은 이미 `revoked_at`이 찍혀 있어 조건에서 빠지고,
+     * 재제출하면 같은 `session_id`를 상속한 새 토큰이 나와 끊은 기기가 되살아난다.
+     * 경쟁이 아니라 결정적으로 성립하던 구멍이었다. 두 번째 문장이 그 토큰의 유예 자격을 뺏는다.
+     * (이 주석의 이전 버전은 "세션 단위라 유예 안의 직전 토큰까지 함께 죽는다"고 적혀 있었으나 사실이 아니었다)
+     *
+     * <p>순서는 결과에 영향이 없다 — 앞 문장이 사유를 `DEVICE_REVOKED`로 바꾼 행은 뒤 문장의 `ROTATED` 조건에
+     * 걸리지 않고, 반대 순서여도 뒤 문장이 `revoked_at is null`을 요구해 겹치지 않는다.
      */
     @Transactional
     public int revokeSession(Long memberId, UUID sessionId) {
-        return refreshTokenRepository.revokeAllBySession(
+        int revoked = refreshTokenRepository.revokeAllBySession(
                 memberId, sessionId, Instant.now(), RevokedReason.DEVICE_REVOKED);
+        int graceExpired = refreshTokenRepository.expireRotationGraceBySession(
+                memberId, sessionId, RevokedReason.DEVICE_REVOKED,
+                RevokedReason.ROTATED, rotationGraceCutoff());
+        return revoked + graceExpired;
     }
 
     /**
