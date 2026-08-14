@@ -121,9 +121,6 @@ export default function PetListPage() {
         <div style={modalOverlayStyle} onClick={() => setSelectedPetForHealth(null)}>
           <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
             <div style={modalHeaderStyle}>
-              <h2 style={{ fontSize: '17px', fontWeight: '800', margin: 0, color: '#0F172A' }}>
-                🩺 {selectedPetForHealth.name} AI 건강관리 & 검진
-              </h2>
               <button
                 type="button"
                 onClick={() => setSelectedPetForHealth(null)}
