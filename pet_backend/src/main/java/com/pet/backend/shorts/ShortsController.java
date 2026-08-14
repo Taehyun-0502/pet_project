@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,6 +43,27 @@ public class ShortsController {
             @RequestParam(required = false) List<Long> excludeIds,
             @RequestParam(required = false) Integer limit) {
         return ApiResponse.ok(shortsService.getFeed(memberId, excludeIds, limit));
+    }
+
+    /**
+     * 영상 한 건 조회. 공유 링크로 들어온 사람이 그 영상을 보게 하는 용도다.
+     * 피드와 같이 <b>공개 조회</b>다 — 링크를 받은 사람이 로그인해야 열린다면 공유가 의미를 잃는다.
+     */
+    @GetMapping("/api/shorts/{shortId}")
+    public ApiResponse<ShortsResponse> getOne(@AuthenticationPrincipal Long memberId,
+                                              @PathVariable Long shortId) {
+        return ApiResponse.ok(shortsService.getOne(memberId, shortId));
+    }
+
+    /**
+     * 영상 삭제. 올린 사람만 지울 수 있고, 남의 영상이면 404다(403이 아닌 이유는
+     * {@link ShortsService#delete} 주석 참고). 소프트 삭제라 좋아요·댓글은 그대로 남는다.
+     */
+    @DeleteMapping("/api/shorts/{shortId}")
+    public ApiResponse<Void> delete(@AuthenticationPrincipal Long memberId,
+                                    @PathVariable Long shortId) {
+        shortsService.delete(memberId, shortId);
+        return ApiResponse.ok();
     }
 
     // 영상 좋아요 토글 (이미 눌렀으면 취소)
@@ -84,6 +106,22 @@ public class ShortsController {
     public ApiResponse<ShortsVideoResponse> uploadVideo(@AuthenticationPrincipal Long memberId,
                                                         @RequestPart("file") MultipartFile file) {
         return ApiResponse.ok(shortsService.uploadVideo(memberId, file));
+    }
+
+    /**
+     * 커버(썸네일) 이미지 업로드. 영상과 같은 이유로 이 서버를 거친다.
+     *
+     * <p>영상과 엔드포인트를 나눈 이유: 허용 형식·크기 상한이 전혀 다르다(jpeg 2MB vs 영상 50MB).
+     * 한 곳에서 둘 다 받으면 "무엇을 올리는지"에 따라 갈라지는 검사가 한 덩어리로 뭉친다.
+     *
+     * <p>실패해도 발행을 막지 말아야 한다 — 커버가 없으면 재생 쪽이 첫 프레임을 쓰면 된다.
+     * 그 판단은 화면이 한다(여기서는 그냥 오류를 돌려준다).
+     */
+    @PostMapping(value = "/api/shorts/thumbnail", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<ShortsThumbnailResponse> uploadThumbnail(
+            @AuthenticationPrincipal Long memberId,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(shortsService.uploadThumbnail(memberId, file));
     }
 
     // memberId는 JwtAuthenticationFilter가 토큰에서 꺼내 실어준 값

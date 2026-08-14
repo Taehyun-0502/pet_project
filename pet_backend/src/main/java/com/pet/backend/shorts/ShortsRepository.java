@@ -148,8 +148,13 @@ public interface ShortsRepository extends JpaRepository<Shorts, Long> {
      */
     @Query("""
             select new com.pet.backend.shorts.ShortsResponse(
-                s.id, m.name, s.videoUrl, s.thumbnailUrl, s.caption, s.tags,
-                s.durationSec, s.viewCount, s.likeCount, s.commentCount, s.createdAt)
+                s.id, s.memberId, m.name, s.videoUrl, s.thumbnailUrl, s.caption, s.tags,
+                s.durationSec, s.viewCount, s.likeCount, s.commentCount, s.createdAt,
+                s.musicKey, s.muteOriginal, s.musicStartSec,
+                s.overlayTexts,
+                s.trimStartSec, s.trimEndSec, s.crop,
+                s.musicVolume, s.videoVolume,
+                s.thumbnailTimeSec, s.thumbnailTextOverlays)
             from Shorts s
             join com.pet.backend.member.Member m on m.id = s.memberId
             where s.id in :ids

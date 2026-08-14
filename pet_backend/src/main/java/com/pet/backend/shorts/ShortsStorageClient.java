@@ -26,7 +26,8 @@ public class ShortsStorageClient {
     /**
      * @param path     버킷 안에서의 파일 경로 (예: 1785920000000-a1b2c3d4.mp4)
      * @param bytes    파일 내용
-     * @param mimeType Content-Type (mp4만 허용하므로 실제로는 video/mp4)
+     * @param mimeType Content-Type. 허용 형식은 ShortsService가 정한다 (video/mp4 · video/webm).
+     *                 ⚠️ 버킷에 allowed_mime_types 제한이 있으면 그 목록에도 함께 있어야 한다
      * @return 공개 URL. 버킷이 public read이므로 별도 서명 없이 재생할 수 있다
      */
     public String upload(String path, byte[] bytes, String mimeType) {
