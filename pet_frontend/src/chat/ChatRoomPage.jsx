@@ -45,6 +45,15 @@ export default function ChatRoomPage() {
   const lastIdRef = useRef(null) // 서버에게 확인받은 마지막 message id — 재연결 복구의 afterId
   const listRef = useRef(null) // 스크롤 하단 고정용
   const reportedIdRef = useRef(0) // 읽음 보고를 마친 마지막 message id (docs/api-spec.md 7절)
+  // 화면에 표시된 마지막 message id — **읽음 보고(디바운스·이탈)의 단일 출처** (백로그 91번).
+  // lastIdRef와 다르다: 저쪽은 재연결 복구용이라 내 전송 응답으로는 전진하지 않는 불변식이 있고,
+  // 읽음 보고는 명세상 "화면이 표시한 마지막 id"라 내 메시지도 포함해야 출처가 정직하다
+  const displayedIdRef = useRef(0)
+  // 나가기·방 삭제 직후 — 더는 이 방의 읽음 보고를 내지 않는다 (백로그 91번.
+  // 참여 행이 정리돼 서버가 no-op으로 흡수하지만, 안 나가는 게 맞는 요청이다)
+  const leftRef = useRef(false)
+  // 현재 구독 핸들 — fatalError가 뜨면 소켓도 접기 위한 참조 (백로그 29번)
+  const socketRef = useRef(null)
   // 과거 페이지네이션 (3차 — api-spec.md 7절)
   const [hasMore, setHasMore] = useState(true) // 이전 대화가 더 있는가 — 응답 < PAGE_SIZE면 끝
   const [loadingOlder, setLoadingOlder] = useState(false) // 과거 로드 중 (중복 요청 가드 겸 표시)
@@ -54,24 +63,52 @@ export default function ChatRoomPage() {
   const prependRef = useRef(null) // 과거 로드 직후 스크롤 보정용 { prevHeight, prevTop }
 
   // 화면에 표시된 메시지를 읽음으로 보고 — 1초 디바운스로 남발을 막는다.
-  // 실패는 삼킨다: 멱등이라 다음 수신·재입장 때의 보고가 만회한다
+  // reportedIdRef는 **성공했을 때만 전진**한다 (백로그 91번 — 예전엔 요청 전에 전진시켜,
+  // 실패하면 새 메시지가 올 때까지 재시도 조건이 스스로 막혀 있었다. 멱등이라 중복 성공은 무해)
   useEffect(() => {
     if (messages.length === 0) return undefined
     const lastId = messages[messages.length - 1].id
+    displayedIdRef.current = lastId
     if (lastId <= reportedIdRef.current) return undefined
     const timer = setTimeout(() => {
-      reportedIdRef.current = lastId
-      markRead(roomId, lastId).catch(() => {})
+      // 백그라운드 탭은 보고하지 않는다 — 명세의 "방 화면이 **표시한** 마지막 id"에 맞춘다 (백로그 91번).
+      // 탭이 돌아와도 이 effect가 다시 걸리진 않지만, 다음 수신 또는 이탈 보고가 만회한다
+      if (leftRef.current || document.visibilityState !== 'visible') return
+      markRead(roomId, lastId)
+        .then(() => {
+          reportedIdRef.current = Math.max(reportedIdRef.current, lastId)
+        })
+        .catch(() => {}) // 다음 수신·이탈 보고가 재시도한다
     }, 1000)
     return () => clearTimeout(timer)
   }, [messages, roomId])
 
-  // 방을 떠날 때 디바운스 대기 중이던 보고를 마저 보낸다 — 안 보내면 방금 본 메시지가 배지로 남는다
+  /**
+   * 방을 떠날 때 디바운스 대기 중이던 잔여 보고 — 안 보내면 방금 본 메시지가 배지로 남는다.
+   * 반환한 promise를 나가기 UI 경로(onBackToList)가 **await한 뒤** 목록으로 이동한다 (백로그 85번):
+   * 명세가 "이탈 시 잔여 보고"와 "목록 진입 시 갱신"을 나란히 정의했지만 그 사이 순서는 아무도
+   * 정하지 않아, fire-and-forget 보고(UPDATE 커밋)보다 목록의 GET(집계)이 먼저 도착하면
+   * 방금 다 읽은 방에 배지가 그대로 남았다. 순서는 이 핸들러가 정한다.
+   */
+  const reportRemainingRead = () => {
+    if (leftRef.current) return Promise.resolve()
+    const lastId = displayedIdRef.current
+    if (!lastId || lastId <= reportedIdRef.current) return Promise.resolve()
+    // 이탈 직전이라 실패 재시도가 없다 — 중복 발사(UI 경로 + cleanup)만 막으면 되므로 먼저 전진
+    reportedIdRef.current = lastId
+    return markRead(roomId, lastId).catch(() => {})
+  }
+
+  const onBackToList = async (e) => {
+    e.preventDefault()
+    await reportRemainingRead()
+    navigate('/chat')
+  }
+
+  // 언마운트 cleanup은 뒤로가기·탭 종료 등 onBackToList를 안 거치는 이탈의 백업(fire-and-forget).
+  // UI 경로가 이미 보고했다면 reportedIdRef 조건에 걸려 재발사되지 않는다
   useEffect(() => () => {
-    const lastId = lastIdRef.current
-    if (lastId && lastId > reportedIdRef.current) {
-      markRead(roomId, lastId).catch(() => {})
-    }
+    reportRemainingRead()
   }, [roomId])
 
   // 수신 메시지 병합 — id 기준 중복 제거 + 정렬.
@@ -104,8 +141,22 @@ export default function ChatRoomPage() {
     setLoadingOlder(false)
     lastIdRef.current = null
     reportedIdRef.current = 0
+    displayedIdRef.current = 0
+    leftRef.current = false
     stickBottomRef.current = true
     prependRef.current = null
+
+    /**
+     * fatal 판정 병합 (백로그 30번 검증에서 실측한 경쟁) — 강퇴 직후 재연결하면 REST 복구 조회의
+     * 403(NOT_PARTICIPANT)과 STOMP 구독 거부(CHAT_KICKED)가 거의 동시에 도착하는데, 나중 것이
+     * 덮어쓰게 두면 어느 쪽이 이길지가 네트워크 타이밍에 달린다. **더 구체적인 사유(KICKED)가
+     * 항상 이기고, 그 외에는 먼저 도착한 판정을 유지한다** — 안내가 왔다 갔다 하지 않게
+     */
+    const mergeFatal = (err) => setFatalError((prev) => {
+      if (prev?.code === 'CHAT_KICKED') return prev
+      if (err.code === 'CHAT_KICKED') return err
+      return prev ?? err
+    })
 
     // afterId 이후를 받아 병합한다. 첫 로드(afterId 없음 = 최근 50개)와
     // 재연결 복구가 같은 경로를 쓴다 (docs/api-spec.md 7절)
@@ -138,7 +189,7 @@ export default function ChatRoomPage() {
         // 회복 불가능한 오류(미참여 403 / 토큰 만료 401 / 방 없음 404)만 화면을 멈춘다.
         // 네트워크 오류는 다음 재연결의 복구 조회가 다시 시도한다
         if (err.status === 401 || err.status === 403 || err.status === 404) {
-          setFatalError(err)
+          mergeFatal(err)
         }
       }
     }
@@ -158,10 +209,18 @@ export default function ChatRoomPage() {
       onMembersChanged: () => { if (!cancelled) loadMembers() },
       // 공지 핀 변경 신호 — 같은 방식으로 다시 읽는다 (3차)
       onPinChanged: () => { if (!cancelled) loadPinned() },
+      // 방 삭제 신호 (백로그 25번) — 종전에는 신호가 없어 전송할 때마다 404만 반복해서 봤다.
+      // fatalError 전환이 아래 29번 effect의 소켓 정리까지 함께 일으킨다
+      onRoomDeleted: () => {
+        if (cancelled) return
+        leftRef.current = true // 방이 사라졌다 — 잔여 읽음 보고 생략 (91번과 같은 규칙)
+        setFatalError({ code: 'CHAT_ROOM_NOT_FOUND', message: '방장이 방을 삭제했습니다.' })
+      },
       onReady: loadSince, // 연결·재연결 직후 놓친 구간 복구
-      onFatal: (err) => { if (!cancelled) setFatalError(err) },
+      onFatal: (err) => { if (!cancelled) mergeFatal(err) },
       onStatus: (ok) => { if (!cancelled) setConnected(ok) },
     })
+    socketRef.current = socket
 
     // 정리(cleanup): 방을 나가면 연결을 닫고, 진행 중이던 응답도 무시한다
     return () => {
@@ -169,6 +228,13 @@ export default function ChatRoomPage() {
       socket.close()
     }
   }, [roomId, retryKey])
+
+  // 화면을 멈춘 오류(fatalError)가 뜨면 소켓도 접는다 (백로그 29번) — REST 401/403/404로
+  // 화면만 멈추고 소켓은 페이지 이탈까지 살아 수신을 계속하던 구멍. WS발 fatal은 chatSocket이
+  // 이미 deactivate했지만 close()가 멱등이라 중복 호출은 무해하다
+  useEffect(() => {
+    if (fatalError) socketRef.current?.close()
+  }, [fatalError])
 
   // 메시지 변경 후 스크롤 처리 (백로그 18번 개선 — 3차)
   useEffect(() => {
@@ -276,6 +342,7 @@ export default function ChatRoomPage() {
     setActionError('')
     try {
       await leaveRoom(roomId)
+      leftRef.current = true // 참여 행이 정리됐다 — 언마운트의 잔여 읽음 보고 생략 (백로그 91번)
       navigate('/chat')
     } catch (err) {
       setActionError(err.message) // 방장이면 409 — 위임 후에만 나갈 수 있다
@@ -287,6 +354,7 @@ export default function ChatRoomPage() {
     setActionError('')
     try {
       await deleteRoom(roomId)
+      leftRef.current = true // 방이 사라졌다 — 잔여 읽음 보고 생략 (백로그 91번)
       navigate('/chat')
     } catch (err) {
       setActionError(err.message)
@@ -424,7 +492,8 @@ export default function ChatRoomPage() {
       <main className="chat-page">
         <header className="chat-header">
           <h1>{roomName}</h1>
-          <Link to="/chat">← 방 목록으로</Link>
+          {/* 잔여 읽음 보고를 끝낸 뒤 이동 — 배지 잔존 방지 (백로그 85번, onBackToList 주석) */}
+          <Link to="/chat" onClick={onBackToList}>← 방 목록으로</Link>
         </header>
         <p className="submit-error">{fatalError.message}</p>
         {fatalError.code === 'CHAT_NOT_PARTICIPANT' && (
@@ -440,7 +509,8 @@ export default function ChatRoomPage() {
     <main className="chat-page">
       <header className="chat-header">
         <h1>{roomName}</h1>
-        <Link to="/chat">← 방 목록으로</Link>
+        {/* 잔여 읽음 보고를 끝낸 뒤 이동 — 배지 잔존 방지 (백로그 85번, onBackToList 주석) */}
+        <Link to="/chat" onClick={onBackToList}>← 방 목록으로</Link>
       </header>
 
       {/* 방 프로필 (3차) — 직접 URL 진입(room 없음)이면 표시하지 않는다 */}

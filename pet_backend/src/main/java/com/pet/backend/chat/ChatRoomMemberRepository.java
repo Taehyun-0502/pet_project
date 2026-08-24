@@ -12,6 +12,20 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     // 참여자 검증 — 메시지 조회/전송 전 Service가 반드시 확인 (이 도메인의 소유자 격리)
     boolean existsByRoomIdAndMemberIdAndLeftAtIsNull(Long roomId, Long memberId);
 
+    /**
+     * SUBSCRIBE 검증 — 참여 활성에 **방 활성까지** 한 쿼리로 확인한다 (리뷰 백로그 26번).
+     * 삭제된 방의 참여 행은 설계상 활성으로 남으므로(조회 필터 방식) 이 exists가 없으면
+     * 삭제된 방 토픽의 구독이 계속 허용된다 — "모든 조회가 삭제된 방을 걸러낸다" 규칙의 구멍.
+     * 거부 사유 판별(방 없음/강퇴/미참여)은 실패 경로에서만 따로 조회한다 — ChatStompInterceptor 참조
+     */
+    @Query("""
+            select count(crm) > 0 from ChatRoomMember crm
+            where crm.roomId = :roomId and crm.memberId = :memberId and crm.leftAt is null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    boolean existsActiveParticipantInActiveRoom(
+            @Param("roomId") Long roomId, @Param("memberId") Long memberId);
+
     // 참여 중인 행 조회 — 나가기·강퇴·지명·위임의 대상 행
     Optional<ChatRoomMember> findByRoomIdAndMemberIdAndLeftAtIsNull(Long roomId, Long memberId);
 

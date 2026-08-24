@@ -498,6 +498,9 @@ public class ChatService {
         }
         me.leave();
         eventPublisher.publishEvent(new ChatMembersChangedEvent(roomId));
+        // 기존 구독 연결 정리 (백로그 71번) — 참여자 검증은 SUBSCRIBE 시점에만 동작해,
+        // 이 신호가 없으면 나간 뒤에도 이미 맺어진 구독으로 방 메시지를 계속 받는다
+        eventPublisher.publishEvent(new ChatMemberLeftEvent(roomId, memberId));
     }
 
     // 강퇴 — 강퇴된 회원은 이 방에 재입장할 수 없다
@@ -569,6 +572,9 @@ public class ChatService {
         ChatRoom room = getActiveRoom(roomId);
         requireOwner(roomId, actorId);
         room.delete();
+        // 남은 참여자·구독자에게 알린다 (백로그 25번) — 신호가 없으면 방에 있던 사용자들은
+        // 전송할 때마다 404 오류만 반복해서 본다. 커밋 후 브로드캐스트는 ChatBroadcaster 몫
+        eventPublisher.publishEvent(new ChatRoomDeletedEvent(roomId));
     }
 
     // 공지 고정 — OWNER·MANAGER, 이미 있으면 교체 (docs/api-spec.md 7절 3차)

@@ -10,6 +10,9 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {
     // 전체 활성 방 목록 (오픈채팅 — 참여 여부와 무관하게 공개, 최신 생성순)
     List<ChatRoom> findByDeletedAtIsNullOrderByCreatedAtDesc();
 
+    // 방 활성 여부 — SUBSCRIBE 거부 사유 판별용 (백로그 26번, 실패 경로에서만 호출)
+    boolean existsByIdAndDeletedAtIsNull(Long id);
+
     /**
      * 방 검색·필터 (docs/api-spec.md 7절 3차). 필터가 없으면 조건이 통과해 위 전체 목록과 동일 —
      * 쿼리를 하나로 합쳤다 (ix_chat_room_active 사용).

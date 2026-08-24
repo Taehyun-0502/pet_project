@@ -58,12 +58,12 @@
 .auth-form input {
   padding: 10px 12px;
   font-size: 16px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
 .auth-form input[aria-invalid='true'] {
-  border-color: #d33;
+  border-color: var(--error);
 }
 
 .auth-form button {
@@ -81,14 +81,14 @@
 
 /* 필드별 검증 오류 */
 .field-error {
-  color: #d33;
+  color: var(--error);
   font-size: 13px;
   margin: 0;
 }
 
 /* 제출·요청 오류 */
 .submit-error {
-  color: #d33;
+  color: var(--error);
   font-size: 14px;
   margin: 0;
 }
@@ -96,13 +96,13 @@
 /* 성공 안내 — 초록 하나로 통일. 회색 보조 설명은 .muted-note를 쓴다
    (과거 pet.css가 .notice를 회색으로 재정의해 성공 안내가 회색으로 보이던 충돌 — 백로그 100번) */
 .notice {
-  color: #2a7;
+  color: var(--success);
   font-size: 14px;
 }
 
 /* 보조 설명 문구 — 오류가 아니라 설명이라 눈에 덜 띄게 */
 .muted-note {
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
   margin: 0;
 }

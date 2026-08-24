@@ -11,6 +11,28 @@
   --shadow:
     rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
+  /* 도메인 화면 공용 색 (리뷰 백로그 53번) — chat·pet·member·forms CSS의 하드코딩을 걷어낸 자리.
+     라이트 값은 종전 하드코딩 값 그대로다(시각 회귀 방지).
+     다크 값은 아래 다크 블록에서 전부 재정의한다 — **여기에만 추가하면 그 색은 다크 모드에서 깨진다.**
+     -solid 접미사 = 흰 글자를 얹는 배경용이라 다크에서도 유지하는 색. 접미사 없는 쪽은 텍스트·테두리용이라
+     다크에서 밝아진다 — 둘을 바꿔 쓰면 흰 글자가 밝은 배경에 얹혀 대비가 무너진다 */
+  --surface: #fff; /* 칩·버튼 배경 */
+  --surface-muted: #f1f1f1; /* 상대 말풍선·사진 placeholder·hover 배경 */
+  --border-strong: #ccc; /* 입력·카드 테두리 */
+  --text-soft: #555; /* 섹션 제목·비활성 탭 */
+  --text-muted: #888; /* 보조 텍스트 */
+  --primary: #2b6cb0; /* 파랑 — 텍스트·테두리 */
+  --primary-solid: #2b6cb0; /* 파랑 — 배경(+흰 글자) */
+  --primary-soft: #eef4ff; /* 파랑 옅은 배경 */
+  --bubble-mine: #d7e9ff; /* 내 말풍선 */
+  --banner-bg: #fff8dc; /* 공지 배너 */
+  --banner-border: #f0d264;
+  --success: #2a7; /* 초록 — 텍스트·테두리·포커스 링 */
+  --success-solid: #2a7; /* 초록 — 배경(+흰 글자) */
+  --error: #d33; /* 폼 오류 (forms.css) */
+  --danger: #c0392b; /* 위험 액션 텍스트·테두리 */
+  --danger-solid: #c0392b; /* 위험 액션 배경(+흰 글자) */
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
@@ -40,6 +62,23 @@
     --social-bg: rgba(47, 48, 58, 0.5);
     --shadow:
       rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+
+    /* 도메인 공용 색의 다크 값 (백로그 53번) — 본문 텍스트(--text: #9ca3af)를 얹었을 때
+       4.5:1 이상이 나오도록 배경 계열을 어둡게 뒤집는다 */
+    --surface: #1f2028;
+    --surface-muted: #262833;
+    --border-strong: #3d3f4b;
+    --text-soft: #c3c7d1;
+    --text-muted: #98a0ab;
+    --primary: #7cb1ea;
+    --primary-soft: #1c2a3d;
+    --bubble-mine: #1d3450; /* #24405e는 본문 텍스트와 4.2:1로 미달이었다 — 실측으로 낮춘 값 */
+    --banner-bg: #322d18;
+    --banner-border: #6b5c22;
+    --success: #4cc38a;
+    --error: #ff7b72;
+    --danger: #e5756a;
+    /* --primary-solid·--success-solid·--danger-solid는 재정의하지 않는다 — 흰 글자 배경용이라 그대로 */
   }
 
   #social .button-icon {

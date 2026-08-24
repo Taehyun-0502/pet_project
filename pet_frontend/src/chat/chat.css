@@ -28,7 +28,7 @@
 .room-edit select {
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -51,16 +51,16 @@
   display: block;
   padding: 10px;
   margin-bottom: 12px;
-  border: 1px solid #2b6cb0;
+  border: 1px solid var(--primary);
   border-radius: 6px;
-  color: #2b6cb0;
+  color: var(--primary);
   font-size: 15px;
   text-align: center;
   text-decoration: none;
 }
 
 .chat-new-link:hover {
-  background: #eef4ff;
+  background: var(--primary-soft);
 }
 
 /* 3차: 검색·필터 (검색창 + 카테고리 칩 + 정렬 토글) */
@@ -74,7 +74,7 @@
 .chat-filter input {
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -87,16 +87,16 @@
 
 .chat-chip {
   padding: 4px 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   cursor: pointer;
 }
 
 .chat-chip.active {
-  background: #2b6cb0;
-  border-color: #2b6cb0;
+  background: var(--primary-solid);
+  border-color: var(--primary-solid);
   color: #fff;
 }
 
@@ -106,7 +106,7 @@
   border: none;
   background: none;
   font-size: 13px;
-  color: #555;
+  color: var(--text-soft);
   cursor: pointer;
 }
 
@@ -124,14 +124,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 14px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
 }
 
 .chat-room-list .count {
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
   white-space: nowrap;
 }
@@ -147,15 +147,15 @@
   padding: 2px 8px;
   margin-right: 8px;
   border-radius: 10px;
-  background: #eef4ff;
-  color: #2b6cb0;
+  background: var(--primary-soft);
+  color: var(--primary);
   font-size: 12px;
 }
 
 .room-desc {
   margin: 4px 0 0;
   font-size: 13px;
-  color: #888;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -177,7 +177,7 @@
 
 .room-capacity {
   font-size: 12px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 /* 3차: 방 정보 수정 폼 (OWNER) */
@@ -187,7 +187,7 @@
   gap: 8px;
   margin-bottom: 12px;
   padding: 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
 }
 
@@ -225,7 +225,7 @@
 
 /* 숨긴 input이 포커스를 받으면 label에 포커스 링을 그린다 — 키보드 사용자가 위치를 볼 수 있게 */
 .chat-image-button:focus-within {
-  outline: 2px solid #2a7;
+  outline: 2px solid var(--success);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -243,11 +243,11 @@
 .chat-my-rooms h2,
 .chat-section-title {
   font-size: 14px;
-  color: #555;
+  color: var(--text-soft);
   text-align: left;
   margin: 16px 0 8px;
   padding-bottom: 4px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 
 /* 고정 버튼 — 켜져 있으면 진하게, 꺼져 있으면 흐리게 (같은 아이콘의 상태 표시) */
@@ -286,7 +286,7 @@
 .chat-messages li {
   padding: 8px 12px;
   border-radius: 10px;
-  background: #f1f1f1;
+  background: var(--surface-muted);
   align-self: flex-start;
   max-width: 80%;
   /* 공백 없는 긴 문자열(주로 URL — F10a)이 말풍선을 가로로 밀어내지 않게 강제로 접는다.
@@ -295,7 +295,7 @@
 }
 
 .chat-messages li.mine {
-  background: #d7e9ff;
+  background: var(--bubble-mine);
   align-self: flex-end;
 }
 
@@ -304,7 +304,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #777;
+  color: var(--text-muted);
   margin-bottom: 2px;
 }
 
@@ -322,7 +322,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #e4e4e4;
+  background: var(--surface-muted);
   font-size: 13px;
 }
 
@@ -332,7 +332,9 @@
   gap: 8px;
 }
 
-/* 방 목록의 안 읽은 메시지 배지 */
+/* 방 목록의 안 읽은 메시지 배지.
+   빨강+흰 글자는 라이트·다크 양쪽에서 대비가 충분해 변수로 빼지 않았다 (백로그 53번에서 의도적 제외 —
+   포커스 링 색·카카오 브랜드색·solid 배경 위 #fff도 같은 이유로 하드코딩 유지) */
 .unread-badge {
   display: inline-flex;
   align-items: center;
@@ -357,7 +359,7 @@
   flex: 1;
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -369,9 +371,9 @@
   gap: 8px;
   padding: 8px 12px;
   margin-bottom: 8px;
-  border: 1px solid #f0d264;
+  border: 1px solid var(--banner-border);
   border-radius: 8px;
-  background: #fff8dc;
+  background: var(--banner-bg);
   font-size: 13px;
   text-align: left;
 }
@@ -405,7 +407,7 @@
 .chat-status {
   margin: 8px 0;
   font-size: 13px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 /* 2차: 방 관리 버튼 줄 + 참여자 패널 */
@@ -417,15 +419,15 @@
 
 .chat-toolbar button.danger,
 .member-actions button.danger {
-  color: #c0392b;
-  border-color: #c0392b;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .chat-members {
   list-style: none;
   padding: 0;
   margin: 0 0 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   text-align: left;
 }
@@ -439,13 +441,13 @@
 }
 
 .chat-members li + li {
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 }
 
 .role-badge {
   font-style: normal;
   font-size: 12px;
-  color: #2b6cb0;
+  color: var(--primary);
   margin-left: 6px;
 }
 

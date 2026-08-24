@@ -1,7 +1,9 @@
 package com.pet.backend.chat.websocket;
 
 import com.pet.backend.chat.ChatErrorCode;
+import com.pet.backend.chat.ChatLeftReason;
 import com.pet.backend.chat.ChatRoomMemberRepository;
+import com.pet.backend.chat.ChatRoomRepository;
 import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.MemberErrorCode;
@@ -38,6 +40,7 @@ public class ChatStompInterceptor implements ChannelInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
     private final ChatRoomMemberRepository chatRoomMemberRepository;
+    private final ChatRoomRepository chatRoomRepository;
     private final ChatWebSocketSessionRegistry sessionRegistry;
 
     @Override
@@ -91,10 +94,29 @@ public class ChatStompInterceptor implements ChannelInterceptor {
             throw reject(message, MemberErrorCode.TOKEN_INVALID);
         }
         Long roomId = Long.valueOf(matcher.group(1));
-        // 나간·강퇴된 회원은 leftAt이 채워져 있어 여기서 함께 걸러진다
-        if (!chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)) {
-            throw reject(message, ChatErrorCode.NOT_PARTICIPANT);
+        // 나간·강퇴된 회원은 leftAt이 채워져 있어 함께 걸러지고, **삭제된 방**도 여기서 거른다
+        // (백로그 26번 — 삭제된 방의 참여 행은 활성으로 남는 설계라 방 활성을 조인으로 확인한다).
+        // 정상 구독은 이 한 쿼리로 끝난다 — 사유 판별은 거부가 확정된 뒤에만
+        if (!chatRoomMemberRepository.existsActiveParticipantInActiveRoom(roomId, memberId)) {
+            throw reject(message, subscribeRejectionCode(roomId, memberId));
         }
+    }
+
+    /**
+     * 구독 거부 사유를 정확히 가려낸다 (리뷰 백로그 26·30번) — **실패 경로에서만** 도는 추가 조회라
+     * 정상 구독의 쿼리 수는 늘지 않는다. 특히 강퇴자를 NOT_PARTICIPANT로 뭉뚱그리면 화면에
+     * "이 방에 입장하기" 버튼이 떠서, 눌러 봐야 강퇴 사실을 아는 우회 UX가 됐다(30번) —
+     * CHAT_KICKED로 거부하면 재연결 즉시 안내가 뜨고 입장 버튼도 나오지 않는다
+     */
+    private ErrorCode subscribeRejectionCode(Long roomId, Long memberId) {
+        if (!chatRoomRepository.existsByIdAndDeletedAtIsNull(roomId)) {
+            return ChatErrorCode.ROOM_NOT_FOUND;
+        }
+        if (chatRoomMemberRepository.existsByRoomIdAndMemberIdAndLeftReason(
+                roomId, memberId, ChatLeftReason.KICKED)) {
+            return ChatErrorCode.KICKED;
+        }
+        return ChatErrorCode.NOT_PARTICIPANT;
     }
 
     private Long memberIdOf(StompHeaderAccessor accessor) {

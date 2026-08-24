@@ -1,9 +1,11 @@
 package com.pet.backend.chat.websocket;
 
 import com.pet.backend.chat.ChatMemberKickedEvent;
+import com.pet.backend.chat.ChatMemberLeftEvent;
 import com.pet.backend.chat.ChatMembersChangedEvent;
 import com.pet.backend.chat.ChatMessageCreatedEvent;
 import com.pet.backend.chat.ChatPinChangedEvent;
+import com.pet.backend.chat.ChatRoomDeletedEvent;
 import com.pet.backend.member.MemberWithdrawnEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -39,6 +41,28 @@ public class ChatBroadcaster {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onMemberKicked(ChatMemberKickedEvent event) {
         sessionRegistry.disconnectMember(event.memberId());
+    }
+
+    /**
+     * 자진 나가기의 연결 정리 (리뷰 백로그 71번) — 강퇴와 같은 경로 재사용.
+     * 참여자 검증은 SUBSCRIBE 시점에만 동작해, 끊지 않으면 나간 회원이 이미 맺어진 구독으로
+     * 방 메시지를 계속 받는다(앱은 화면 이탈로 스스로 닫지만 직접 만든 클라이언트는 성립).
+     * 그 회원의 다른 방 탭도 함께 끊기지만 자동 재연결 + SUBSCRIBE 재검증이 복구한다 — 강퇴 선례와 동일
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onMemberLeft(ChatMemberLeftEvent event) {
+        sessionRegistry.disconnectMember(event.memberId());
+    }
+
+    /**
+     * 방 삭제 신호 (리뷰 백로그 25번) — 남은 참여자들이 전송 404를 반복해서 보는 대신 즉시 안내를 받는다.
+     * 세션은 서버가 끊지 않는다: SimpleBroker에는 토픽 단위 구독 해제 수단이 없고, 연결을 끊으면
+     * 참여자 전원의 다른 방 탭까지 죽어 재연결이 몰린다. 삭제된 방 토픽은 이후 발행이 없고(전송이 404)
+     * 재구독은 SUBSCRIBE의 방 활성 검증(26번)이 거부하므로, 신호를 받은 클라이언트가 스스로 접는 것으로 충분하다
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onRoomDeleted(ChatRoomDeletedEvent event) {
+        messagingTemplate.convertAndSend(roomTopic(event.roomId()), ChatEvent.roomDeleted());
     }
 
     /**
