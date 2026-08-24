@@ -29,6 +29,13 @@ public class ChatWebSocketSessionRegistry {
     // CONNECT 인증 통과 후 "이 세션 = 이 회원" 결합
     void bindMember(String sessionId, Long memberId) {
         sessionMembers.put(sessionId, memberId);
+        // 전송 계층 unregister와의 경쟁 (리뷰 백로그 27번): CONNECT 인증 처리 중 연결이 끊기면
+        // unregister가 먼저 지나가고 이 put이 나중에 실행돼, 세션 없는 엔트리가 영구 잔존한다
+        // (null 가드 덕에 오동작은 없고 소량 메모리 누수뿐). put 후 재확인으로 그 창을 닫는다 —
+        // 반대 순서(확인 후 put)는 확인과 put 사이에 unregister가 끼어들 수 있어 창이 남는다
+        if (!sessions.containsKey(sessionId)) {
+            sessionMembers.remove(sessionId);
+        }
     }
 
     void unregister(String sessionId) {

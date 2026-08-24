@@ -22,4 +22,10 @@ public record ChatEvent<T>(String type, T data) {
     public static ChatEvent<Void> pinChanged() {
         return new ChatEvent<>("PIN_CHANGED", null);
     }
+
+    // 방이 삭제됐다는 신호 (백로그 25번) — 받은 쪽이 연결을 접고 안내를 띄운다.
+    // 구버전 클라이언트는 "모르는 type 무시" 규약 덕에 깨지지 않는다(종전 동작 유지)
+    public static ChatEvent<Void> roomDeleted() {
+        return new ChatEvent<>("ROOM_DELETED", null);
+    }
 }

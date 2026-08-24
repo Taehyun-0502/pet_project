@@ -1,8 +1,9 @@
 package com.pet.backend.chat;
 
 import com.pet.backend.chat.dto.ChatMessageResponse;
-import com.pet.backend.member.Member;
+import com.pet.backend.member.MemberDisplay;
 import com.pet.backend.member.MemberRepository;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -33,7 +34,9 @@ class ChatImageMessageWriter {
     ChatMessageResponse write(Long roomId, Long senderId, String imageUrl) {
         // 발신자 조회를 INSERT보다 먼저 두는 이유는 sendMessage와 같다 —
         // id 채번과 커밋 사이가 길어지면 afterId 복구가 이 메시지를 건너뛸 수 있다 (troubleshooting 3번)
-        Member sender = memberRepository.findById(senderId).orElse(null);
+        // 표시용 2필드 프로젝션 — 비밀번호 해시를 메모리에 올리지 않는다 (백로그 98번, MemberDisplay 주석)
+        MemberDisplay sender = memberRepository.findDisplayByIdIn(Set.of(senderId))
+                .stream().findFirst().orElse(null);
         ChatMessage message = ChatMessage.ofImage(roomId, senderId, imageUrl);
         chatMessageRepository.save(message);
         ChatMessageResponse response = ChatMessageResponse.of(message,
