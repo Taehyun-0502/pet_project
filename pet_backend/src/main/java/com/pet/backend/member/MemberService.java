@@ -461,8 +461,10 @@ public class MemberService {
         } catch (IOException e) {
             throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
-        // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지 (ImageStorageClient 주석)
-        String url = imageStorageClient.upload("member-" + memberId, bytes, file.getContentType());
+        // 확장자 없는 고정 경로 + 덮어쓰기 — 고아 파일 방지. 경로에 HMAC 접미사가 붙어 열거되지 않는다
+        // (백로그 87번 — 종전 "member-{id}"는 공개 버킷에서 순차 열람이 가능했다)
+        String url = imageStorageClient.upload(
+                imageStorageClient.profilePath("member", memberId), bytes, file.getContentType());
 
         Member member = memberProfileImageUpdater.apply(
                 memberId, url + "?v=" + Instant.now().toEpochMilli());

@@ -45,7 +45,17 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                // 세션·쿠키 기반 인증을 쓰지 않으므로(JWT stateless) CSRF 방어 대상이 없다
+                /*
+                 * CSRF 토큰을 쓰지 않는다. **"쿠키 기반 인증이 없어서"가 아니다** (리뷰 백로그 36번 —
+                 * 종전 주석은 사실이 아니었다): `/refresh`·`/logout`은 **쿠키만으로 인증하는 상태 변경
+                 * POST**라 전형적인 CSRF 대상이다. 지금 이것을 막고 있는 것은 CSRF 토큰이 아니라
+                 * 리프레시 쿠키의 **SameSite=Strict**(RefreshTokenCookie) 하나뿐이다.
+                 *
+                 * ⚠ 그래서 **프론트를 백엔드와 다른 사이트에 배포해 SameSite=None으로 바꾸는 순간
+                 * 방어가 0이 된다.** 그때는 대체 방어가 선행이어야 한다 — 엔드포인트가 2개뿐이므로
+                 * Origin 헤더 화이트리스트 검증(이미 주입받는 allowedOrigins 재사용)이 가장 싸다.
+                 * 판단 근거와 조건은 api-spec.md 6절에 기록했다.
+                 */
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

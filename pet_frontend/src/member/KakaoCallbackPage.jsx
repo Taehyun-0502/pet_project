@@ -30,8 +30,11 @@ export default function KakaoCallbackPage() {
       setError('잘못된 접근입니다. 로그인 화면에서 다시 시도해 주세요.')
       return
     }
-    // 인가 요청 때 저장한 state와 대조 — 위조된 리다이렉트를 걸러낸다 (CSRF 방지)
-    if (!params.get('state') || params.get('state') !== consumeKakaoState()) {
+    // 인가 요청 때 저장한 state와 대조 — 위조된 리다이렉트를 걸러낸다 (CSRF 방지).
+    // **소비를 비교보다 먼저** 한다 (백로그 103번): 종전엔 `!params.get('state') || ...` 단축 평가로
+    // state 파라미터가 없으면 consumeKakaoState()가 호출되지 않아 옛 state가 저장소에 남았다
+    const savedState = consumeKakaoState()
+    if (!params.get('state') || params.get('state') !== savedState) {
       setError('잘못된 접근입니다. 로그인 화면에서 다시 시도해 주세요.')
       return
     }

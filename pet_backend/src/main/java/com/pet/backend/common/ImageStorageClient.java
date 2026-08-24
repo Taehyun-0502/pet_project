@@ -1,7 +1,13 @@
 package com.pet.backend.common;
 
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.Set;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -63,8 +69,50 @@ public class ImageStorageClient {
     }
 
     /**
-     * @param path     버킷 안에서의 파일 경로 (예: pet-3). 확장자 없이 고정 경로를 쓴다 —
-     *                 형식이 바뀌어도(jpg→png) 같은 객체를 덮어써 고아가 남지 않는다
+     * 프로필 이미지의 **열거 불가능한** 고정 경로를 만든다 (리뷰 백로그 87번).
+     *
+     * <p>종전에는 `member-{id}`·`pet-{id}`처럼 <b>순차 id가 곧 경로</b>였다. 버킷이 public read라
+     * `.../object/public/profiles/member-1`, `member-2` …를 훑으면 인증 없이 전 회원의 얼굴 사진과
+     * 반려동물 사진을 수집할 수 있었다 — 다른 API는 타인 리소스에 404까지 주며 존재 여부를 숨기는데
+     * 사진만 완전 공개여서 격리 수준이 도메인 간에 어긋났다. `?v=`는 캐시버스터일 뿐 접근 제어가 아니다.
+     *
+     * <p><b>id + 서버 비밀(service-role 키)의 HMAC-SHA256 앞 12자</b>를 접미사로 붙인다
+     * (예: {@code member-3-9f2a17c4b0d1}). 성질 세 가지가 이 방식을 고른 이유다:
+     * <ul>
+     *   <li><b>결정적</b> — 같은 개체는 항상 같은 경로. "고정 경로 + upsert = 고아 파일 없음"이라는
+     *       기존 설계 전제(위 upload 주석)를 그대로 유지한다</li>
+     *   <li><b>DB 변경 0</b> — 토큰을 행에 저장하는 백로그 원안과 결과는 같은데 공유 Supabase에
+     *       ALTER 2건이 필요 없다. 배포를 최우선으로 되돌린 상황(plan-2026-08-24)에서 팀 조율 비용을
+     *       없애는 것이 결정 이유였다</li>
+     *   <li><b>키를 노출하지 않는다</b> — HMAC 12자로는 키를 되돌릴 수 없다</li>
+     * </ul>
+     *
+     * <p><b>알려진 한계</b>: service-role 키를 교체하면 경로가 바뀌어 개체당 파일 1개가 고아로 남는다.
+     * 화면은 DB에 저장된 URL을 쓰므로 계속 정상이고, 다음 업로드가 새 경로로 이동한다.
+     * 또 <b>이미 올라간 옛 경로(member-1 등) 파일은 이 변경만으로 사라지지 않는다</b> —
+     * 그 객체들은 Supabase Storage에서 직접 지워야 완전히 닫힌다(배포 전 사용자 작업, plan 참조).
+     */
+    public String profilePath(String prefix, Long id) {
+        return "%s-%d-%s".formatted(prefix, id, pathToken(prefix + "-" + id));
+    }
+
+    private String pathToken(String seed) {
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(
+                    properties.serviceRoleKey().getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+            return HexFormat.of().formatHex(mac.doFinal(seed.getBytes(StandardCharsets.UTF_8)))
+                    .substring(0, 12);
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            // HmacSHA256은 JDK 표준이고 키는 isConfigured()가 이미 확인했다 — 도달 불가 경로
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
+        }
+    }
+
+    /**
+     * @param path     버킷 안에서의 파일 경로. **프로필 이미지는 {@link #profilePath}로 만들 것** —
+     *                 순차 id를 그대로 쓰면 공개 버킷에서 열거된다 (백로그 87번).
+     *                 확장자는 붙이지 않는다 — 형식이 바뀌어도(jpg→png) 같은 객체를 덮어써 고아가 남지 않는다
      * @param bytes    파일 내용
      * @param mimeType image/jpeg 등 (Storage가 이 값을 Content-Type으로 서빙한다)
      * @return 공개 URL (버킷이 public read). 캐시 무효화용 ?v=는 호출자가 붙인다
@@ -87,8 +135,12 @@ public class ImageStorageClient {
 
     private String uploadTo(String bucket, String path, byte[] bytes, String mimeType) {
         if (!properties.isConfigured()) {
-            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED,
-                    "서버에 Storage 설정이 없습니다. .env의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.");
+            // 설정 이름은 **로그로만** 남긴다 (리뷰 백로그 88번) — 종전에는 BusinessException의
+            // 커스텀 메시지로 실려 `.env`의 변수명이 그대로 클라이언트에 내려갔다.
+            // 같은 클래스의 업로드 실패 경로가 이미 "상세는 로그로만"이었으므로 규칙을 일치시킨다
+            log.error("Storage 설정 누락 — .env의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY /"
+                    + " supabase.profiles-bucket / supabase.chat-bucket 확인 필요");
+            throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
         String baseUrl = trimTrailingSlash(properties.url());
