@@ -1,0 +1,103 @@
+#!/usr/bin/env node
+/**
+ * AI 강아지 관리 비서 — 브리핑 판정 결과 읽기 (발송 브리지용, 기획 v2 · 2026-08-24)
+ *
+ * 클로드 스케줄 세션(12:05 발송 브리지)이 실행한다. 역할은 "읽기"뿐이다:
+ * 자바 스케줄러(12:00, pet_backend walk/WalkBriefingScheduler)가 walk_briefing 테이블에
+ * 기록한 오늘의 판정을 조회해 JSON으로 출력한다. 기상청 호출·아스팔트 공식·게이트 판정은
+ * 전부 자바에 있다 — 이 파일에 판정 로직을 추가하지 말 것 (복제 부채 금지, 기획 v2 원칙).
+ *
+ * 키는 pet_backend/.env 재사용 (규칙 1 — 이 파일에 키 없음).
+ * 출력: { ok, found, briefing: { event, notify, reason, asphaltTemp, airTemp, humidity,
+ *        precipitation, gapDays, riskLevel, petName, checkedAt }, link }
+ *  - found=false: 오늘 판정 행 없음 → 자바 스케줄 미실행(백엔드 미가동) 또는 날씨 실패.
+ *    브리지는 이 경우 조용히 종료한다 (기획 확정).
+ */
+
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const WALK_LINK = "http://localhost:5173/walk"; // 폰에서 열려면 배포/터널 필요 (기획 잔여 항목)
+
+function loadEnv() {
+  const env = {};
+  for (const line of readFileSync(join(ROOT, "pet_backend", ".env"), "utf8").split("\n")) {
+    const m = line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+    if (m) env[m[1]] = m[2].trim();
+  }
+  return env;
+}
+
+async function supabaseGet(env, pathAndQuery) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${pathAndQuery}`, {
+    headers: {
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+// 오늘(KST) 0시 이후의 판정만 유효 — 어제 행을 읽어 낡은 알림을 보내는 것 방지
+function kstTodayStartIso() {
+  const kst = new Date(Date.now() + 9 * 3600 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${kst.getUTCFullYear()}-${pad(kst.getUTCMonth() + 1)}-${pad(kst.getUTCDate())}T00:00:00+09:00`;
+}
+
+async function main() {
+  const env = loadEnv();
+  for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
+    if (!env[k]) return { ok: false, error: `pet_backend/.env에 ${k}가 없습니다` };
+  }
+
+  const since = encodeURIComponent(kstTodayStartIso());
+  const rows = await supabaseGet(
+    env,
+    `walk_briefing?select=*&checked_at=gte.${since}&order=checked_at.desc&limit=1`
+  );
+  if (rows.length === 0) {
+    return { ok: true, found: false, reason: "오늘 판정 행 없음 — 자바 스케줄 미실행(백엔드 미가동) 또는 날씨 조회 실패" };
+  }
+
+  const b = rows[0];
+  let petName = null;
+  if (b.pet_id != null) {
+    try {
+      const pets = await supabaseGet(env, `pet?select=pet_name&pet_id=eq.${b.pet_id}&limit=1`);
+      petName = pets[0]?.pet_name ?? null;
+    } catch { /* 이름 없이 진행 — "우리 아이"로 대체 */ }
+  }
+
+  return {
+    ok: true,
+    found: true,
+    briefing: {
+      event: b.event,
+      notify: b.notify,
+      reason: b.reason,
+      asphaltTemp: b.asphalt_temp,
+      airTemp: b.air_temp,
+      humidity: b.humidity,
+      precipitation: b.precipitation,
+      gapDays: b.gap_days,
+      riskLevel: b.risk_level,
+      petName,
+      checkedAt: b.checked_at,
+    },
+    link: WALK_LINK,
+  };
+}
+
+main()
+  .then((r) => {
+    console.log(JSON.stringify(r, null, 2));
+    if (!r.ok) process.exitCode = 1;
+  })
+  .catch((e) => {
+    console.log(JSON.stringify({ ok: false, error: String(e?.message ?? e) }, null, 2));
+    process.exitCode = 1;
+  });
