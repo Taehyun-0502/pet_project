@@ -5,6 +5,7 @@ import DiagnosisTabNav from '../components/DiagnosisTabNav'
 import { HybridDiagnosisPdfModal } from './HybridDiagnosisPdfModal'
 // 주변 동물병원 지도+리스트 공용 섹션 (2026-08-13 추가 — 페이지 소유자와 공유 필요)
 import NearbyPlaces from '../components/NearbyPlaces'
+import { getMyPets } from '../pet/petApi'
 
 // 페이지 타이틀 상수를 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🩺 펫 스마트 문진 & AI 검진'
@@ -145,20 +146,66 @@ export default function HybridDiagnosisPage() {
   // 통신 에러 메시지 상태
   const [error, setError] = useState(null)
 
-  // 전달된 반려동물 프로필(location.state) 수신 시 자동 동기화 효과
+  // 등록된 반려동물 리스트 및 선택된 반려동물 ID 상태
+  const [myPets, setMyPets] = useState([])
+  const [selectedPetId, setSelectedPetId] = useState('')
+
+  // 백엔드에서 보호자의 등록된 전체 반려견 목록 불러오기
   useEffect(() => {
-    if (location.state?.pet) {
-      if (location.state.pet.age !== undefined && location.state.pet.age !== null) {
-        setAge(String(location.state.pet.age))
-      }
-      if (location.state.pet.weight !== undefined && location.state.pet.weight !== null) {
-        setWeight(String(location.state.pet.weight))
-      }
-    } else {
-      if (location.state?.age !== undefined) setAge(String(location.state.age))
-      if (location.state?.weight !== undefined) setWeight(String(location.state.weight))
+    getMyPets()
+      .then((list) => {
+        if (Array.isArray(list)) {
+          setMyPets(list)
+          const s = location.state
+          const initName = s?.petName || s?.name || s?.pet?.name
+          if (initName) {
+            const matched = list.find((p) => p.name === initName)
+            if (matched) setSelectedPetId(String(matched.id))
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // 전달된 반려동물 프로필(location.state) 수신 시 자동 동기화 효과 (이름/품종/만나이 디폴트 연동, 체중은 수동 유지)
+  useEffect(() => {
+    const s = location.state
+    if (!s) return
+    const nameVal = s.petName || s.name || s.pet?.name
+    if (nameVal) setPetName(nameVal)
+
+    const breedVal = s.breed || s.pet?.breed
+    if (breedVal) setBreed(breedVal)
+
+    const birthDateVal = s.birthDate || s.pet?.birthDate
+    if (birthDateVal) {
+      const calcAge = calculateAgeFromBirthDate(birthDateVal)
+      if (calcAge) setAge(calcAge)
+    } else if (s.age !== undefined && s.age !== null) {
+      setAge(String(s.age))
     }
   }, [location.state])
+
+  // 반려견 셀렉트 박스 변경 핸들러
+  const handlePetSelectChange = (e) => {
+    const val = e.target.value
+    setSelectedPetId(val)
+    if (val === 'custom' || !val) {
+      setPetName('')
+      setBreed('')
+      setAge('')
+      return
+    }
+    const target = myPets.find((p) => String(p.id) === String(val))
+    if (target) {
+      if (target.name) setPetName(target.name)
+      if (target.breed) setBreed(target.breed)
+      if (target.birthDate) {
+        const calc = calculateAgeFromBirthDate(target.birthDate)
+        if (calc) setAge(calc)
+      }
+    }
+  }
 
   // 주요 증상 체크박스 선택/해제 핸들러
   const handleSymptomToggle = (symptom) => {
@@ -298,6 +345,16 @@ export default function HybridDiagnosisPage() {
   const availableSubSymptoms = selectedSymptoms.flatMap((mainSymptom) => SUB_SYMPTOM_MAP[mainSymptom] || [])
   const uniqueAvailableSubSymptoms = [...new Set(availableSubSymptoms)]
 
+  const isRegisteredPet = Boolean(selectedPetId && selectedPetId !== 'custom')
+
+  const getFieldStyle = (isReadOnly) => ({
+    ...mobileInputStyle,
+    backgroundColor: isReadOnly ? '#F1F5F9' : '#FFFFFF',
+    color: isReadOnly ? '#64748B' : '#0F172A',
+    cursor: isReadOnly ? 'not-allowed' : 'text',
+    borderColor: isReadOnly ? '#E2E8F0' : '#CBD5E1',
+  })
+
   return (
     <div style={mobileContainerStyle}>
       {/* 두 진단 화면 원클릭 상단 탭 전환 바 */}
@@ -316,6 +373,37 @@ export default function HybridDiagnosisPage() {
         {/* 1. 반려동물 기본 정보 수치 카드 */}
         <section style={mobileCardStyle}>
           <h2 style={mobileSectionTitleStyle}>🐶 반려동물 기본 정보</h2>
+
+          {/* 검진 대상 반려견 선택 드롭다운 셀렉트 박스 */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>
+              🐶 검진 대상 반려견 선택
+            </label>
+            <select
+              value={selectedPetId}
+              onChange={handlePetSelectChange}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                fontSize: '14px',
+                fontWeight: '600',
+                borderRadius: '10px',
+                border: '1px solid #CBD5E1',
+                backgroundColor: '#F8FAFC',
+                color: '#0F172A',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">-- 내 등록된 반려견 선택 --</option>
+              {myPets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  🐶 {p.name} ({p.breed || '품종 미입력'})
+                </option>
+              ))}
+              <option value="custom">✏️ 직접 입력 (미등록 반려동물)</option>
+            </select>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <div style={mobileInputGroupStyle}>
               <label style={mobileLabelStyle}>강아지 이름</label>
@@ -324,7 +412,8 @@ export default function HybridDiagnosisPage() {
                 value={petName}
                 onChange={(e) => setPetName(e.target.value)}
                 placeholder="예: 초코"
-                style={mobileInputStyle}
+                readOnly={isRegisteredPet}
+                style={getFieldStyle(isRegisteredPet)}
               />
             </div>
             <div style={mobileInputGroupStyle}>
@@ -334,7 +423,8 @@ export default function HybridDiagnosisPage() {
                 value={breed}
                 onChange={(e) => setBreed(e.target.value)}
                 placeholder="예: 푸들"
-                style={mobileInputStyle}
+                readOnly={isRegisteredPet}
+                style={getFieldStyle(isRegisteredPet)}
               />
             </div>
             <div style={mobileInputGroupStyle}>
@@ -348,7 +438,8 @@ export default function HybridDiagnosisPage() {
                 value={age}
                 onChange={(e) => setAge(e.target.value)}
                 placeholder="예: 2"
-                style={mobileInputStyle}
+                readOnly={isRegisteredPet}
+                style={getFieldStyle(isRegisteredPet)}
                 required
               />
             </div>
@@ -363,6 +454,7 @@ export default function HybridDiagnosisPage() {
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 placeholder="예: 5.8"
+                readOnly={false}
                 style={mobileInputStyle}
                 required
               />
@@ -618,24 +710,6 @@ export default function HybridDiagnosisPage() {
                 }}
               >
                 📄 수의사 제출용 PDF 진단서 발급
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/map?category=HOSPITAL')}
-                style={{
-                  width: '100%',
-                  marginTop: '8px',
-                  padding: '12px',
-                  backgroundColor: '#ECFDF5',
-                  color: '#059669',
-                  border: '1px solid #A7F3D0',
-                  borderRadius: '12px',
-                  fontSize: '14px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                🏥 내 주변 동물병원 찾기
               </button>
             </div>
           )}

@@ -35,9 +35,6 @@ export default function SkinDiagnosisPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // 반려동물 목록 화면에서 넘겨받은 프로필 state 객체
-  const initialPet = location.state || {}
-
   // 비제어 파일 입력 컴포넌트 참조 객체
   const fileInputRef = useRef(null)
 
@@ -73,20 +70,6 @@ export default function SkinDiagnosisPage() {
 
   // 에러 메시지 상태
   const [error, setError] = useState(null)
-
-  // 반려동물 이름 상태 (넘겨받은 값 유무에 따라 자동 세팅)
-  const [petName, setPetName] = useState(initialPet.petName || initialPet.name || '초코')
-
-  // 반려동물 종류(견종) 상태 (넘겨받은 값 유무에 따라 자동 세팅)
-  const [breed, setBreed] = useState(initialPet.breed || '포메라니안')
-
-  // 반려동물 나이 수치 상태 (생년월일 수신 시 만 나이 자동 계산)
-  const [age, setAge] = useState(
-    calculateAgeFromBirthDate(initialPet.birthDate) || initialPet.age || '3'
-  )
-
-  // 반려동물 체중 수치 상태 (초기값 '4.5')
-  const [weight, setWeight] = useState('4.5')
 
   // 캔버스 크롭 진행 상태
   const [isCropping, setIsCropping] = useState(false)
@@ -562,61 +545,6 @@ export default function SkinDiagnosisPage() {
           style={{ display: 'none' }}
         />
 
-        {/* 🐶 반려동물 프로필 정보 입력 카드 */}
-        <section style={mobileCardStyle}>
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: '#1E293B', margin: '0 0 12px 0' }}>🐶 반려동물 프로필 정보</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>강아지 이름</label>
-              <input
-                type="text"
-                value={petName}
-                onChange={(e) => setPetName(e.target.value)}
-                placeholder="예: 초코"
-                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>종류 (품종)</label>
-              <input
-                type="text"
-                value={breed}
-                onChange={(e) => setBreed(e.target.value)}
-                placeholder="예: 포메라니안"
-                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                나이 <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '400' }}>(세)</span>
-              </label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder="예: 3"
-                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '4px' }}>
-                체중 <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '400' }}>(kg)</span>
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={weight}
-                onChange={(e) => setWeight(e.target.value)}
-                placeholder="예: 4.5"
-                style={{ width: '100%', padding: '10px 12px', fontSize: '14px', border: '1px solid #CBD5E1', borderRadius: '10px', boxSizing: 'border-box', backgroundColor: '#FFFFFF', color: '#0F172A' }}
-              />
-            </div>
-          </div>
-        </section>
-
         {/* 이미지 업로드 및 크롭 섹션 */}
         <section style={mobileCardStyle}>
           {!isCropping && !croppedPreviewUrl && (
@@ -859,36 +787,17 @@ export default function SkinDiagnosisPage() {
               >
                 📄 수의사 제출용 PDF 소견서 발급
               </button>
-              <button
-                type="button"
-                onClick={() => navigate('/map?category=HOSPITAL')}
-                style={{
-                  width: '100%',
-                  marginTop: '8px',
-                  padding: '12px',
-                  backgroundColor: '#ECFDF5',
-                  color: '#059669',
-                  border: '1px solid #A7F3D0',
-                  borderRadius: '10px',
-                  fontSize: '14px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-              >
-                🏥 내 주변 동물병원 찾기
-              </button>
             </div>
           </section>
         )}
 
-        {/* 피부 AI 진단 전용 PDF 발급 모달 (사용자 수정 반영분) */}
+        {/* 피부 AI 진단 전용 PDF 발급 모달 */}
         <SkinDiagnosisPdfModal
           isOpen={isPdfModalOpen}
           onClose={() => setIsPdfModalOpen(false)}
           binaryResult={binaryResult}
           multiResult={multiResult}
           previewUrl={croppedPreviewUrl}
-          formData={{ petName, breed, age, weight }}
         />
 
         {/* 주변 동물병원 지도 + 리스트 (팀원 수정 반영분) */}
