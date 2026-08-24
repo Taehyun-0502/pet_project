@@ -3,12 +3,17 @@
  *
  * 진단 페이지처럼 "특정 카테고리 장소 목록이 필요한 화면"에 한 줄로 붙이는 용도:
  * 데이터 조회(GET /api/places, categories 제한) + 카테고리 제한 지도(PetMap
- * `categories` prop — 목록 밖 카테고리 마커·칩 비노출) + 장소 리스트(PlaceListItem
- * 공용 아이템)를 한 덩어리로 제공한다. 카테고리별로 컴포넌트를 새로 만들지 않는다:
+ * `categories` prop — 목록 밖 카테고리 마커·칩 비노출) + "목록 보기 (N)" 버튼 +
+ * 장소 목록 바텀시트(PlaceListItem 공용 아이템)를 한 덩어리로 제공한다.
+ * 카테고리별로 컴포넌트를 새로 만들지 않는다:
  *
  *   <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />  // 병원
  *   <NearbyPlaces categories={['CAFE']} title="주변 애견동반 카페" />  // 카페
  *   <NearbyPlaces categories={['HOTEL']} title="주변 애견동반 호텔" />  // 호텔
+ *
+ * 리스트는 인라인 나열이 아니라 지도 하단 중앙 "목록 보기 (N)" 버튼 → 바텀시트로
+ * 노출한다 (2026-08-13 사용자 결정 — 지도 페이지의 목록 보기 UX와 통일. 시트
+ * 슬라이드 모션·접근성도 동일 원칙: 포커스 이동/ESC/스크롤 잠금/백드롭 닫기).
  *
  * 위치: 마운트 시 1회 위치 권한을 요청하되, 3초 안에 확정되지 않으면
  * DEFAULT_CENTER(서울시청)로 폴백해 먼저 조회한다(MapPage의 race 패턴 축약판 —
@@ -19,7 +24,11 @@
  *
  * Props
  * - categories?: Array<'HOSPITAL'|'CAFE'|'HOTEL'> — 조회·표시할 카테고리. 기본 ['HOSPITAL'].
- * - title?: string — 섹션 제목. 기본 '주변 동물병원'.
+ * - title?: string — 섹션 제목(시트 헤더에도 사용). 기본 '주변 동물병원'.
+ * - deferred?: boolean — true면 처음에는 "<title> 보기" 버튼만 렌더링하고, 버튼을
+ *     눌렀을 때 지도·조회를 시작한다 (2026-08-13 사용자 결정 — 진단 페이지에서
+ *     진단 후에만 버튼 노출 → 클릭 시 지도 노출 동선). 위치 권한 팝업과
+ *     GET /api/places 호출도 클릭 시점까지 미뤄진다. 기본 false(즉시 노출).
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -31,11 +40,18 @@ import { useGeolocation } from '../hooks/useGeolocation'
 import { DEFAULT_CENTER } from '../common/mapDefaults'
 import './NearbyPlaces.css'
 
-function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원' }) {
+// 시트 열림/닫힘 모션 시간(ms) — NearbyPlaces.css의 애니메이션 지속시간과 일치 필수.
+// 지도 페이지 목록 시트와 같은 모션 값 (2026-08-07 목업 승인 — MapPage SHEET_MOTION_MS).
+const SHEET_MOTION_MS = 340
+
+function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원', deferred = false }) {
   const { location, requestLocation } = useGeolocation()
   const [places, setPlaces] = useState(null) // null = 로딩 중
   const [error, setError] = useState(null)
   const requestIdRef = useRef(0)
+
+  // deferred 모드: 버튼을 누르기 전까지 지도·조회를 시작하지 않는다
+  const [revealed, setRevealed] = useState(!deferred)
 
   // 안내 문구에 쓸 카테고리 한국어 라벨 (enum 값 노출 금지 — 기존 방침).
   // 여러 개면 "병원·카페"처럼 이어붙인다.
@@ -49,6 +65,8 @@ function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원'
   const categoriesKey = categories.join(',')
 
   useEffect(() => {
+    if (!revealed) return // deferred 모드 — 버튼 클릭 전에는 위치 요청·조회 모두 보류
+
     let cancelled = false
     let settled = false // 이미 조회를 시작했는지 (3초 타이머 vs 위치 응답 중 먼저 온 쪽)
 
@@ -85,18 +103,92 @@ function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원'
       clearTimeout(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- label은 categoriesKey에서 파생
-  }, [requestLocation, categoriesKey])
+  }, [requestLocation, categoriesKey, revealed])
+
+  // 장소 목록 바텀시트 — 지도 페이지 목록 시트와 같은 열림/닫힘 상태 기계:
+  // 닫기는 listClosing으로 닫힘 애니메이션을 재생한 뒤 SHEET_MOTION_MS 후 언마운트.
+  const [listOpen, setListOpen] = useState(false)
+  const [listClosing, setListClosing] = useState(false)
+  const sheetRef = useRef(null)
+  const previousFocusRef = useRef(null)
+
+  const closeList = () => setListClosing(true)
+
+  useEffect(() => {
+    if (!listClosing) return
+    const timer = setTimeout(() => {
+      setListOpen(false)
+      setListClosing(false)
+    }, SHEET_MOTION_MS)
+    return () => clearTimeout(timer)
+  }, [listClosing])
+
+  // 시트 접근성(가벼운 버전 — MapPage 목록 시트와 동일 원칙): 열릴 때 포커스 이동 +
+  // ESC 닫기 + 배경 스크롤 잠금, 닫힐 때 이전 포커스 복귀.
+  useEffect(() => {
+    if (!listOpen) return
+
+    previousFocusRef.current = document.activeElement
+    sheetRef.current?.focus()
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setListClosing(true)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+      previousFocusRef.current?.focus?.()
+    }
+  }, [listOpen])
+
+  const handleBackdropMouseDown = (event) => {
+    if (event.target === event.currentTarget) closeList()
+  }
+
+  // deferred 모드에서 아직 버튼을 누르기 전 — "<title> 보기" 버튼만 노출
+  if (!revealed) {
+    return (
+      <section className="nearby-places" aria-label={title}>
+        <button
+          type="button"
+          className="nearby-places__reveal-btn"
+          onClick={() => setRevealed(true)}
+        >
+          {title} 보기
+        </button>
+      </section>
+    )
+  }
 
   return (
     <section className="nearby-places" aria-label={title}>
       <h2 className="nearby-places__title">{title}</h2>
 
-      <PetMap
-        places={places ?? []}
-        categories={categoriesKey.split(',')}
-        size="mini"
-        currentLocation={location}
-      />
+      {/* 버튼을 지도 위에 겹치기 위한 기준 컨테이너. PetMap이 z-index:0 격리
+          스태킹 컨텍스트라 형제 버튼(z-index:1)이 항상 그 위에 그려진다 (QA N-1 원칙) */}
+      <div className="nearby-places__map-wrap">
+        <PetMap
+          places={places ?? []}
+          categories={categoriesKey.split(',')}
+          size="mini"
+          currentLocation={location}
+        />
+
+        {places && places.length > 0 && (
+          <button
+            type="button"
+            className="nearby-places__list-btn"
+            onClick={() => setListOpen(true)}
+          >
+            목록 보기 ({places.length})
+          </button>
+        )}
+      </div>
 
       {places === null && !error && (
         <p className="nearby-places__status">주변 {label} 검색 중…</p>
@@ -106,16 +198,49 @@ function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원'
         <p className="nearby-places__status">주변에 표시할 {label} 정보가 없습니다.</p>
       )}
 
-      {places && places.length > 0 && (
-        <ul className="place-list">
-          {places.map((place, index) => (
-            <PlaceListItem
-              key={`${place.name}-${place.lat}-${place.lng}-${index}`}
-              place={place}
-              currentLocation={location}
-            />
-          ))}
-        </ul>
+      {listOpen && (
+        <div
+          className={
+            'nearby-places__sheet-backdrop' +
+            (listClosing ? ' nearby-places__sheet-backdrop--closing' : '')
+          }
+          onMouseDown={handleBackdropMouseDown}
+        >
+          <div
+            ref={sheetRef}
+            className={
+              'nearby-places__sheet' + (listClosing ? ' nearby-places__sheet--closing' : '')
+            }
+            role="dialog"
+            aria-label={`${title} 목록`}
+            tabIndex={-1}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <span className="nearby-places__sheet-handle" aria-hidden="true" />
+            <div className="nearby-places__sheet-header">
+              <strong className="nearby-places__sheet-title">
+                {title} ({places?.length ?? 0})
+              </strong>
+              <button
+                type="button"
+                className="nearby-places__sheet-close"
+                onClick={closeList}
+                aria-label="목록 닫기"
+              >
+                ×
+              </button>
+            </div>
+            <ul className="place-list">
+              {(places ?? []).map((place, index) => (
+                <PlaceListItem
+                  key={`${place.name}-${place.lat}-${place.lng}-${index}`}
+                  place={place}
+                  currentLocation={location}
+                />
+              ))}
+            </ul>
+          </div>
+        </div>
       )}
     </section>
   )

@@ -6,6 +6,12 @@ const MAX_ACCURACY_METERS = 30 // 이보다 부정확한(반경 큰) 좌표는 �
 const MIN_STEP_METERS = 5 // 직전 채택 좌표에서 이보다 덜 움직였으면 GPS 흔들림으로 보고 무시
 const MAX_SPEED_MPS = 10 // 두 좌표 사이 평균 속도가 이를 넘으면(도보로 비현실적) 점프로 보고 무시
 
+// 브라우저가 Geolocation API 자체를 지원하는지 — 모듈 로드 시점(=세션 내내 불변)
+// 1회만 판정한다. start() 호출 전에도 초기 status를 결정하는 데 쓴다(QA M-4① —
+// 지원하지 않는 브라우저에서는 시작 버튼을 처음부터 비활성화할 수 있어야 함).
+const GEOLOCATION_SUPPORTED =
+  typeof navigator !== 'undefined' && !!navigator.geolocation
+
 /**
  * useWalkTracker — 브라우저 Geolocation `watchPosition`으로 산책 경로를 추적하는 훅.
  *
@@ -22,16 +28,24 @@ const MAX_SPEED_MPS = 10 // 두 좌표 사이 평균 속도가 이를 넘으면(
  *
  * 반환값
  * - status: 'idle' | 'tracking' | 'stopped' | 'unsupported'
- *     'unsupported'는 브라우저가 Geolocation 자체를 지원하지 않을 때만 start()
- *     시점에 설정된다(위치 권한 거부는 별도로 구분하지 않음 — 이 화면 범위에선
- *     "추적이 안 됨"만 중요하고 원인별 UI 분기는 필요하지 않다는 판단).
+ *     'unsupported'는 브라우저가 Geolocation 자체를 지원하지 않을 때의 상태다.
+ *     모듈 로드 시점에 이미 판정되므로(GEOLOCATION_SUPPORTED) start()를 호출하기
+ *     전부터 초기 status로 잡힌다 — 호출부가 마운트 즉시 시작 버튼을 비활성화하고
+ *     안내를 보여줄 수 있다(QA M-4①). 위치 권한 거부는 이 status가 아니라 아래
+ *     permissionDenied로 별도 노출한다(추적 도중 발생해도 status는 'tracking'을
+ *     유지해야 통계·종료 버튼 화면이 갑자기 게이트로 되돌아가지 않기 때문).
+ * - permissionDenied: boolean — watchPosition 오류 콜백이 PERMISSION_DENIED
+ *     (error.code === 1)를 받으면 true로 노출된다(QA M-4②). 이후 성공 콜백을
+ *     한 번이라도 받으면(권한이 다시 허용된 경우) false로 되돌아간다. start()
+ *     호출 시 항상 false로 초기화된다. POSITION_UNAVAILABLE·TIMEOUT 등 다른
+ *     오류 코드는 기존과 동일하게 무시한다(일시적 실패로 보고 다음 콜백을 기다림).
  * - path: Array<{ lat: number, lng: number }> — 노이즈 필터를 통과한 좌표 목록.
  *     시간 순서. stop() 호출로는 비워지지 않는다(종료 시점 값 보존 — 기록 저장에
  *     쓰기 위함) — 다음 start()를 호출해야 새로 초기화된다.
  * - distanceMeters: number — path를 따라 누적된 이동 거리(미터).
  * - elapsedSeconds: number — start() 이후 경과 시간(초). 1초 간격 타이머로 갱신.
- * - start(): void — 추적 시작. 이전 회차의 path/거리/시간을 초기화한다. 이미
- *     추적 중이면 아무 동작도 하지 않는다(중복 watchPosition 방지).
+ * - start(): void — 추적 시작. 이전 회차의 path/거리/시간/permissionDenied를
+ *     초기화한다. 이미 추적 중이면 아무 동작도 하지 않는다(중복 watchPosition 방지).
  * - stop(): void — watchPosition 구독과 경과시간 타이머를 해제한다. path/거리/
  *     시간 값은 그대로 유지된다(종료 직후 요약·기록 저장에 사용할 수 있도록).
  *
@@ -45,18 +59,23 @@ const MAX_SPEED_MPS = 10 // 두 좌표 사이 평균 속도가 이를 넘으면(
  *
  * 사용 예시:
  * ```jsx
- * const { status, path, distanceMeters, elapsedSeconds, start, stop } = useWalkTracker()
+ * const { status, permissionDenied, path, distanceMeters, elapsedSeconds, start, stop } =
+ *   useWalkTracker()
  *
- * <button onClick={start} disabled={status === 'tracking'}>산책 시작</button>
+ * <button onClick={start} disabled={status === 'tracking' || status === 'unsupported'}>산책 시작</button>
  * <button onClick={stop} disabled={status !== 'tracking'}>산책 종료</button>
+ * {permissionDenied && <p>위치 권한이 꺼져 있어 경로가 기록되지 않아요.</p>}
  * <PetMap places={[]} categories={[]} path={path} />
  * ```
  */
 export function useWalkTracker() {
-  const [status, setStatus] = useState('idle')
+  const [status, setStatus] = useState(GEOLOCATION_SUPPORTED ? 'idle' : 'unsupported')
   const [path, setPath] = useState([])
   const [totalDistance, setTotalDistance] = useState(0)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  // QA M-4② — 위치 권한 거부(PERMISSION_DENIED) 노출용. status와 별도 필드로 둔
+  // 이유는 위 JSDoc 참고(추적 중 상태 전환을 깨지 않기 위함).
+  const [permissionDenied, setPermissionDenied] = useState(false)
 
   const watchIdRef = useRef(null)
   const timerRef = useRef(null)
@@ -64,7 +83,16 @@ export function useWalkTracker() {
   // 노이즈 필터 기준점 — 마지막으로 "채택"된 좌표(+수신 시각). 거부된 좌표로는
   // 갱신하지 않는다.
   const lastAcceptedRef = useRef(null)
-  const statusRef = useRef('idle') // start()가 최신 status를 동기적으로 참조하기 위한 ref
+  const statusRef = useRef(GEOLOCATION_SUPPORTED ? 'idle' : 'unsupported') // start()가 최신 status를 동기적으로 참조하기 위한 ref
+  // permissionDenied의 최신 값을 동기적으로 참조 — 매 위치 콜백마다 불필요한
+  // setState(리렌더)를 피하기 위해 값이 실제로 바뀔 때만 setPermissionDenied를 호출한다.
+  const permissionDeniedRef = useRef(false)
+
+  const markPermissionDenied = useCallback((denied) => {
+    if (permissionDeniedRef.current === denied) return
+    permissionDeniedRef.current = denied
+    setPermissionDenied(denied)
+  }, [])
 
   const clearWatch = useCallback(() => {
     if (watchIdRef.current !== null) {
@@ -92,13 +120,15 @@ export function useWalkTracker() {
   const start = useCallback(() => {
     if (statusRef.current === 'tracking') return // 중복 시작 방지
 
-    if (!navigator.geolocation) {
+    // 보통은 초기 status에서 이미 'unsupported'로 걸러지지만(위 GEOLOCATION_SUPPORTED),
+    // 방어적으로 한 번 더 확인한다.
+    if (!GEOLOCATION_SUPPORTED) {
       statusRef.current = 'unsupported'
       setStatus('unsupported')
       return
     }
 
-    // 새 회차 시작 — 이전 경로/거리/시간을 초기화한다.
+    // 새 회차 시작 — 이전 경로/거리/시간/권한거부 상태를 초기화한다.
     setPath([])
     setTotalDistance(0)
     setElapsedSeconds(0)
@@ -106,6 +136,7 @@ export function useWalkTracker() {
     startTimeRef.current = Date.now()
     statusRef.current = 'tracking'
     setStatus('tracking')
+    markPermissionDenied(false)
 
     clearTimer()
     timerRef.current = setInterval(() => {
@@ -115,6 +146,10 @@ export function useWalkTracker() {
     clearWatch()
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
+        // 위치를 성공적으로 받았다는 것 자체가 "지금은 권한이 허용된 상태"라는
+        // 뜻이므로, 노이즈 필터로 걸러질 좌표라도 일단 권한거부 상태는 해제한다.
+        markPermissionDenied(false)
+
         const { latitude, longitude, accuracy } = position.coords
         const timestamp = position.timestamp
 
@@ -136,21 +171,32 @@ export function useWalkTracker() {
         // ② 최소 이동 거리 필터 — GPS 흔들림으로 인한 제자리 지터 무시.
         if (moved < MIN_STEP_METERS) return
 
-        // ③ 비현실 속도 필터 — 같은 시각(dt<=0)이면 속도를 계산할 수 없으니 건너뛴다.
+        // ③ 비현실 속도 필터 — 같은 시각·역행 타임스탬프(dtSeconds<=0)는 속도를
+        // 신뢰할 수 없는 경우다(과거엔 이럴 때 속도 검사를 건너뛰고 그대로
+        // 채택해버려, 캐시된 좌표가 반복 전달될 때 점프가 누적되는 결함이 있었다
+        // — QA L-4). 속도를 계산할 수 없으면 채택하지 않고 무시한다.
         const dtSeconds = (timestamp - last.timestamp) / 1000
-        if (dtSeconds > 0 && moved / dtSeconds > MAX_SPEED_MPS) return
+        if (dtSeconds <= 0) return
+        if (moved / dtSeconds > MAX_SPEED_MPS) return
 
         lastAcceptedRef.current = { ...point, timestamp }
         setTotalDistance((prev) => prev + moved)
         setPath((prev) => [...prev, point])
       },
-      () => {
-        // 위치 획득 실패(권한 거부·타임아웃 등) — 추적 자체를 강제 종료하지는
-        // 않는다(일시적 실패일 수 있음). 다음 성공 콜백을 계속 기다린다.
+      (error) => {
+        // 위치 획득 실패 — 추적 자체를 강제 종료하지는 않는다(일시적 실패일 수
+        // 있음). 다음 성공 콜백을 계속 기다린다. 단 PERMISSION_DENIED(코드 1)는
+        // 사용자가 브라우저 권한을 껐다는 확정적 신호라 훅 상태로 노출한다
+        // (QA M-4② — 호출부가 "위치 권한이 꺼져 있어 경로가 기록되지 않아요"
+        // 안내를 보여줄 수 있도록). POSITION_UNAVAILABLE(2)·TIMEOUT(3)은 기존과
+        // 동일하게 무시한다.
+        if (error?.code === 1) {
+          markPermissionDenied(true)
+        }
       },
       { enableHighAccuracy: true },
     )
-  }, [clearTimer, clearWatch])
+  }, [clearTimer, clearWatch, markPermissionDenied])
 
   // 언마운트 시 watchPosition 구독·타이머 정리 (QA R-1 타이머 누수 관찰사항 준용).
   useEffect(() => {
@@ -162,6 +208,7 @@ export function useWalkTracker() {
 
   return {
     status,
+    permissionDenied,
     path,
     distanceMeters: totalDistance,
     elapsedSeconds,
