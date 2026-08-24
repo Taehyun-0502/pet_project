@@ -119,15 +119,40 @@
   gap: 10px;
 }
 
+/* 방 한 줄 — 입장 영역은 안쪽 .room-row 버튼이 맡는다 (백로그 19번).
+   패딩·커서를 버튼으로 옮겨 클릭·포커스 영역과 시각 영역이 일치하게 했다 */
 .chat-room-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
+  padding-right: 10px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  cursor: pointer;
   text-align: left;
+}
+
+/* 목록 항목 안의 입장 버튼 — 버튼 기본 모양을 걷어내 종전 li와 같은 줄로 보이게 한다
+   (pet 마이페이지 탭의 .pet-row와 같은 패턴) */
+.chat-room-list .room-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0 12px 14px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-room-list .room-row:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .chat-room-list .count {
@@ -138,6 +163,7 @@
 
 /* 3차: 방 프로필 표시 (목록 카드 + 방 화면 헤더 아래) */
 .room-info {
+  display: block; /* 목록에서는 span이다 (버튼 안이라 — 백로그 19번). 안쪽 소개 줄이 블록으로 잡히게 */
   text-align: left;
   min-width: 0; /* 긴 소개가 카드 폭을 밀어내지 않게 */
 }
@@ -152,7 +178,30 @@
   font-size: 12px;
 }
 
+/* 방 이름 줄 — 카테고리 + 이름 + 안읽음 배지가 항상 한 줄에 붙어 있게 (백로그 101번).
+   이름이 길면 배지를 밀어내지 말고 이름을 자른다 — 배지는 위치가 곧 의미다 */
+.room-name-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.room-name-line strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 카테고리 칩·배지는 줄이지 않는다 — flex 기본값(shrink:1)이면 칩이 눌려 "자유"가 두 줄로 접히고
+   줄 높이가 50px까지 늘어난다(실측). 폭이 부족하면 이름(strong)이 ellipsis로 대신 줄어든다 */
+.room-name-line .room-category,
+.room-name-line .unread-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .room-desc {
+  display: block; /* 목록에서는 span — ellipsis가 걸리도록 블록으로 (백로그 19번 구조 변경) */
   margin: 4px 0 0;
   font-size: 13px;
   color: var(--text-muted);

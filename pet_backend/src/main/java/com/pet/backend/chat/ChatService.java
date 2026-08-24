@@ -8,7 +8,7 @@ import com.pet.backend.chat.dto.ChatRoomSaveRequest;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ImageStorageClient;
-import com.pet.backend.member.Member;
+import com.pet.backend.member.MemberDisplay;
 import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.member.MemberRepository;
 import java.io.IOException;
@@ -271,11 +271,22 @@ public class ChatService {
     /**
      * 읽음 위치 보고 (docs/api-spec.md 7절). 멱등 — 같은 값·과거 값 보고는 0행 갱신으로 조용히 끝난다.
      * 참여 검증은 벌크 UPDATE의 WHERE가 겸한다 (미참여자는 no-op — 자기 행 외에는 건드릴 수 없는 구조).
+     *
+     * <p>보고 값은 방의 최대 message id로 **clamp**한다 (리뷰 백로그 92번). 화면이 표시할 수 있는 id는
+     * 그 상한을 넘을 수 없는데, 검증 없이 저장하면 Long.MAX_VALUE 같은 미래 id가 단조 조건과 결합해
+     * 그 방의 배지를 영구 0으로 만들고 되돌릴 수단이 없다(자기 배지만 망가지므로 격리 위반은 아니나
+     * 회복 불가가 문제). 상한 조회는 입장 초기화와 같은 메서드 재사용 — PK 인덱스 1행이라 저렴하다
      */
     @Transactional
     public void markRead(Long memberId, Long roomId, Long lastReadMessageId) {
         getActiveRoom(roomId);
-        chatRoomMemberRepository.markRead(roomId, memberId, lastReadMessageId);
+        Long maxMessageId = chatMessageRepository.findTopByRoomIdOrderByIdDesc(roomId)
+                .map(ChatMessage::getId)
+                .orElse(null);
+        if (maxMessageId == null) {
+            return; // 메시지가 없는 방 — 읽었다고 보고할 대상 자체가 없다
+        }
+        chatRoomMemberRepository.markRead(roomId, memberId, Math.min(lastReadMessageId, maxMessageId));
     }
 
     /**
@@ -378,7 +389,7 @@ public class ChatService {
         // 발신자 조회를 INSERT보다 먼저 — INSERT 후 추가 왕복이 있으면
         // id 채번과 커밋 사이 구간이 길어져, 그 사이 더 큰 id가 먼저 커밋되면
         // afterId 폴링이 이 메시지를 건너뛸 수 있다 (docs/troubleshooting.md 3번)
-        Member sender = memberRepository.findById(memberId).orElse(null);
+        MemberDisplay sender = findDisplay(memberId);
         ChatMessage message = ChatMessage.of(roomId, memberId, request.content().trim());
         chatMessageRepository.save(message);
         ChatMessageResponse response = ChatMessageResponse.of(message,
@@ -448,13 +459,14 @@ public class ChatService {
             return List.of();
         }
 
-        // 발신자 일괄 조회 — 메시지마다 회원을 조회하면 N+1. 이름·프로필 사진을 같은 조회에서 얻는다
+        // 발신자 일괄 조회 — 메시지마다 회원을 조회하면 N+1. 이름·프로필 사진을 같은 조회에서 얻는다.
+        // 표시용 2필드 프로젝션이라 비밀번호 해시가 메모리에 올라오지 않는다 (백로그 98번 — MemberDisplay 주석)
         Set<Long> senderIds = messages.stream().map(ChatMessage::getSenderId).collect(Collectors.toSet());
-        Map<Long, Member> senders = memberRepository.findAllById(senderIds).stream()
-                .collect(Collectors.toMap(Member::getId, member -> member));
+        Map<Long, MemberDisplay> senders = memberRepository.findDisplayByIdIn(senderIds).stream()
+                .collect(Collectors.toMap(MemberDisplay::getId, member -> member));
         return messages.stream()
                 .map(message -> {
-                    Member sender = senders.get(message.getSenderId());
+                    MemberDisplay sender = senders.get(message.getSenderId());
                     return ChatMessageResponse.of(message,
                             sender != null ? sender.getName() : "알 수 없음",
                             sender != null ? sender.getProfileImageUrl() : null);
@@ -469,15 +481,15 @@ public class ChatService {
         requireParticipant(roomId, memberId);
         List<ChatRoomMember> members = chatRoomMemberRepository
                 .findByRoomIdAndLeftAtIsNullOrderByJoinedAtAsc(roomId);
-        // 회원 일괄 조회 — 참여자마다 조회하면 N+1. 이름·프로필 사진을 같은 조회에서 얻는다
+        // 회원 일괄 조회 — 참여자마다 조회하면 N+1. 이름·프로필 사진을 같은 조회에서 얻는다 (프로젝션 — 98번)
         Set<Long> memberIds = members.stream().map(ChatRoomMember::getMemberId).collect(Collectors.toSet());
-        Map<Long, Member> memberById = memberRepository.findAllById(memberIds).stream()
-                .collect(Collectors.toMap(Member::getId, member -> member));
+        Map<Long, MemberDisplay> memberById = memberRepository.findDisplayByIdIn(memberIds).stream()
+                .collect(Collectors.toMap(MemberDisplay::getId, member -> member));
         return members.stream()
                 // enum 선언 순서(OWNER=0, MANAGER=1, MEMBER=2)가 곧 표시 순서. 정렬은 안정적이라 입장순 유지
                 .sorted(Comparator.comparingInt(member -> member.getRole().ordinal()))
                 .map(member -> {
-                    Member found = memberById.get(member.getMemberId());
+                    MemberDisplay found = memberById.get(member.getMemberId());
                     return new ChatMemberResponse(member.getMemberId(),
                             found != null ? found.getName() : "알 수 없음", member.getRole(),
                             found != null ? found.getProfileImageUrl() : null);
@@ -616,10 +628,16 @@ public class ChatService {
         if (message == null) {
             return null;
         }
-        Member sender = memberRepository.findById(message.getSenderId()).orElse(null);
+        MemberDisplay sender = findDisplay(message.getSenderId());
         return ChatMessageResponse.of(message,
                 sender != null ? sender.getName() : "알 수 없음",
                 sender != null ? sender.getProfileImageUrl() : null);
+    }
+
+    // 단건 표시용 조회 — 일괄 조회(findDisplayByIdIn)와 같은 프로젝션을 쓴다 (백로그 98번).
+    // 없으면 null: 호출부가 "알 수 없음"으로 표시한다 (조회가 500이 될 이유가 없다)
+    private MemberDisplay findDisplay(Long memberId) {
+        return memberRepository.findDisplayByIdIn(Set.of(memberId)).stream().findFirst().orElse(null);
     }
 
     // 강퇴 권한 매트릭스: OWNER는 MANAGER·MEMBER, MANAGER는 MEMBER만, MEMBER는 불가 (OWNER는 누구도 못 강퇴)
@@ -631,7 +649,17 @@ public class ChatService {
         };
     }
 
-    // OWNER 검증 — 미참여든 권한 부족이든 동일하게 403 CHAT_ROLE_FORBIDDEN (docs/api-spec.md 7절)
+    /**
+     * OWNER 검증 — 미참여든 권한 부족이든 동일하게 403 CHAT_ROLE_FORBIDDEN (docs/api-spec.md 7절).
+     *
+     * <p><b>알려진 한계 (리뷰 백로그 68번 — 의도된 수용)</b>: `@Version`은 "수정한 행"에만 걸리므로,
+     * 이 조회(읽기 전용)로 얻은 actor의 권한은 잠금 아래에 없다. `delegate(A→B)`가 커밋된 직후에도
+     * 직전에 A를 OWNER로 읽은 changeRole·kick·deleteRoom은 다른 행만 건드려 충돌 없이 커밋된다 —
+     * 이미 방장이 아닌 A가 지명하거나 방을 삭제하는 결과가 남을 수 있다.
+     * <b>OWNER 개수 불변식은 깨지지 않고</b>(ux_chat_room_owner 부분 UNIQUE + delegate의 쓰기 순서),
+     * A는 직전까지 정당한 방장이었고 스스로 위임한 상황이라 피해가 없다고 판단해 수용한다.
+     * 막아야 할 필요가 생기면 여기에 `@Lock(OPTIMISTIC)`을 걸어 actor 행의 version도 검사에 넣을 것.
+     */
     private ChatRoomMember requireOwner(Long roomId, Long memberId) {
         return chatRoomMemberRepository.findByRoomIdAndMemberIdAndLeftAtIsNull(roomId, memberId)
                 .filter(member -> member.getRole() == ChatRole.OWNER)

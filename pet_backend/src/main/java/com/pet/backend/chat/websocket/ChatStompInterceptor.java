@@ -47,7 +47,12 @@ public class ChatStompInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor =
                 MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
-        if (accessor == null || accessor.getCommand() == null) {
+        if (accessor == null) {
+            // 알려진 도달 경로는 없지만, 이 분기가 보안 검문의 유일한 fail-open 지점이었다 (백로그 70번) —
+            // 정체를 알 수 없는 프레임은 통과가 아니라 거부가 맞다(fail-closed)
+            throw reject(message, CommonErrorCode.FORBIDDEN);
+        }
+        if (accessor.getCommand() == null) {
             // 하트비트 등 STOMP 명령이 아닌 프레임
             return message;
         }
@@ -57,7 +62,9 @@ public class ChatStompInterceptor implements ChannelInterceptor {
             case UNSUBSCRIBE, DISCONNECT -> { /* 정리 동작 — 허용 */ }
             // SEND 포함 나머지 전부 거부 (리뷰 백로그 21번).
             // SimpleBroker는 클라이언트 SEND를 검증 없이 구독자 전원에게 중계하므로,
-            // "전송은 REST뿐"이라는 설계는 여기서 강제해야 한다 — 발행 prefix 미등록만으로는 막히지 않는다
+            // "전송은 REST뿐"이라는 설계는 여기서 강제해야 한다 — 발행 prefix 미등록만으로는 막히지 않는다.
+            // ⚠ ACK·NACK·BEGIN·COMMIT·ABORT도 여기서 끊기고, 거부는 연결 종료 → 프론트 fatal로 이어진다 —
+            // 나중에 ack:'client' 구독이나 STOMP 트랜잭션을 도입하려면 이 화이트리스트 확장이 선행이다 (백로그 70번)
             default -> throw reject(message, CommonErrorCode.FORBIDDEN);
         }
         return message;

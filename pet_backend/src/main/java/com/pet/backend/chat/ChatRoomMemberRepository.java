@@ -91,6 +91,13 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
      * ② 엔티티 변경은 @Version을 올려, 잦은 읽음 보고가 위임·강퇴 같은 권한 변경과
      *    불필요한 409 충돌을 일으킨다. 벌크 UPDATE는 version을 건드리지 않는다(의도).
      * WHERE의 참여 조건이 검증을 겸한다 — 미참여자·과거 값 보고는 0행 갱신(무해한 no-op).
+     *
+     * <p>⚠ **clearAutomatically 규약** (리뷰 백로그 99번): 이 메서드는 실행 시 영속성 컨텍스트를
+     * 통째로 비운다. 다른 @Transactional 메서드 안에서 호출하면 **그 트랜잭션이 들고 있던 관리
+     * 엔티티가 전부 detach되어 이후의 엔티티 변경이 조용히 유실된다** — 탈퇴 구현(2026-08-11)에서
+     * leaveAllByMemberId 뒤에 둔 member.withdraw()가 실제로 유실됐던 그 패턴(MemberService.withdraw
+     * 주석 참조). 벌크 UPDATE는 짧은 단독 트랜잭션에서만 부르거나, 엔티티 변경을 벌크 **앞**에 둘 것.
+     * 이 규약은 leaveAllByMemberId·RefreshTokenRepository의 revoke 계열에도 똑같이 적용된다.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
@@ -124,6 +131,7 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
      * 회원 탈퇴 시 참여 방 일괄 나가기 (docs/api-spec.md 1절 6차) — 탈퇴 회원이 참여자 목록에 남지 않게.
      * 벌크 UPDATE인 이유는 markRead와 같다(@Version 미충돌 + 왕복 1회). MEMBERS_CHANGED 신호는
      * 보내지 않는다 — 열려 있는 참여자 패널은 다음 재조회에 반영된다(명세에 기록된 감수 사항).
+     * ⚠ clearAutomatically 규약(백로그 99번)은 markRead 주석 참조 — 엔티티 변경은 이 호출보다 앞에.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

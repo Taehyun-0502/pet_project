@@ -325,6 +325,13 @@ export default function ChatRoomPage() {
     }
   }
 
+  /**
+   * 실패가 "내가 보던 상태가 낡았다"는 뜻인지 (리뷰 백로그 69번).
+   * 409 CONCURRENT_UPDATE는 정의상 그렇고, 404(대상 참여자 없음)도 그 사이 나갔다는 뜻이다.
+   * 이 화면은 MEMBERS_CHANGED 재조회 규약을 이미 갖고 있으므로 같은 방법으로 자동 정정할 수 있다
+   */
+  const isStaleStateError = (err) => err.status === 409 || err.status === 404
+
   // 권한 동작 공통 처리 — 성공하면 참여자 목록을 새로 읽는다.
   // 서버도 MEMBERS_CHANGED를 밀어주지만, 연결이 끊긴 상태에서도 내 화면은 즉시 맞도록 여기서도 읽는다
   const runAction = async (action) => {
@@ -334,6 +341,9 @@ export default function ChatRoomPage() {
       await loadMembers()
     } catch (err) {
       setActionError(err.message)
+      // 실패했을 때도 읽는다 (백로그 69번) — 종전에는 성공 경로만 재조회해서, 위임 경쟁으로 409를 받으면
+      // **이미 방장이 아닌 자신을 여전히 OWNER로 표시한 화면**이 그대로 남았다(버튼도 계속 노출)
+      if (isStaleStateError(err)) loadMembers()
     }
   }
 
@@ -346,6 +356,7 @@ export default function ChatRoomPage() {
       navigate('/chat')
     } catch (err) {
       setActionError(err.message) // 방장이면 409 — 위임 후에만 나갈 수 있다
+      if (isStaleStateError(err)) loadMembers() // 같은 이유로 재조회 (백로그 69번)
     }
   }
 
@@ -672,9 +683,12 @@ export default function ChatRoomPage() {
             onChange={onImageChange} disabled={sendingImage || sending}
           />
         </label>
+        {/* 전송 중에는 잠근다 (백로그 20번) — 응답을 기다리는 사이 타이핑하면
+            성공 시 setContent('')가 그 입력을 지워 버린다 (사진 첨부 input과 같은 규칙) */}
         <input
           type="text" value={content} onChange={(e) => setContent(e.target.value)}
           placeholder="메시지를 입력하세요 (1000자 이내)" maxLength={1000}
+          disabled={sending || sendingImage}
         />
         <button type="submit" disabled={sending || sendingImage}>
           전송

@@ -1,6 +1,8 @@
 package com.pet.backend.member;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -12,6 +14,17 @@ import org.springframework.data.repository.query.Param;
  * 탈퇴 회원을 "없는 것처럼" 취급한다 (재가입 허용, 로그인 불가 — docs/api-spec.md).
  */
 public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    /**
+     * 채팅 표시용 일괄 조회 (리뷰 백로그 98번) — 이름·사진 2필드 프로젝션(MemberDisplay).
+     * 엔티티 전체를 쓰던 종전 방식은 비밀번호 해시까지 행 수만큼 메모리에 올렸다.
+     *
+     * <p>**의도적으로 활성(DeletedAtIsNull) 조건이 없다** — 탈퇴 회원의 과거 메시지도 발신자
+     * 이름·사진을 유지한다는 확정 정책(회원 탈퇴 설계, api-spec 1절 6차 "익명화하지 않는다")의
+     * 구현 지점이라, 위 클래스 주석의 활성 조회 규약에 대한 **문서화된 예외**다.
+     * 다른 용도로 이 메서드를 쓰려면 탈퇴 회원 노출이 정당한지부터 확인할 것.
+     */
+    List<MemberDisplay> findDisplayByIdIn(Collection<Long> ids);
 
     /**
      * 로그인: 활성 회원을 이메일로 조회 (리뷰 백로그 2번 — 대소문자 무시).
