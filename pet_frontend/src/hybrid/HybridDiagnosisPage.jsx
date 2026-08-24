@@ -661,9 +661,12 @@ export default function HybridDiagnosisPage() {
         </div>
       )}
 
-      {/* 주변 동물병원 — 병원 전용 지도(PetMap categories={['HOSPITAL']}) + 리스트.
-          조회·지도·리스트가 모두 NearbyPlaces 공용 컴포넌트 안에 있다 */}
-      <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />
+      {/* 주변 동물병원 — 진단 결과가 나온 뒤에만 "주변 동물병원 보기" 버튼이 뜨고,
+          버튼을 눌러야 지도·조회가 시작된다 (deferred — 2026-08-13 사용자 결정).
+          조회·지도·목록 시트가 모두 NearbyPlaces 공용 컴포넌트 안에 있다 */}
+      {result && (
+        <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" deferred />
+      )}
     </div>
   )
 }

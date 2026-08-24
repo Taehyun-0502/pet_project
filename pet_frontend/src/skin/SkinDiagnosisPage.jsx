@@ -891,8 +891,11 @@ export default function SkinDiagnosisPage() {
           formData={{ petName, breed, age, weight }}
         />
 
-        {/* 주변 동물병원 지도 + 리스트 (팀원 수정 반영분) */}
-        <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" />
+        {/* 주변 동물병원 — 진단 결과가 나온 뒤에만 "주변 동물병원 보기" 버튼이 뜨고,
+            버튼을 눌러야 지도·조회가 시작된다 (deferred — 2026-08-13 사용자 결정) */}
+        {(binaryResult || multiResult) && (
+          <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" deferred />
+        )}
       </main>
     </div>
   )
