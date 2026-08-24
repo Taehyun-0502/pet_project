@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,7 @@ class KmaClient {
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(5);
     private static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private static final DateTimeFormatter FCST_DATETIME_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
+    private static final String SUCCESS_RESULT_CODE = "00"; // 공공데이터포털 공통 규격 — "00"이 정상
 
     // 키 미설정 시 폴백하는 결정적 고정값 — 기동 시 경고 로그 1회, 응답 자체는 항상 성공한다.
     private static final double MOCK_AIR_TEMP = 30.0;
@@ -49,6 +51,9 @@ class KmaClient {
     private final String serviceKey;
     private final boolean serviceKeyConfigured;
 
+    // 테스트 전용 생성자(KmaClient(String, RestClient))가 추가되면서 생성자가 2개가 됐다 —
+    // Spring이 어느 쪽을 빈 생성에 쓸지 모호해지지 않도록 명시적으로 지정한다.
+    @Autowired
     public KmaClient(@Value("${kma.service-key}") String serviceKey) {
         this.serviceKey = serviceKey;
         this.serviceKeyConfigured = serviceKey != null && !serviceKey.isBlank();
@@ -67,6 +72,20 @@ class KmaClient {
                 .build();
     }
 
+    // 테스트에서 MockRestServiceServer로 실제 HTTP 왕복 없이 응답 파싱 경로(resultCode 검증,
+    // 숫자 파싱 실패 등)를 검증할 수 있도록 열어둔 패키지 전용 생성자(QA M-1·M-2 테스트용).
+    KmaClient(String serviceKey, RestClient restClient) {
+        this.serviceKey = serviceKey;
+        this.serviceKeyConfigured = serviceKey != null && !serviceKey.isBlank();
+        this.restClient = restClient;
+    }
+
+    // WalkWeatherService가 격자 캐시 적재 여부를 판단하는 데 쓴다 — mock 폴백 스냅샷까지
+    // 캐시하면 키를 늦게 등록해도 최대 10분 동안 mock 값이 유지되는 문제가 있었다(QA L-2).
+    boolean isServiceKeyConfigured() {
+        return serviceKeyConfigured;
+    }
+
     KmaWeatherSnapshot fetch(int nx, int ny) {
         if (!serviceKeyConfigured) {
             return mockSnapshot();
@@ -76,10 +95,12 @@ class KmaClient {
 
             KmaBaseTime ncstBase = KmaBaseTime.forUltraSrtNcst(now);
             KmaNcstResponse ncstResponse = requestNcst(nx, ny, ncstBase);
+            requireSuccess(headerOf(ncstResponse));
             Map<String, String> ncstValues = toCategoryMap(ncstResponse);
 
             KmaBaseTime fcstBase = KmaBaseTime.forUltraSrtFcst(now);
             KmaFcstResponse fcstResponse = requestFcst(nx, ny, fcstBase);
+            requireSuccess(headerOf(fcstResponse));
             int sky = nearestSky(fcstResponse, now);
 
             return new KmaWeatherSnapshot(
@@ -89,10 +110,47 @@ class KmaClient {
                     (int) requireDouble(ncstValues, "PTY"),
                     sky,
                     ncstBase.baseDate() + ncstBase.baseTime());
-        } catch (RestClientException e) {
-            log.warn("기상청 API 호출 실패 — nx={}, ny={}", nx, ny, e);
+        } catch (RestClientException | NumberFormatException e) {
+            // NumberFormatException도 여기서 잡는다(QA M-2) — 기상청이 200으로 응답했지만
+            // 값이 비정상("-" 등)인 경우까지 포함해, 호출 실패와 동일하게 502로 변환한다
+            // (그러지 않으면 예외가 그대로 새어나가 500으로 떨어져 원인 파악이 어려워진다).
+            log.warn("기상청 API 호출/응답 처리 실패 — nx={}, ny={}", nx, ny, e);
             throw new BusinessException(WalkErrorCode.WEATHER_FETCH_FAILED);
         }
+    }
+
+    // resultCode가 "00"(정상)이 아니면 502로 변환한다(QA M-1). 메시지에 서비스 키가 절대
+    // 포함되지 않도록 resultCode·resultMsg만 로그에 남긴다.
+    private void requireSuccess(Header header) {
+        String resultCode = header == null ? null : header.resultCode();
+        if (!SUCCESS_RESULT_CODE.equals(resultCode)) {
+            String resultMsg = header == null ? null : header.resultMsg();
+            log.warn("기상청 API 응답 실패 — resultCode={}, resultMsg={}", resultCode, resultMsg);
+            throw new BusinessException(WalkErrorCode.WEATHER_FETCH_FAILED);
+        }
+    }
+
+    // KmaNcstResponse.Header/KmaFcstResponse.Header는 서로 다른 타입이라 공통 인터페이스가
+    // 없다 — 이 두 오버로드가 각자의 null-safe 추출을 맡고, requireSuccess(Header)는
+    // 아래 공용 레코드로 통일해 검증 로직 중복을 피한다.
+    private Header headerOf(KmaNcstResponse response) {
+        if (response == null || response.response() == null || response.response().header() == null) {
+            return null;
+        }
+        KmaNcstResponse.Header header = response.response().header();
+        return new Header(header.resultCode(), header.resultMsg());
+    }
+
+    private Header headerOf(KmaFcstResponse response) {
+        if (response == null || response.response() == null || response.response().header() == null) {
+            return null;
+        }
+        KmaFcstResponse.Header header = response.response().header();
+        return new Header(header.resultCode(), header.resultMsg());
+    }
+
+    // requireSuccess()가 두 응답 타입을 동일하게 다루기 위한 내부 공용 표현.
+    private record Header(String resultCode, String resultMsg) {
     }
 
     private KmaNcstResponse requestNcst(int nx, int ny, KmaBaseTime base) {

@@ -80,7 +80,8 @@ function WalkPage() {
   const [weather, setWeather] = useState(null) // null = 아직 없음 또는 조회 실패 — 배너 비표시
   const [fitBoundsKey, setFitBoundsKey] = useState(0)
   const [summary, setSummary] = useState(null) // 종료 후 요약 { distanceMeters, durationSeconds }
-  const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'success' | 'error'
+  // 'empty'는 경로가 비어 있어 저장 자체를 시도하지 않은 경우(QA M-4③ — 아래 handleStop 참고)
+  const [saveStatus, setSaveStatus] = useState('idle') // 'idle' | 'saving' | 'success' | 'error' | 'empty'
 
   // 강아지별 시작 (2026-08-12 사용자 요청) — 통합 "산책 시작" 버튼을 없애고 내
   // 반려동물 리스트를 보여준 뒤, 강아지마다 개별 시작 버튼을 둔다.
@@ -99,7 +100,12 @@ function WalkPage() {
     setPetsError('')
     getMyPets()
       .then(setPets)
-      .catch((err) => setPetsError(err.message || '반려동물 목록을 불러오지 못했어요.'))
+      .catch((err) => {
+        // 원문(err.message)은 서버·네트워크 내부 사정을 드러낼 수 있어 화면에는
+        // 고정 한국어 문구만 보여준다(QA L-5) — 진단용 원문은 콘솔에만 남긴다.
+        console.error(err)
+        setPetsError('반려동물 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
+      })
   }, [])
 
   useEffect(() => {
@@ -287,6 +293,15 @@ function WalkPage() {
 
     setSummary({ distanceMeters: distance, durationSeconds: duration })
 
+    // 경로가 비어 있으면(GPS 미지원·권한 거부 등으로 좌표를 한 번도 채택하지 못한
+    // 경우) 저장을 시도하지 않는다 — 백엔드가 path를 @NotEmpty로 요구하므로
+    // 그대로 보내면 400이 그대로 노출된다(QA M-4③). 대신 안내만 보여준다.
+    if (finishedPath.length === 0) {
+      pendingRecordRef.current = null
+      setSaveStatus('empty')
+      return
+    }
+
     pendingRecordRef.current = {
       // 강아지별 시작(2026-08-12)으로 이제 실제 petId를 채워 보낸다 — activePet은
       // 시작 버튼을 누른 강아지 리스트 항목에서 반드시 채워지므로 여기선 항상 값이
@@ -399,6 +414,17 @@ function WalkPage() {
                 </div>
               )}
 
+              {/* GPS 미지원 안내(QA M-4①) — 브라우저가 Geolocation 자체를 지원하지
+                  않으면 useWalkTracker가 마운트 즉시 status를 'unsupported'로
+                  잡는다(위치 권한 요청 전이라 반려동물 목록·로딩 상태와 무관하게
+                  항상 노출 가능). 안내와 함께 아래 강아지별 "산책 시작" 버튼을
+                  비활성 처리한다(리스트 자체는 그대로 보여줌). */}
+              {tracker.status === 'unsupported' && (
+                <p className="walk-page__pet-status walk-page__pet-status--error walk-page__pet-status--center">
+                  이 브라우저는 위치 기능을 지원하지 않아 산책 기록을 사용할 수 없어요.
+                </p>
+              )}
+
               {pets === null && !petsError && (
                 <p className="walk-page__pet-status walk-page__pet-status--center">
                   반려동물 불러오는 중…
@@ -440,6 +466,7 @@ function WalkPage() {
                         type="button"
                         className="walk-page__pet-start-btn"
                         onClick={() => handleStartClick(pet)}
+                        disabled={tracker.status === 'unsupported'}
                       >
                         산책 시작
                       </button>
@@ -450,29 +477,45 @@ function WalkPage() {
             </div>
           </div>
         ) : (
-          <div className="walk-page__control-bar">
-            <div className="walk-page__stats" aria-live="polite">
-              <span className="walk-page__stat walk-page__stat--name">
-                {activePet?.name ?? '반려동물'} 산책 중
-              </span>
-              <span className="walk-page__stat">
-                <span className="walk-page__stat-value">
-                  {formatDistanceLabel(tracker.distanceMeters)}
+          <>
+            {/* GPS 권한 거부 안내(QA M-4②) — 추적 도중 브라우저 위치 권한이 꺼진
+                것을 useWalkTracker가 감지하면(permissionDenied) 노출한다. 경로가
+                더 이상 기록되지 않는다는 사실을 알리는 것이 목적이라, 매초 갱신되는
+                거리/시간과 달리 상태 변화 시 1회만 알려주면 되므로 role="status"로
+                충분하다(aria-live="polite" 남용 금지 원칙은 아래 stats와 동일). */}
+            {tracker.permissionDenied && (
+              <div className="walk-page__gps-warning" role="status">
+                위치 권한이 꺼져 있어 경로가 기록되지 않아요.
+              </div>
+            )}
+            <div className="walk-page__control-bar">
+              {/* aria-live 제거(QA M-5) — 거리/시간이 매초 갱신되는 컨테이너라
+                  aria-live="polite"를 달아두면 스크린리더가 1초마다 값을 낭독해
+                  과다 낭독을 유발한다. 상태 전환 알림은 permissionDenied 배너·
+                  종료 후 요약(role="status")에서만 제공한다. */}
+              <div className="walk-page__stats">
+                <span className="walk-page__stat walk-page__stat--name">
+                  {activePet?.name ?? '반려동물'} 산책 중
                 </span>
-                <span className="walk-page__stat-label">거리</span>
-              </span>
-              <span className="walk-page__stat">
-                <span className="walk-page__stat-value">
-                  {formatElapsed(tracker.elapsedSeconds)}
+                <span className="walk-page__stat">
+                  <span className="walk-page__stat-value">
+                    {formatDistanceLabel(tracker.distanceMeters)}
+                  </span>
+                  <span className="walk-page__stat-label">거리</span>
                 </span>
-                <span className="walk-page__stat-label">시간</span>
-              </span>
-            </div>
+                <span className="walk-page__stat">
+                  <span className="walk-page__stat-value">
+                    {formatElapsed(tracker.elapsedSeconds)}
+                  </span>
+                  <span className="walk-page__stat-label">시간</span>
+                </span>
+              </div>
 
-            <button type="button" className="walk-page__stop-btn" onClick={handleStop}>
-              산책 종료
-            </button>
-          </div>
+              <button type="button" className="walk-page__stop-btn" onClick={handleStop}>
+                산책 종료
+              </button>
+            </div>
+          </>
         )}
 
         {/* GPS 정보 안내 팝업(2026-08-12 사용자 요청) — "산책 시작" 클릭 시 곧바로
@@ -534,6 +577,9 @@ function WalkPage() {
           {saveStatus === 'saving' && <p className="walk-page__save-status">기록 저장 중…</p>}
           {saveStatus === 'success' && (
             <p className="walk-page__save-status">기록이 저장되었어요.</p>
+          )}
+          {saveStatus === 'empty' && (
+            <p className="walk-page__save-status">기록된 경로가 없어 저장하지 않았어요.</p>
           )}
           {saveStatus === 'error' && (
             <div className="walk-page__save-error">

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 
@@ -31,6 +32,8 @@ public record WalkRecordCreateRequest(
         Double distanceMeters,
 
         @NotEmpty(message = "path는 비어있지 않아야 합니다.")
+        // 5m 간격 좌표 기준 100km 상당(QA M-3) — 임의 크기 jsonb 저장을 막는 상한.
+        @Size(max = 20000, message = "path가 너무 깁니다. (최대 20000개, 5m 간격 기준 약 100km)")
         @Valid
         List<GeoPoint> path,
 
