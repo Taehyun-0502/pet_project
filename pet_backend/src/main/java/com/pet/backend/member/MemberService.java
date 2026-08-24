@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import com.pet.backend.member.dto.KakaoLoginRequest;
+import com.pet.backend.member.dto.MemberProfileResponse;
 import com.pet.backend.member.dto.SessionResponse;
 import com.pet.backend.member.dto.WithdrawRequest;
 import com.pet.backend.member.dto.LoginRequest;
@@ -534,5 +535,24 @@ public class MemberService {
     public MemberResponse getMyInfo(Long memberId) {
         Member member = findActiveMemberOrThrow(memberId);
         return MemberResponse.from(member);
+    }
+
+    /**
+     * 공개 회원 프로필 (docs/api-spec.md 1절 7차, F9 선행분). 탈퇴·없는 id·형식 오류 id 전부
+     * 404 USER_NOT_FOUND로 통일한다 — 존재 여부 미노출(pet의 소유자 격리 404 통일과 같은 규칙).
+     * rawMemberId를 String으로 받는 이유: 경로에 숫자가 아닌 값이 오면 500이 아니라 404로
+     * 흡수하기 위한 것 (기기 관리 sessionId의 UUID 파싱 선례 — revokeSession 참조)
+     */
+    @Transactional(readOnly = true)
+    public MemberProfileResponse getPublicProfile(String rawMemberId) {
+        Long memberId;
+        try {
+            memberId = Long.valueOf(rawMemberId);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(MemberErrorCode.NOT_FOUND);
+        }
+        return memberRepository.findByIdAndDeletedAtIsNull(memberId)
+                .map(MemberProfileResponse::from)
+                .orElseThrow(() -> new BusinessException(MemberErrorCode.NOT_FOUND));
     }
 }

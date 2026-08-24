@@ -6,6 +6,7 @@ import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
+import com.pet.backend.member.dto.MemberProfileResponse;
 import com.pet.backend.member.dto.MemberResponse;
 import com.pet.backend.member.dto.NameUpdateRequest;
 import com.pet.backend.member.dto.PasswordChangeRequest;
@@ -152,6 +153,13 @@ public class MemberController {
             @AuthenticationPrincipal Long memberId,
             @CookieValue(name = "refreshToken", required = false) String refreshToken) {
         return ApiResponse.ok(memberService.getSessions(memberId, refreshToken));
+    }
+
+    // 공개 회원 프로필 (docs/api-spec.md 1절 7차 — F9 선행분). 인증 필요(v1 확정).
+    // memberId를 String으로 받는 이유는 Service의 파싱 주석 참조 (형식 오류 → 404 흡수)
+    @GetMapping("/api/members/{memberId}/profile")
+    public ApiResponse<MemberProfileResponse> getPublicProfile(@PathVariable String memberId) {
+        return ApiResponse.ok(memberService.getPublicProfile(memberId));
     }
 
     // 다른 기기 원격 로그아웃. sessionId를 String으로 받는 이유는 Service의 UUID 파싱 주석 참조
