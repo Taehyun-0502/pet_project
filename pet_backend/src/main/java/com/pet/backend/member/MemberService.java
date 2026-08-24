@@ -5,6 +5,7 @@ import com.pet.backend.chat.ChatRoomMemberRepository;
 import com.pet.backend.common.BusinessException;
 import com.pet.backend.common.CommonErrorCode;
 import com.pet.backend.common.ImageStorageClient;
+import jakarta.annotation.PostConstruct;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Comparator;
@@ -68,7 +69,19 @@ public class MemberService {
     // 이 서비스는 WebSocket을 모르고, 수신은 chat.websocket.ChatBroadcaster가 한다
     private final ApplicationEventPublisher eventPublisher;
 
-    @Transactional
+    // 로그인 타이밍 균등화용 더미 해시 (리뷰 백로그 4번) — login 주석 참조.
+    // 리터럴로 박지 않고 기동 시 실제 인코더로 1회 생성한다: 인코더 강도(cost)가 바뀌면
+    // 더미 대조 시간도 같이 바뀌어야 균등화가 유지되는데, 리터럴은 그 순간부터 갈린다
+    private String dummyPasswordHash;
+
+    @PostConstruct
+    void initDummyPasswordHash() {
+        this.dummyPasswordHash = passwordEncoder.encode("timing-equalizer-dummy");
+    }
+
+    // login과 같은 이유로 의도적인 비트랜잭션 (리뷰 백로그 43번) — BCrypt encode(~수십 ms)가
+    // 커넥션을 쥐지 않게 한다. 중복 검사·INSERT는 각각 자체 트랜잭션으로 돌며, 검사와 INSERT 사이
+    // 경쟁은 원래부터 DB 부분 UNIQUE 인덱스가 최종 차단한다(아래 catch) — 원자성 손실이 없다
     public MemberResponse signup(SignupRequest request) {
         String email = normalizeEmail(request.email());
         if (memberRepository.existsActiveByNormalizedEmail(email)) {
@@ -92,10 +105,9 @@ public class MemberService {
             // 중복 검사와 INSERT 사이에 같은 값이 먼저 가입한 경쟁 상황 —
             // DB 부분 UNIQUE 인덱스 위반을 409로 변환한다.
             //
-            // **어느 인덱스가 걸렸는지 예외 메시지로 판별한다.** 여기서 DB를 다시 조회할 수는 없다 —
-            // 이 메서드는 @Transactional이고 PostgreSQL은 제약 위반으로 트랜잭션이 이미 중단(aborted)돼
-            // 뒤따르는 질의가 전부 실패한다 (비트랜잭션인 registerKakaoMember가 재조회로 판별하는 것과
-            // 다른 이유가 여기 있다). 판별에 실패하면 종전 동작대로 이메일 중복으로 안내한다
+            // **어느 인덱스가 걸렸는지 예외 메시지로 판별한다.** 43번으로 비트랜잭션이 되어
+            // registerKakaoMember처럼 재조회 판별도 가능해졌지만 바꾸지 않는다 — 메시지 판별은
+            // 추가 질의가 없고, 판별 실패의 폴백(이메일 중복 안내)까지 이미 검증된 경로다
             throw new BusinessException(duplicatedFieldOf(e));
         }
         return MemberResponse.from(member);
@@ -121,13 +133,26 @@ public class MemberService {
     /**
      * 로그인. 이메일 없음 / 비밀번호 불일치 / 탈퇴 계정 / 소셜 계정을 전부
      * 같은 AUTH_INVALID_CREDENTIALS로 응답한다 — 계정 존재 여부 노출 방지 (docs/api-spec.md 1절).
+     *
+     * <p>kakaoLogin과 같은 이유로 <b>의도적인 비트랜잭션</b>이다 (리뷰 백로그 43번).
+     * BCrypt 대조는 수십~100ms짜리 CPU 연산인데 트랜잭션 안에 있으면 그동안 커넥션 1개를 쥔다 —
+     * 풀 5 환경에서 동시 로그인 몇 건이면 나머지 요청 전부가 대기한다. 회원 조회(읽기)와
+     * 토큰 폐기·발급(RefreshTokenService의 자체 @Transactional)이 각각 짧은 트랜잭션으로 돌고,
+     * BCrypt는 그 사이 트랜잭션 밖에서 수행된다. 원자성 트레이드오프는 kakaoLogin과 동일하다 —
+     * 이전 토큰 폐기(REPLACED_BY_LOGIN)와 새 발급 사이에 실패하면 이전 토큰만 죽는데,
+     * 그 토큰은 어차피 새 쿠키로 덮여 죽을 운명이었고 재로그인 한 번으로 끝난다.
      */
-    @Transactional
     public LoginResult login(LoginRequest request, String priorRefreshToken, String deviceInfo) {
         Member member = memberRepository.findActiveByNormalizedEmail(normalizeEmail(request.email()))
-                .orElseThrow(() -> new BusinessException(MemberErrorCode.INVALID_CREDENTIALS));
-        // password가 NULL인 소셜 계정은 자체 로그인 불가
-        if (member.getPassword() == null || !matchesSafely(request.password(), member.getPassword())) {
+                .orElse(null);
+        // 계정 미존재·소셜 계정(password NULL)도 더미 해시에 대조를 1회 수행한다 (리뷰 백로그 4번).
+        // 안 하면 실계정만 BCrypt 수십 ms가 걸려, 메시지를 통일해 둔 계정 존재 여부가
+        // 응답 시간 측정으로 우회된다. 결과는 버린다 — 시간 균등화만이 목적이다
+        if (member == null || member.getPassword() == null) {
+            matchesSafely(request.password(), dummyPasswordHash);
+            throw new BusinessException(MemberErrorCode.INVALID_CREDENTIALS);
+        }
+        if (!matchesSafely(request.password(), member.getPassword())) {
             throw new BusinessException(MemberErrorCode.INVALID_CREDENTIALS);
         }
         return issueLoginTokens(member, priorRefreshToken, deviceInfo);

@@ -34,22 +34,37 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final ObjectMapper objectMapper;
 
     /**
-     * 공개 경로는 토큰 검사 자체를 건너뛴다 — 만료된 토큰을 헤더에 단 채 호출해도 성공해야 하기 때문.
+     * 회원 공개 경로 — SecurityConfig(permitAll)와 이 필터(shouldNotFilter)가 함께 참조하는
+     * **단일 출처** (백로그 40번). 여기에 경로를 추가하면 양쪽에 동시에 반영된다.
+     *
+     * 두 목록은 원래 의미가 다르다: SecurityConfig는 "인증 없이 접근 허용",
+     * 이 필터는 "토큰 검사 자체를 건너뜀"(= 만료된 토큰을 헤더에 단 채 호출해도 성공해야 하는 경로).
+     * 회원 5개 경로는 두 의미가 정확히 겹치므로 공유한다. 겹치지 않는 공개 경로는 각자 관리 —
+     * 이 필터의 OTHER_SKIPPED_URIS 및 SecurityConfig의 permitAll 주석 참조.
      *
      * **refresh가 특히 중요하다**: 액세스 토큰이 만료돼서 재발급을 요청하는 것이 정상 동선인데,
      * 여기서 걸러내지 않으면 필터가 먼저 401(AUTH_TOKEN_EXPIRED)을 내보내 재발급 자체가 막힌다.
      */
-    private static final Set<String> PERMITTED_URIS = Set.of(
+    public static final Set<String> MEMBER_PUBLIC_URIS = Set.of(
             "/api/members/signup",
             "/api/members/login",
             "/api/members/login/kakao",
             "/api/members/refresh",
-            "/api/members/logout",
-            "/api/ads");
+            "/api/members/logout");
+
+    /**
+     * 회원 경로 외에 토큰 검사를 건너뛰는 경로. SecurityConfig와 공유하지 않는 이유:
+     * - /api/ads: 필터는 메서드를 구분하지 못해 전 메서드 스킵, SecurityConfig는 GET만 공개 — 의미가 다르다
+     * - 반대로 GET /api/shorts(피드)는 SecurityConfig에서 공개지만 여기 넣으면 안 된다 —
+     *   컨트롤러가 @AuthenticationPrincipal로 로그인 사용자를 개인화하므로 필터를 타야 principal이 실린다.
+     *   /ws(핸드셰이크 후 STOMP CONNECT에서 인증)·/api/v1/skin·hybrid도 같은 이유 계열로 각자 관리 (로드맵 20번 묶음 3 조사)
+     */
+    private static final Set<String> OTHER_SKIPPED_URIS = Set.of("/api/ads");
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return PERMITTED_URIS.contains(request.getRequestURI());
+        String uri = request.getRequestURI();
+        return MEMBER_PUBLIC_URIS.contains(uri) || OTHER_SKIPPED_URIS.contains(uri);
     }
 
     @Override
