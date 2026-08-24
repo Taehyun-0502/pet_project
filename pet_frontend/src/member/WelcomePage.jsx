@@ -20,6 +20,13 @@ export default function WelcomePage() {
     <main className="auth-page">
       <h1>{user.name}님, 환영합니다!</h1>
       <p className="notice">가입이 완료되었습니다.</p>
+      {/* 가입은 됐는데 사진만 실패한 경우 (SignupPage의 실패 정책 — 되돌리지 않고 안내만 넘긴다).
+          여기서 재시도 UI를 만들지 않는 이유: 마이페이지에 이미 같은 업로드 화면이 있다 */}
+      {location.state.photoError && (
+        <p className="submit-error" role="alert">
+          {location.state.photoError} 마이페이지 → 정보 수정에서 다시 등록할 수 있습니다.
+        </p>
+      )}
       <p className="muted-note">
         반려동물을 등록하면 건강 기록과 AI 진단을 바로 사용할 수 있어요.
         나중에 홈에서 등록해도 됩니다.

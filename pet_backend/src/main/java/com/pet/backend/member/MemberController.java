@@ -1,6 +1,8 @@
 package com.pet.backend.member;
 
 import com.pet.backend.common.ApiResponse;
+import com.pet.backend.common.BusinessException;
+import com.pet.backend.common.ErrorCode;
 import com.pet.backend.member.dto.KakaoLoginRequest;
 import com.pet.backend.member.dto.LoginRequest;
 import com.pet.backend.member.dto.LoginResponse;
@@ -20,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -159,5 +162,30 @@ public class MemberController {
             @CookieValue(name = "refreshToken", required = false) String refreshToken) {
         memberService.revokeSession(memberId, sessionId, refreshToken);
         return ApiResponse.ok();
+    }
+
+    /**
+     * 재발급 거부 401에 삭제 쿠키를 붙인다 (리뷰 백로그 38번). 안 지우면 못 쓰는 쿠키가
+     * 14일간 남아 `/api/members/*`마다 전송되고, 죽은 쿠키를 단 클라이언트가 재발급을 반복 시도한다.
+     *
+     * GlobalExceptionHandler(common)가 아니라 여기 두는 이유: 쿠키 속성의 단일 출처인
+     * RefreshTokenCookie가 member 패키지(package-private)라, common에 두면 common→member
+     * 역방향 의존(순환)이 생긴다. 쿠키 조립은 원래 이 컨트롤러의 책임이기도 하다(login·logout·withdraw).
+     * 전용 예외 하위 클래스를 만들지 않고 ErrorCode로 판정하는 것은 conventions.md 3절 규약
+     * ("예외 클래스를 늘리지 않고 ErrorCode로 대응"). 두 코드는 refresh 경로에서만 던져진다.
+     *
+     * 컨트롤러 로컬 @ExceptionHandler는 이 컨트롤러의 예외에만 적용되고 @RestControllerAdvice보다
+     * 항상 우선한다(Spring 보장) — 다른 도메인의 BusinessException 처리는 바뀌지 않는다.
+     * 응답 포맷은 GlobalExceptionHandler.handleBusiness와 동일해야 한다 (ApiResponse.fail이 단일 출처).
+     */
+    @ExceptionHandler(BusinessException.class)
+    ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
+        ErrorCode code = e.getErrorCode();
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(code.getStatus());
+        if (code == MemberErrorCode.INVALID_REFRESH_TOKEN
+                || code == MemberErrorCode.REFRESH_EXPIRED) {
+            builder.header(HttpHeaders.SET_COOKIE, refreshTokenCookie.expire().toString());
+        }
+        return builder.body(ApiResponse.fail(code.getCode(), e.getMessage()));
     }
 }

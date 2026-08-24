@@ -15,11 +15,45 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     // 참여 중인 행 조회 — 나가기·강퇴·지명·위임의 대상 행
     Optional<ChatRoomMember> findByRoomIdAndMemberIdAndLeftAtIsNull(Long roomId, Long memberId);
 
+    /**
+     * 특정 행이 아직 참여 중인가 — join 보상(`revertIfJoinLost`)이 **자기가 INSERT한 행만** 되돌리기 위한 조회
+     * (리뷰 백로그 114번).
+     *
+     * <p>`leftAtIsNull` 조건이 함께 있어야 한다. 그 사이 강퇴가 커밋돼 이미 종료된 행이라면
+     * 보상이 `leave()`를 덮어써 **`KICKED` 이력이 `LEFT`로 바뀌고 재입장 차단이 풀린다** —
+     * 보상 대상을 좁히려다 강퇴를 무력화하는 셈이라, id로 좁히는 것과 이 조건은 한 쌍이다.
+     */
+    Optional<ChatRoomMember> findByIdAndLeftAtIsNull(Long id);
+
     // 강퇴 이력 검사 — 입장 시 재입장 차단 (부분 인덱스 ix_chat_room_member_kicked)
     boolean existsByRoomIdAndMemberIdAndLeftReason(Long roomId, Long memberId, ChatLeftReason leftReason);
 
     // 참여자 목록 — 입장순. role 우선 정렬은 Service가 담당
     List<ChatRoomMember> findByRoomIdAndLeftAtIsNullOrderByJoinedAtAsc(Long roomId);
+
+    /**
+     * 내가 참여 중인 방들의 참여 행 (F7 — 내 방 목록).
+     *
+     * <p>삭제된 방은 제외한다. 방을 지워도 참여 행은 활성으로 남는 설계라
+     * (existsActiveOwnedRoom 주석 참조) 이 조건이 없으면 없어진 방이 내 목록에 계속 보인다.
+     */
+    @Query("""
+            select crm from ChatRoomMember crm
+            where crm.memberId = :memberId and crm.leftAt is null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    List<ChatRoomMember> findActiveByMemberId(@Param("memberId") Long memberId);
+
+    /**
+     * 고정한 방 개수 (F7 — 상한 검사). 위와 같은 이유로 <b>삭제된 방의 고정은 세지 않는다</b> —
+     * 없어진 방이 고정 한도를 조용히 잡아먹으면 사용자는 이유를 알 수 없다.
+     */
+    @Query("""
+            select count(crm) from ChatRoomMember crm
+            where crm.memberId = :memberId and crm.leftAt is null and crm.pinnedAt is not null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    long countActivePins(@Param("memberId") Long memberId);
 
     // 방 목록의 참여자 수 집계용 프로젝션
     interface RoomParticipantCount {

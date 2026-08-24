@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { clearToken } from '../common/apiClient'
 import { useAuth } from './AuthContext'
 import { KAKAO_REDIRECT_URI, consumeKakaoState } from './kakaoOAuth'
 import './member.css'
@@ -34,6 +35,11 @@ export default function KakaoCallbackPage() {
       setError('잘못된 접근입니다. 로그인 화면에서 다시 시도해 주세요.')
       return
     }
+    // 남아 있는 옛 토큰을 교환 시작 전에 지운다 (백로그 90번 처방 ① — 경쟁의 뿌리 차단).
+    // React는 자식 effect를 부모보다 먼저 실행하므로, 이 동기 블록이 AuthProvider의 복원 effect보다
+    // 앞서 돈다 — 여기서 지우면 복원이 "토큰 없음"으로 아예 시작되지 않는다.
+    // 순서가 어긋나는 다른 경로는 AuthContext의 세대 번호(처방 ②)가 막는다
+    clearToken()
     loginWithKakao({ code, redirectUri: KAKAO_REDIRECT_URI })
       .then(() => navigate('/', { replace: true }))
       // AUTH_SOCIAL_EMAIL_CONFLICT(같은 이메일의 자체 가입 계정)·AUTH_SOCIAL_LOGIN_FAILED 등 —

@@ -11,13 +11,33 @@ function toSocketUrl() {
 }
 
 /**
+ * JWT 조각(base64url)을 디코딩한다 (리뷰 백로그 41번).
+ *
+ * `atob`는 표준 base64만 읽는데 JWT는 **base64url**이라 `-`·`_`가 섞이고 패딩(`=`)이 없다.
+ * 지금은 클레임이 sub·role·iat·exp뿐이라 그 문자가 나오지 않아 **우연히** 동작하고 있었지만,
+ * 클레임이 하나만 늘어도(한글 이름 등) 디코딩이 실패해 아래 catch로 떨어진다 —
+ * 그러면 멀쩡한 토큰이 "만료"로 판정돼 **연결할 때마다 불필요한 재발급이 돌고**,
+ * 회전이 잦아진 만큼 32번(재사용 오판) 노출도 커진다.
+ */
+function decodeBase64Url(segment) {
+  const base64 = segment.replace(/-/g, '+').replace(/_/g, '/')
+  // atob는 길이가 4의 배수가 아니면 거부할 수 있다 — 생략된 패딩을 되돌린다
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+  return atob(padded)
+}
+
+/**
  * 액세스 토큰이 만료됐거나 곧 만료되는지 — JWT의 exp를 그대로 읽는다(서명 검증은 서버 몫).
  * 만료 직전이면 만료로 친다: 연결이 서버에 닿는 사이에 넘어가버리면 그대로 거부당한다.
+ *
+ * 알려진 한계: 판정 기준이 **클라이언트 시계**다. 기기 시계가 15분 이상 틀어지면 만료를 놓쳐
+ * troubleshooting 5번(만료 토큰으로 WS 재연결) 증상이 돌아올 수 있다. 서버가 준 `expiresIn`으로
+ * 만료 시각을 저장하는 편이 정석이지만, 그러려면 토큰 저장 구조를 바꿔야 해 지금은 감수한다 (백로그 41번).
  */
 function isExpiringSoon(token) {
   if (!token) return true
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
+    const payload = JSON.parse(decodeBase64Url(token.split('.')[1]))
     return payload.exp * 1000 <= Date.now() + 5000
   } catch {
     return true // 형식이 깨진 토큰 — 재발급을 시도하는 편이 낫다

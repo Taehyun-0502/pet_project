@@ -25,6 +25,9 @@ public enum MemberErrorCode implements ErrorCode {
     SESSION_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH_SESSION_NOT_FOUND", "해당 기기를 찾을 수 없습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "사용자를 찾을 수 없습니다."),
     EMAIL_DUPLICATED(HttpStatus.CONFLICT, "AUTH_EMAIL_DUPLICATED", "이미 가입된 이메일입니다."),
+    // 이름(닉네임) 중복 — 가입·이름 수정 양쪽에서 쓴다 (2026-08-13, docs/plan-2026-08-13.md F2).
+    // code 접두어를 EMAIL_DUPLICATED와 맞춰 AUTH_로 둔다 (계획서의 MEMBER_ 안에서 변경)
+    NAME_DUPLICATED(HttpStatus.CONFLICT, "AUTH_NAME_DUPLICATED", "이미 사용 중인 이름입니다."),
 
     // 탈퇴 시점의 회원 상태 문제 — 방장인 방이 남아 있으면 탈퇴할 수 없다
     WITHDRAW_CHAT_OWNER(HttpStatus.CONFLICT, "WITHDRAW_CHAT_OWNER", "방장인 채팅방이 있습니다. 위임하거나 방을 삭제한 뒤 탈퇴할 수 있습니다."),

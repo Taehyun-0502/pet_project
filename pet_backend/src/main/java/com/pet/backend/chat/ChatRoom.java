@@ -13,11 +13,24 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 
 // 오픈채팅방 — 누구나 생성 가능, 생성자가 방장(OWNER). 스키마 기준은 docs/schema.sql
 @Entity
 @Table(name = "chat_room")
+/*
+ * 변경된 컬럼만 UPDATE 문에 담는다 (리뷰 백로그 111번).
+ *
+ * 전 컬럼 UPDATE(Hibernate 기본)면 `updateRoom`이 로드한 스냅샷의 `deleted_at = null`이
+ * `deleteRoom` 커밋 뒤에 기록되어 **삭제한 방이 되살아난다**. 방 수정 문에서 그 컬럼이 아예 빠지면
+ * 그 경로가 구조적으로 사라진다 — ChatRoomMember가 82번에서 쓴 것과 같은 처방이다.
+ *
+ * `@Version`을 쓰지 않은 이유: 실제 결함은 잠금 부재가 아니라 전 컬럼 UPDATE이고,
+ * @Version은 DDL(version 컬럼)이 필요한 데다 핀의 "마지막 공지가 이긴다"는 확정 설계
+ * (docs/api-spec.md 7절 3차)를 409로 깨뜨린다. 아래 pin()의 주석과 짝이다.
+ */
+@DynamicUpdate
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatRoom {
@@ -95,7 +108,9 @@ public class ChatRoom {
 
     // 공지 고정(교체 겸용)·해제 — 권한(OWNER·MANAGER)·메시지 소속 검증은 Service.
     // 동시 교체는 마지막 커밋 승리(lost update)를 의도적으로 수용한다 —
-    // "마지막 공지가 이긴다"가 자연스러운 의미론이라 @Version을 두지 않는다 (docs/api-spec.md 7절 3차)
+    // "마지막 공지가 이긴다"가 자연스러운 의미론이라 @Version을 두지 않는다 (docs/api-spec.md 7절 3차).
+    // 클래스의 @DynamicUpdate 덕에 이 수용 범위가 pinned_message_id 한 컬럼으로 좁혀진다 —
+    // 핀 교체가 그 사이 바뀐 방 이름이나 deleted_at까지 되돌리지는 않는다 (백로그 111번)
     public void pin(Long messageId) {
         this.pinnedMessageId = messageId;
     }

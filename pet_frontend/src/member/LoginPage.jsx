@@ -1,5 +1,6 @@
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Field from '../common/Field'
+import Loading from '../common/Loading'
 import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { startKakaoLogin } from './kakaoOAuth'
@@ -15,7 +16,7 @@ function validate(values) {
 export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, login } = useAuth()
+  const { user, restoring, login } = useAuth()
 
   // 회원가입 직후 넘어온 경우 이메일을 미리 채워준다
   const signupEmail = location.state?.signupEmail
@@ -31,6 +32,9 @@ export default function LoginPage() {
     },
   })
 
+  // 복원이 끝나기 전에는 폼을 그리지 않는다 (백로그 64번) — 로그인된 사용자가 /login을 열면
+  // 폼이 렌더된 뒤 홈으로 튕겨 입력값이 사라지는 깜빡임이 있었다. RequireLogin과 같은 보류 방식
+  if (restoring) return <Loading />
   // 이미 로그인한 상태면 로그인 화면 대신 목적지(없으면 홈)로.
   // 훅 호출 뒤에 둬야 조건부 훅이 되지 않는다
   if (user) return <Navigate to={from} replace />
