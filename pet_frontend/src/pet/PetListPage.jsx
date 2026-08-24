@@ -16,6 +16,8 @@ export default function PetListPage() {
   const navigate = useNavigate()
   const [pets, setPets] = useState(null) // null = 아직 불러오는 중
   const [error, setError] = useState('')
+  const [logoutError, setLogoutError] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
   const [selectedPetForHealth, setSelectedPetForHealth] = useState(null) // 건강관리 선택 반려견 상태
 
   useEffect(() => {
@@ -24,10 +26,21 @@ export default function PetListPage() {
       .catch((err) => setError(err.message))
   }, [])
 
-  // 서버 폐기까지 끝난 뒤 이동한다 — 먼저 나가면 쿠키가 남은 채 화면만 바뀔 수 있다
-  const onLogout = async () => {
-    await logout()
-    navigate('/login', { replace: true })
+  // 서버 폐기까지 끝난 뒤 이동한다 — 먼저 나가면 쿠키가 남은 채 화면만 바뀔 수 있다.
+  // 실패는 삼키지 않고 노출한다 (백로그 44번) — 재시도와 "이 기기에서만"(forceLocal) 중 선택
+  const onLogout = async (forceLocal = false) => {
+    setLoggingOut(true)
+    setLogoutError('')
+    try {
+      await logout({ forceLocal })
+      navigate('/login', { replace: true })
+    } catch {
+      setLogoutError(
+        '로그아웃하지 못했습니다. 서버에 연결할 수 없어 이 브라우저의 로그인 상태가 아직 살아 있습니다.',
+      )
+    } finally {
+      setLoggingOut(false)
+    }
   }
 
   return (
@@ -38,11 +51,24 @@ export default function PetListPage() {
           <span>{user.name}님</span>
           {/* 홈 구조 확정 전까지 로그아웃·회원 정보는 홈에 유지, 진입점만 추가 (roadmap 3번) */}
           <Link to="/mypage">마이페이지</Link>
-          <button type="button" onClick={onLogout}>
+          <button type="button" onClick={() => onLogout()} disabled={loggingOut}>
             로그아웃
           </button>
         </div>
       </header>
+
+      {logoutError && (
+        <p className="submit-error" role="alert">
+          {logoutError}{' '}
+          <button type="button" onClick={() => onLogout()} disabled={loggingOut}>
+            다시 시도
+          </button>{' '}
+          {/* 서버가 오래 죽어 있을 때의 탈출구 — 서버 세션은 남을 수 있음을 위 문구로 안내한 상태 */}
+          <button type="button" onClick={() => onLogout(true)} disabled={loggingOut}>
+            이 기기에서만 로그아웃
+          </button>
+        </p>
+      )}
 
       {/* AI 검색 진입 — 루트(홈)에서는 직접 타이핑하지 않고, 누르거나 포커스하는
           즉시 검색 홈(/aisearch)으로 이동한다(검색 입력은 그 페이지에서 시작).

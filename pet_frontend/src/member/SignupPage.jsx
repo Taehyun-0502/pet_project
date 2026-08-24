@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import Field from '../common/Field'
 import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
+import Loading from '../common/Loading'
 import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { signup, uploadMyImage } from './memberApi'
@@ -40,7 +41,7 @@ function mapError(err) {
 
 export default function SignupPage() {
   const navigate = useNavigate()
-  const { user, login, updateUser } = useAuth()
+  const { user, restoring, login, updateUser } = useAuth()
 
   /**
    * 프로필 사진(선택) — **펫 등록(PetCreatePage)과 같은 2단계 구조**다.
@@ -118,6 +119,8 @@ export default function SignupPage() {
     },
   })
 
+  // 복원이 끝나기 전에는 폼을 그리지 않는다 (백로그 64번 — LoginPage와 동일)
+  if (restoring) return <Loading />
   // 이미 로그인한 상태면 가입 화면 대신 홈으로 (훅 호출 뒤에 둔다)
   if (user && !signedUp) return <Navigate to="/" replace />
 
