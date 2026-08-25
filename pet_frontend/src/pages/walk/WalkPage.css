@@ -291,11 +291,39 @@
   opacity: 0.9;
 }
 
+/* GPS 미지원 시 비활성 처리(QA M-4①) — 안내 문구(walk-page__pet-status--error)와
+   함께 시작 버튼을 눌러도 반응하지 않게 한다. */
+.walk-page__pet-start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .walk-page__pet-start-btn:focus-visible,
 .walk-page__pet-status button:focus-visible,
 .walk-page__pet-status a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* GPS 권한 거부 안내(QA M-4②) — 추적 화면에서 위치 권한이 꺼진 것을 감지하면
+   노출. 아래 .walk-page__control-bar(bottom:44px, 알약형 바)와 겹치지 않도록
+   그 위쪽에 별도 알약형으로 띄운다. */
+.walk-page__gps-warning {
+  position: absolute;
+  z-index: 1;
+  bottom: 104px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: var(--shadow);
 }
 
 /* 시작/종료 버튼 + 통계 — 지도 위 하단 중앙 오버레이. MapPage.css의

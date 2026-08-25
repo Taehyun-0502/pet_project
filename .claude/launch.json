@@ -6,6 +6,21 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "pet_frontend", "run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "pet_backend",
+      "runtimeExecutable": "./pet_backend/gradlew",
+      "runtimeArgs": ["-p", "pet_backend", "bootRun"],
+      "port": 8080
+    },
+    {
+      "name": "pet_model",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd pet_model && conda run --no-capture-output -n pet_model uvicorn app.main:app --reload --port 8000"
+      ],
+      "port": 8000
     }
   ]
 }

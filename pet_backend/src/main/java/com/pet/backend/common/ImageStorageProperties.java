@@ -12,7 +12,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record ImageStorageProperties(
         String url,             // 예: https://<project-ref>.supabase.co
         String serviceRoleKey,  // RLS를 무시하는 관리자 키 — 서버 밖으로 내보내지 않는다
-        String profilesBucket   // 프로필 이미지 버킷 (회원·반려동물 공용)
+        String profilesBucket,  // 프로필 이미지 버킷 (회원·반려동물 공용)
+        String chatBucket       // 채팅 이미지 버킷 (F10b) — 누적되는 대화 기록이라 프로필과 분리
 ) {
 
     public boolean isConfigured() {

@@ -60,7 +60,7 @@
 }
 
 .pet-list li {
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
 }
 
@@ -88,7 +88,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #f1f1f1;
+  background: var(--surface-muted);
   font-size: 22px;
 }
 
@@ -96,8 +96,34 @@
   text-decoration: underline;
 }
 
+/* 마이페이지 펫 정보 탭의 항목 — 이동이 아니라 펼침이라 <a>가 아니라 <button>이다.
+   버튼의 기본 모양(테두리·배경·폰트)을 걷어내 위 링크 항목과 같은 줄로 보이게 맞춘다 */
+.pet-list li .pet-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.pet-list li .pet-row:hover {
+  text-decoration: underline;
+}
+
+/* 펼쳐진 수정·삭제 줄 — 항목 안쪽이라 좌우 여백을 행과 맞춘다 */
+.pet-list li .pet-actions {
+  padding: 0 14px 12px;
+}
+
 .muted {
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -115,14 +141,14 @@
   height: 96px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
 }
 
 .pet-photo-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f1f1;
+  background: var(--surface-muted);
   font-size: 40px;
 }
 
@@ -163,13 +189,13 @@
   gap: 10px 16px;
   margin: 0 0 20px;
   padding: 16px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   text-align: left;
 }
 
 .pet-detail dt {
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -183,8 +209,8 @@
 }
 
 .pet-actions button.danger {
-  color: #c0392b;
-  border-color: #c0392b;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 /* .notice(회색) 정의는 삭제 (2026-08-11, 백로그 100번) — 공용 .notice(초록, common/forms.css)와

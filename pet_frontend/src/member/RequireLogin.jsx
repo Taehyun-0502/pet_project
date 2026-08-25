@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import Loading from '../common/Loading'
 import { useAuth } from './AuthContext'
 
 /**
@@ -14,11 +15,7 @@ export default function RequireLogin({ children }) {
   // 새로고침 복원이 끝나기 전에는 판단을 보류 — 로그인된 사용자가
   // 복원 중 잠깐 /login으로 튕기는 오동작을 막는다
   if (restoring) {
-    return (
-      <main>
-        <p>불러오는 중…</p>
-      </main>
-    )
+    return <Loading />
   }
   if (!user) {
     // 원래 목적지를 state로 넘겨 로그인 후 되돌아온다 (백로그 47번 —

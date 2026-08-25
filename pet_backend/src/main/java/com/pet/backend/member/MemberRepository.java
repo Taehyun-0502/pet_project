@@ -1,6 +1,8 @@
 package com.pet.backend.member;
 
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -12,6 +14,17 @@ import org.springframework.data.repository.query.Param;
  * 탈퇴 회원을 "없는 것처럼" 취급한다 (재가입 허용, 로그인 불가 — docs/api-spec.md).
  */
 public interface MemberRepository extends JpaRepository<Member, Long> {
+
+    /**
+     * 채팅 표시용 일괄 조회 (리뷰 백로그 98번) — 이름·사진 2필드 프로젝션(MemberDisplay).
+     * 엔티티 전체를 쓰던 종전 방식은 비밀번호 해시까지 행 수만큼 메모리에 올렸다.
+     *
+     * <p>**의도적으로 활성(DeletedAtIsNull) 조건이 없다** — 탈퇴 회원의 과거 메시지도 발신자
+     * 이름·사진을 유지한다는 확정 정책(회원 탈퇴 설계, api-spec 1절 6차 "익명화하지 않는다")의
+     * 구현 지점이라, 위 클래스 주석의 활성 조회 규약에 대한 **문서화된 예외**다.
+     * 다른 용도로 이 메서드를 쓰려면 탈퇴 회원 노출이 정당한지부터 확인할 것.
+     */
+    List<MemberDisplay> findDisplayByIdIn(Collection<Long> ids);
 
     /**
      * 로그인: 활성 회원을 이메일로 조회 (리뷰 백로그 2번 — 대소문자 무시).
@@ -29,6 +42,24 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     /** 회원가입: 이메일 중복 여부 (활성 회원 기준 — 최종 차단은 DB 부분 UNIQUE 인덱스). 위와 같은 정규화 규약. */
     @Query("select count(m) > 0 from Member m where lower(m.email) = :normalizedEmail and m.deletedAt is null")
     boolean existsActiveByNormalizedEmail(@Param("normalizedEmail") String normalizedEmail);
+
+    /**
+     * 이름(닉네임) 중복 여부 — 활성 회원 기준, 대소문자 무시.
+     *
+     * <p><b>파라미터는 이미 소문자로 정규화된 값이어야 한다</b> — 이메일 쪽과 같은 규약이다.
+     * SQL에서 {@code lower(:name)}으로 감싸지 않는 이유: 파라미터에 함수를 씌우면 PostgreSQL이
+     * 그 자리의 타입을 추론하지 못해 터지는 경우가 있다(채팅 검색에서 겪은 {@code function lower(bytea)
+     * does not exist} 계열). 정규화를 Java 쪽에 두면 그 위험 자체가 없어진다.
+     *
+     * <p>비교 좌변만 {@code lower(m.name)}인 이유는 저장값이 원문이기 때문이고,
+     * 이 형태가 곧 들어올 {@code lower(name)} 식 부분 UNIQUE 인덱스와도 맞는다.
+     *
+     * <p>지금 쓰는 곳은 카카오 가입의 임의 이름 생성뿐이다(중복이면 다시 뽑는다).
+     * 이름에 UNIQUE 제약이 아직 없어 이 검사가 유일한 방어이며, 검사와 INSERT 사이의 경쟁은
+     * 막지 못한다 — <b>최종 차단은 닉네임 유니크 인덱스를 넣는 F2</b>가 맡는다 (docs/plan-2026-08-13.md).
+     */
+    @Query("select count(m) > 0 from Member m where lower(m.name) = :normalizedName and m.deletedAt is null")
+    boolean existsActiveByNormalizedName(@Param("normalizedName") String normalizedName);
 
     // 카카오 로그인: 외부 식별자로 활성 계정 조회 (ux_pet_member_provider_active 인덱스 사용)
     Optional<Member> findByProviderAndProviderIdAndDeletedAtIsNull(Provider provider, String providerId);
@@ -55,4 +86,23 @@ public interface MemberRepository extends JpaRepository<Member, Long> {
     @Lock(LockModeType.PESSIMISTIC_READ)
     @Query("select m from Member m where m.id = :id")
     Optional<Member> findByIdForShare(@Param("id") Long id);
+
+    /**
+     * 기기 원격 로그아웃 전용 — 활성 회원 행을 **배타 잠금**으로 읽는다
+     * (PostgreSQL `FOR UPDATE`, 리뷰 백로그 109번).
+     *
+     * <p>회원 행을 고치려는 것이 아니라 {@link #findByIdForShare}(재발급)와 **충돌시키는 것이 목적**이다.
+     * 잠금이 없으면 "재발급이 새 토큰을 INSERT(아직 미커밋) → 원격 로그아웃의 일괄 UPDATE가 그 행을
+     * 보지 못하고 지나감 → 둘 다 커밋" 순서가 성립해 **끊었다고 응답한 기기가 새 토큰으로 살아남는다.**
+     * 사후 재확인은 이 순서를 잡지 못한다 — 그 시점엔 원격 로그아웃이 아직 커밋 전이다.
+     *
+     * <p>배타 잠금이라야 하는 이유: 공유 잠금끼리는 서로 막지 않아 재발급과 직렬화되지 않는다.
+     * 비밀번호 변경이 회원 행 UPDATE로 얻던 직렬화를, 이 기능은 행을 안 고치므로 잠금으로 직접 얻는다.
+     * 원격 로그아웃은 드물고 재발급끼리는 여전히 공유 잠금이라 서로 막지 않는다.
+     *
+     * <p>활성 조건을 쿼리에 넣어 기존 활성 검사 조회를 이 한 번으로 대체한다 (쿼리 추가 없음).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select m from Member m where m.id = :id and m.deletedAt is null")
+    Optional<Member> findActiveByIdForUpdate(@Param("id") Long id);
 }

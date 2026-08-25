@@ -36,6 +36,7 @@ class WalkWeatherServiceTest {
 
     @Test
     void 동일한_격자로_재조회하면_캐시를_사용하고_기상청_API를_다시_호출하지_않는다() {
+        when(kmaClient.isServiceKeyConfigured()).thenReturn(true);
         when(kmaClient.fetch(anyInt(), anyInt()))
                 .thenReturn(new KmaWeatherSnapshot(30.0, 60.0, 1.5, 0, 1, "202608121400"));
 
@@ -43,6 +44,20 @@ class WalkWeatherServiceTest {
         walkWeatherService.getWeather(37.5665, 126.9780);
 
         verify(kmaClient, times(1)).fetch(anyInt(), anyInt());
+    }
+
+    @Test
+    void 서비스키_미설정_mock_스냅샷은_캐시하지_않고_매번_다시_조회한다() {
+        // QA L-2: 키 미설정(mock 폴백) 상태에서는 캐시에 적재하지 않아야, 운영 중 키를
+        // 등록한 직후부터 곧바로 실날씨로 전환된다(캐시했다면 최대 10분 mock이 유지됨).
+        when(kmaClient.isServiceKeyConfigured()).thenReturn(false);
+        when(kmaClient.fetch(anyInt(), anyInt()))
+                .thenReturn(new KmaWeatherSnapshot(30.0, 60.0, 1.5, 0, 1, "202608121400"));
+
+        walkWeatherService.getWeather(37.5665, 126.9780);
+        walkWeatherService.getWeather(37.5665, 126.9780);
+
+        verify(kmaClient, times(2)).fetch(anyInt(), anyInt());
     }
 
     @Test

@@ -1,5 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
+import { SkinDiagnosisPdfModal } from './SkinDiagnosisPdfModal'
+import DiagnosisTabNav from '../components/DiagnosisTabNav'
+import NearbyPlaces from '../components/NearbyPlaces'
+
+// 생년월일(YYYY-MM-DD) 기반 만 나이 계산 유틸리티 함수
+const calculateAgeFromBirthDate = (birthDateStr) => {
+  if (!birthDateStr) return null
+  try {
+    const birthDate = new Date(birthDateStr)
+    const today = new Date()
+    let calculatedAge = today.getFullYear() - birthDate.getFullYear()
+    const monthDiff = today.getMonth() - birthDate.getMonth()
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      calculatedAge--
+    }
+    return calculatedAge >= 0 ? String(calculatedAge) : '0'
+  } catch (e) {
+    return null
+  }
+}
 
 // 페이지 고정 타이틀 상수를 컴포넌트 외부에 선언하여 useState 최소화
 const PAGE_TITLE = '🐶 피부 질환 스크리닝 & AI 진단'
@@ -11,6 +32,9 @@ const PAGE_SUBTITLE = '환부 사진을 업로드하고 크롭 영역을 지정�
 const UPLOAD_PLACEHOLDER = '사진을 촬영하거나 파일 선택'
 
 export default function SkinDiagnosisPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+
   // 비제어 파일 입력 컴포넌트 참조 객체
   const fileInputRef = useRef(null)
 
@@ -34,6 +58,9 @@ export default function SkinDiagnosisPage() {
 
   // 2차 12종 세부 질환 정밀 진단 결과 상태
   const [multiResult, setMultiResult] = useState(null)
+
+  // PDF 진단 소견서 발급 모달 열림 상태
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false)
 
   // 1차 스크리닝 서버 로딩 상태
   const [loadingBinary, setLoadingBinary] = useState(false)
@@ -91,17 +118,20 @@ export default function SkinDiagnosisPage() {
     })
   }
 
-  // 마운트 시 모바일 백그라운드 복귀 및 새로고침으로 파기된 사진 자동 복원
+  // 페이지 진입 마운트 시 기존 세션에 남아있던 사진을 완전 파기하여 매번 클린 상태로 시작
   useEffect(() => {
     try {
-      const savedRawImg = sessionStorage.getItem('pet_skin_raw_image')
-      if (savedRawImg) {
-        setRawImageSrc(savedRawImg)
-        setIsCropping(true)
-      }
+      sessionStorage.removeItem('pet_skin_raw_image')
     } catch (e) {
-      console.warn('sessionStorage 읽기 실패:', e)
+      console.warn('sessionStorage 초기화 실패:', e)
     }
+    setRawImageSrc(null)
+    setCroppedPreviewUrl(null)
+    setCroppedFile(null)
+    setIsCropping(false)
+    setBinaryResult(null)
+    setMultiResult(null)
+    setError(null)
   }, [])
 
   // 이미지 선택 및 파일 검증 이벤트 핸들러 (OOM 새로고침 차단 비동기 다운스케일 적용)
@@ -492,6 +522,9 @@ export default function SkinDiagnosisPage() {
 
   return (
     <div style={mobileContainerStyle}>
+      {/* 두 진단 화면 원클릭 상단 탭 전환 바 */}
+      <DiagnosisTabNav />
+
       {/* 모바일 전용 상단 헤더 바 */}
       <header style={mobileHeaderStyle}>
         <div style={badgeRowStyle}>
@@ -726,7 +759,7 @@ export default function SkinDiagnosisPage() {
               ))}
             </div>
 
-            {/* 수의사 진료 안내 주의 배너 */}
+            {/* 수의사 진료 안내 주의 배너 및 PDF 소견서 발급 버튼 */}
             <div style={mobileDisclaimerCardStyle}>
               <div style={mobileDisclaimerHeaderStyle}>
                 <span style={{ fontSize: '18px' }}>🩺</span>
@@ -735,8 +768,42 @@ export default function SkinDiagnosisPage() {
               <p style={mobileDisclaimerTextStyle}>
                 본 진단은 AI 스크리닝 보조 도구입니다. 가려움이나 병변이 심해지면 반드시 <strong>가까운 동물병원 수의사</strong>의 정밀 진료를 받으세요.
               </p>
+              <button
+                type="button"
+                onClick={() => setIsPdfModalOpen(true)}
+                style={{
+                  width: '100%',
+                  marginTop: '12px',
+                  padding: '12px',
+                  backgroundColor: '#4F46E5',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '10px',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+                }}
+              >
+                📄 수의사 제출용 PDF 소견서 발급
+              </button>
             </div>
           </section>
+        )}
+
+        {/* 피부 AI 진단 전용 PDF 발급 모달 */}
+        <SkinDiagnosisPdfModal
+          isOpen={isPdfModalOpen}
+          onClose={() => setIsPdfModalOpen(false)}
+          binaryResult={binaryResult}
+          multiResult={multiResult}
+          previewUrl={croppedPreviewUrl}
+        />
+
+        {/* 주변 동물병원 — 진단 결과가 나온 뒤에만 "주변 동물병원 보기" 버튼이 뜨고,
+            버튼을 눌러야 지도·조회가 시작된다 (deferred — 2026-08-13 사용자 결정) */}
+        {(binaryResult || multiResult) && (
+          <NearbyPlaces categories={['HOSPITAL']} title="주변 동물병원" deferred />
         )}
       </main>
     </div>

@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { useAuth } from '../member/AuthContext'
 import {
   changeMemberRole, delegateOwner, deleteRoom, getMessages, getPinnedMessage, getRoomMembers,
-  joinRoom, kickMember, leaveRoom, markRead, pinMessage, sendMessage, unpinMessage, updateRoom,
+  joinRoom, kickMember, leaveRoom, markRead, pinMessage, sendImageMessage, sendMessage,
+  unpinMessage, updateRoom,
 } from './chatApi'
 import { subscribeRoom } from './chatSocket'
+import { linkify } from './linkify'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 import './chat.css'
@@ -33,6 +36,7 @@ export default function ChatRoomPage() {
   const [fatalError, setFatalError] = useState(null) // 연결을 접게 만든 오류 ({ code, message })
   const [sendError, setSendError] = useState('') // 전송 오류 — 따로 두어 다른 알림에 지워지지 않게
   const [sending, setSending] = useState(false)
+  const [sendingImage, setSendingImage] = useState(false) // 사진 전송 중 (F10b)
   const [retryKey, setRetryKey] = useState(0) // 입장 성공 후 재연결하는 트리거
   const [members, setMembers] = useState(null) // 참여자 목록 — null = 아직 안 불러옴
   const [pinned, setPinned] = useState(null) // 공지 핀 메시지 — null = 없음 (3차)
@@ -41,6 +45,15 @@ export default function ChatRoomPage() {
   const lastIdRef = useRef(null) // 서버에게 확인받은 마지막 message id — 재연결 복구의 afterId
   const listRef = useRef(null) // 스크롤 하단 고정용
   const reportedIdRef = useRef(0) // 읽음 보고를 마친 마지막 message id (docs/api-spec.md 7절)
+  // 화면에 표시된 마지막 message id — **읽음 보고(디바운스·이탈)의 단일 출처** (백로그 91번).
+  // lastIdRef와 다르다: 저쪽은 재연결 복구용이라 내 전송 응답으로는 전진하지 않는 불변식이 있고,
+  // 읽음 보고는 명세상 "화면이 표시한 마지막 id"라 내 메시지도 포함해야 출처가 정직하다
+  const displayedIdRef = useRef(0)
+  // 나가기·방 삭제 직후 — 더는 이 방의 읽음 보고를 내지 않는다 (백로그 91번.
+  // 참여 행이 정리돼 서버가 no-op으로 흡수하지만, 안 나가는 게 맞는 요청이다)
+  const leftRef = useRef(false)
+  // 현재 구독 핸들 — fatalError가 뜨면 소켓도 접기 위한 참조 (백로그 29번)
+  const socketRef = useRef(null)
   // 과거 페이지네이션 (3차 — api-spec.md 7절)
   const [hasMore, setHasMore] = useState(true) // 이전 대화가 더 있는가 — 응답 < PAGE_SIZE면 끝
   const [loadingOlder, setLoadingOlder] = useState(false) // 과거 로드 중 (중복 요청 가드 겸 표시)
@@ -50,24 +63,52 @@ export default function ChatRoomPage() {
   const prependRef = useRef(null) // 과거 로드 직후 스크롤 보정용 { prevHeight, prevTop }
 
   // 화면에 표시된 메시지를 읽음으로 보고 — 1초 디바운스로 남발을 막는다.
-  // 실패는 삼킨다: 멱등이라 다음 수신·재입장 때의 보고가 만회한다
+  // reportedIdRef는 **성공했을 때만 전진**한다 (백로그 91번 — 예전엔 요청 전에 전진시켜,
+  // 실패하면 새 메시지가 올 때까지 재시도 조건이 스스로 막혀 있었다. 멱등이라 중복 성공은 무해)
   useEffect(() => {
     if (messages.length === 0) return undefined
     const lastId = messages[messages.length - 1].id
+    displayedIdRef.current = lastId
     if (lastId <= reportedIdRef.current) return undefined
     const timer = setTimeout(() => {
-      reportedIdRef.current = lastId
-      markRead(roomId, lastId).catch(() => {})
+      // 백그라운드 탭은 보고하지 않는다 — 명세의 "방 화면이 **표시한** 마지막 id"에 맞춘다 (백로그 91번).
+      // 탭이 돌아와도 이 effect가 다시 걸리진 않지만, 다음 수신 또는 이탈 보고가 만회한다
+      if (leftRef.current || document.visibilityState !== 'visible') return
+      markRead(roomId, lastId)
+        .then(() => {
+          reportedIdRef.current = Math.max(reportedIdRef.current, lastId)
+        })
+        .catch(() => {}) // 다음 수신·이탈 보고가 재시도한다
     }, 1000)
     return () => clearTimeout(timer)
   }, [messages, roomId])
 
-  // 방을 떠날 때 디바운스 대기 중이던 보고를 마저 보낸다 — 안 보내면 방금 본 메시지가 배지로 남는다
+  /**
+   * 방을 떠날 때 디바운스 대기 중이던 잔여 보고 — 안 보내면 방금 본 메시지가 배지로 남는다.
+   * 반환한 promise를 나가기 UI 경로(onBackToList)가 **await한 뒤** 목록으로 이동한다 (백로그 85번):
+   * 명세가 "이탈 시 잔여 보고"와 "목록 진입 시 갱신"을 나란히 정의했지만 그 사이 순서는 아무도
+   * 정하지 않아, fire-and-forget 보고(UPDATE 커밋)보다 목록의 GET(집계)이 먼저 도착하면
+   * 방금 다 읽은 방에 배지가 그대로 남았다. 순서는 이 핸들러가 정한다.
+   */
+  const reportRemainingRead = () => {
+    if (leftRef.current) return Promise.resolve()
+    const lastId = displayedIdRef.current
+    if (!lastId || lastId <= reportedIdRef.current) return Promise.resolve()
+    // 이탈 직전이라 실패 재시도가 없다 — 중복 발사(UI 경로 + cleanup)만 막으면 되므로 먼저 전진
+    reportedIdRef.current = lastId
+    return markRead(roomId, lastId).catch(() => {})
+  }
+
+  const onBackToList = async (e) => {
+    e.preventDefault()
+    await reportRemainingRead()
+    navigate('/chat')
+  }
+
+  // 언마운트 cleanup은 뒤로가기·탭 종료 등 onBackToList를 안 거치는 이탈의 백업(fire-and-forget).
+  // UI 경로가 이미 보고했다면 reportedIdRef 조건에 걸려 재발사되지 않는다
   useEffect(() => () => {
-    const lastId = lastIdRef.current
-    if (lastId && lastId > reportedIdRef.current) {
-      markRead(roomId, lastId).catch(() => {})
-    }
+    reportRemainingRead()
   }, [roomId])
 
   // 수신 메시지 병합 — id 기준 중복 제거 + 정렬.
@@ -100,29 +141,55 @@ export default function ChatRoomPage() {
     setLoadingOlder(false)
     lastIdRef.current = null
     reportedIdRef.current = 0
+    displayedIdRef.current = 0
+    leftRef.current = false
     stickBottomRef.current = true
     prependRef.current = null
 
+    /**
+     * fatal 판정 병합 (백로그 30번 검증에서 실측한 경쟁) — 강퇴 직후 재연결하면 REST 복구 조회의
+     * 403(NOT_PARTICIPANT)과 STOMP 구독 거부(CHAT_KICKED)가 거의 동시에 도착하는데, 나중 것이
+     * 덮어쓰게 두면 어느 쪽이 이길지가 네트워크 타이밍에 달린다. **더 구체적인 사유(KICKED)가
+     * 항상 이기고, 그 외에는 먼저 도착한 판정을 유지한다** — 안내가 왔다 갔다 하지 않게
+     */
+    const mergeFatal = (err) => setFatalError((prev) => {
+      if (prev?.code === 'CHAT_KICKED') return prev
+      if (err.code === 'CHAT_KICKED') return err
+      return prev ?? err
+    })
+
     // afterId 이후를 받아 병합한다. 첫 로드(afterId 없음 = 최근 50개)와
     // 재연결 복구가 같은 경로를 쓴다 (docs/api-spec.md 7절)
+    //
+    // **이어받기는 지역 커서(cursor)로 돈다** (리뷰 백로그 112번). 전역 lastIdRef를 매 회차 다시 읽으면,
+    // 그 사이 도착한 WS 푸시가 같은 ref를 최신 id로 밀어 올려 **조회하지 않은 구간이 통째로 건너뛰어진다**
+    // (커서 100 → 복구가 101~600 반환 → 그때 WS로 5000 도착 → 이어받기가 afterId=5000을 물어
+    //  601~4999가 조회되지 않는다). lastIdRef는 max로만 합류하므로(advanceLastId) 이 지역 커서가
+    // WS가 앞서 놓은 값을 되돌리는 일도 없다.
     const loadSince = async () => {
       try {
-        const initial = lastIdRef.current === null
-        const data = await getMessages(roomId, lastIdRef.current)
-        if (cancelled) return
-        // 첫 로드가 한 페이지 미만이면 이 방의 대화 전체를 이미 다 받았다 — 과거 로드 불필요
-        if (initial && data.length < PAGE_SIZE) setHasMore(false)
-        if (data.length === 0) return
-        advanceLastId(data)
-        mergeMessages(data)
-        // 복구가 상한(500)에 걸렸으면 아직 밀린 메시지가 있다 — 마지막 id로 이어받는다 (7절 3차)
-        if (!initial && data.length === RECOVERY_LIMIT) await loadSince()
+        let cursor = lastIdRef.current
+        const initial = cursor === null
+        // 재귀가 아니라 루프인 이유: onReady 콜백에 그대로 넘기는 함수라(인자를 받으면 커서로 오인된다)
+        // 이어받기 상태를 파라미터가 아닌 지역 변수로 들고 있어야 한다
+        for (;;) {
+          const data = await getMessages(roomId, cursor)
+          if (cancelled) return
+          // 첫 로드가 한 페이지 미만이면 이 방의 대화 전체를 이미 다 받았다 — 과거 로드 불필요
+          if (initial && data.length < PAGE_SIZE) setHasMore(false)
+          if (data.length === 0) return
+          cursor = Math.max(...data.map((m) => m.id))
+          advanceLastId(data)
+          mergeMessages(data)
+          // 복구가 상한(500)에 걸렸으면 아직 밀린 메시지가 있다 — 마지막 id로 이어받는다 (7절 3차)
+          if (initial || data.length < RECOVERY_LIMIT) return
+        }
       } catch (err) {
         if (cancelled) return
         // 회복 불가능한 오류(미참여 403 / 토큰 만료 401 / 방 없음 404)만 화면을 멈춘다.
         // 네트워크 오류는 다음 재연결의 복구 조회가 다시 시도한다
         if (err.status === 401 || err.status === 403 || err.status === 404) {
-          setFatalError(err)
+          mergeFatal(err)
         }
       }
     }
@@ -142,10 +209,18 @@ export default function ChatRoomPage() {
       onMembersChanged: () => { if (!cancelled) loadMembers() },
       // 공지 핀 변경 신호 — 같은 방식으로 다시 읽는다 (3차)
       onPinChanged: () => { if (!cancelled) loadPinned() },
+      // 방 삭제 신호 (백로그 25번) — 종전에는 신호가 없어 전송할 때마다 404만 반복해서 봤다.
+      // fatalError 전환이 아래 29번 effect의 소켓 정리까지 함께 일으킨다
+      onRoomDeleted: () => {
+        if (cancelled) return
+        leftRef.current = true // 방이 사라졌다 — 잔여 읽음 보고 생략 (91번과 같은 규칙)
+        setFatalError({ code: 'CHAT_ROOM_NOT_FOUND', message: '방장이 방을 삭제했습니다.' })
+      },
       onReady: loadSince, // 연결·재연결 직후 놓친 구간 복구
-      onFatal: (err) => { if (!cancelled) setFatalError(err) },
+      onFatal: (err) => { if (!cancelled) mergeFatal(err) },
       onStatus: (ok) => { if (!cancelled) setConnected(ok) },
     })
+    socketRef.current = socket
 
     // 정리(cleanup): 방을 나가면 연결을 닫고, 진행 중이던 응답도 무시한다
     return () => {
@@ -153,6 +228,13 @@ export default function ChatRoomPage() {
       socket.close()
     }
   }, [roomId, retryKey])
+
+  // 화면을 멈춘 오류(fatalError)가 뜨면 소켓도 접는다 (백로그 29번) — REST 401/403/404로
+  // 화면만 멈추고 소켓은 페이지 이탈까지 살아 수신을 계속하던 구멍. WS발 fatal은 chatSocket이
+  // 이미 deactivate했지만 close()가 멱등이라 중복 호출은 무해하다
+  useEffect(() => {
+    if (fatalError) socketRef.current?.close()
+  }, [fatalError])
 
   // 메시지 변경 후 스크롤 처리 (백로그 18번 개선 — 3차)
   useEffect(() => {
@@ -243,6 +325,13 @@ export default function ChatRoomPage() {
     }
   }
 
+  /**
+   * 실패가 "내가 보던 상태가 낡았다"는 뜻인지 (리뷰 백로그 69번).
+   * 409 CONCURRENT_UPDATE는 정의상 그렇고, 404(대상 참여자 없음)도 그 사이 나갔다는 뜻이다.
+   * 이 화면은 MEMBERS_CHANGED 재조회 규약을 이미 갖고 있으므로 같은 방법으로 자동 정정할 수 있다
+   */
+  const isStaleStateError = (err) => err.status === 409 || err.status === 404
+
   // 권한 동작 공통 처리 — 성공하면 참여자 목록을 새로 읽는다.
   // 서버도 MEMBERS_CHANGED를 밀어주지만, 연결이 끊긴 상태에서도 내 화면은 즉시 맞도록 여기서도 읽는다
   const runAction = async (action) => {
@@ -252,6 +341,9 @@ export default function ChatRoomPage() {
       await loadMembers()
     } catch (err) {
       setActionError(err.message)
+      // 실패했을 때도 읽는다 (백로그 69번) — 종전에는 성공 경로만 재조회해서, 위임 경쟁으로 409를 받으면
+      // **이미 방장이 아닌 자신을 여전히 OWNER로 표시한 화면**이 그대로 남았다(버튼도 계속 노출)
+      if (isStaleStateError(err)) loadMembers()
     }
   }
 
@@ -260,9 +352,11 @@ export default function ChatRoomPage() {
     setActionError('')
     try {
       await leaveRoom(roomId)
+      leftRef.current = true // 참여 행이 정리됐다 — 언마운트의 잔여 읽음 보고 생략 (백로그 91번)
       navigate('/chat')
     } catch (err) {
       setActionError(err.message) // 방장이면 409 — 위임 후에만 나갈 수 있다
+      if (isStaleStateError(err)) loadMembers() // 같은 이유로 재조회 (백로그 69번)
     }
   }
 
@@ -271,6 +365,7 @@ export default function ChatRoomPage() {
     setActionError('')
     try {
       await deleteRoom(roomId)
+      leftRef.current = true // 방이 사라졌다 — 잔여 읽음 보고 생략 (백로그 91번)
       navigate('/chat')
     } catch (err) {
       setActionError(err.message)
@@ -357,6 +452,28 @@ export default function ChatRoomPage() {
     }
   }
 
+  /**
+   * 이미지 전송 (F10b). 텍스트 전송과 같은 흐름이라 스크롤 규칙(stickBottomRef)도 그대로 따른다.
+   * 고르는 즉시 전송한다 — v1은 **이미지 단독 메시지**라 캡션을 입력할 단계가 없다 (2026-08-13 확정).
+   */
+  const onImageChange = async (e) => {
+    const file = e.target.files[0]
+    e.target.value = '' // 같은 파일을 다시 골라도 change 이벤트가 나도록 초기화
+    if (!file) return
+    setSendError('')
+    setSendingImage(true)
+    stickBottomRef.current = true // 텍스트 전송과 같은 이유 — onSend 주석 참조
+    try {
+      // 형식·용량 검증 + 512px 축소 (프로필·펫 사진과 같은 규칙). 원본은 보존하지 않는다
+      const prepared = await prepareImage(file)
+      mergeMessages([await sendImageMessage(roomId, prepared)])
+    } catch (err) {
+      setSendError(err.message)
+    } finally {
+      setSendingImage(false)
+    }
+  }
+
   const onSend = async (e) => {
     e.preventDefault()
     const trimmed = content.trim()
@@ -386,7 +503,8 @@ export default function ChatRoomPage() {
       <main className="chat-page">
         <header className="chat-header">
           <h1>{roomName}</h1>
-          <Link to="/chat">← 방 목록으로</Link>
+          {/* 잔여 읽음 보고를 끝낸 뒤 이동 — 배지 잔존 방지 (백로그 85번, onBackToList 주석) */}
+          <Link to="/chat" onClick={onBackToList}>← 방 목록으로</Link>
         </header>
         <p className="submit-error">{fatalError.message}</p>
         {fatalError.code === 'CHAT_NOT_PARTICIPANT' && (
@@ -402,7 +520,8 @@ export default function ChatRoomPage() {
     <main className="chat-page">
       <header className="chat-header">
         <h1>{roomName}</h1>
-        <Link to="/chat">← 방 목록으로</Link>
+        {/* 잔여 읽음 보고를 끝낸 뒤 이동 — 배지 잔존 방지 (백로그 85번, onBackToList 주석) */}
+        <Link to="/chat" onClick={onBackToList}>← 방 목록으로</Link>
       </header>
 
       {/* 방 프로필 (3차) — 직접 URL 진입(room 없음)이면 표시하지 않는다 */}
@@ -502,7 +621,10 @@ export default function ChatRoomPage() {
       {pinned && (
         <div className="pin-banner">
           <span className="pin-content">
-            📌 <strong>{pinned.senderName}</strong> {pinned.content}
+            {/* 배너도 같은 content를 렌더한다 — 말풍선에서만 링크가 되면 "공지로 올리면 링크가 죽는" 셈이 된다.
+                이미지 메시지를 공지로 고정하면 content가 null이라 아무것도 안 보이므로 대체 문구를 쓴다 (F10b) */}
+            📌 <strong>{pinned.senderName}</strong>{' '}
+            {pinned.imageUrl ? '사진' : linkify(pinned.content)}
           </span>
           {canPin && (
             <button type="button" onClick={onUnpin}>해제</button>
@@ -527,7 +649,15 @@ export default function ChatRoomPage() {
                 {message.senderName}
               </span>
             )}
-            {message.content}
+            {/* 이미지 메시지는 content가 null이다 (F10b) — 둘 중 하나만 값이 있다.
+                본문의 URL은 링크로 (F10a). HTML 문자열을 만들지 않는 이유는 linkify 주석 참조 */}
+            {message.imageUrl ? (
+              <a href={message.imageUrl} target="_blank" rel="noopener noreferrer">
+                <img className="chat-image" src={message.imageUrl} alt="보낸 사진" />
+              </a>
+            ) : (
+              linkify(message.content)
+            )}
             {/* 공지 고정 버튼 — 권한자(OWNER·MANAGER)에게만. 이미 고정된 메시지에는 표시하지 않는다 */}
             {canPin && pinned?.id !== message.id && (
               <button
@@ -543,11 +673,24 @@ export default function ChatRoomPage() {
 
       {sendError && <p className="submit-error">{sendError}</p>}
       <form className="chat-send" onSubmit={onSend}>
+        {/* 사진 첨부 (F10b) — label이 file input을 연다. input을 display:none으로 숨기면
+            Tab으로 도달할 수 없으므로 CSS에서 visually-hidden으로만 가린다 (백로그 84번) */}
+        <label className="chat-image-button" title="사진 보내기">
+          {sendingImage ? '…' : '📷'}
+          <span className="visually-hidden-text">사진 보내기</span>
+          <input
+            type="file" accept={IMAGE_ACCEPT}
+            onChange={onImageChange} disabled={sendingImage || sending}
+          />
+        </label>
+        {/* 전송 중에는 잠근다 (백로그 20번) — 응답을 기다리는 사이 타이핑하면
+            성공 시 setContent('')가 그 입력을 지워 버린다 (사진 첨부 input과 같은 규칙) */}
         <input
           type="text" value={content} onChange={(e) => setContent(e.target.value)}
           placeholder="메시지를 입력하세요 (1000자 이내)" maxLength={1000}
+          disabled={sending || sendingImage}
         />
-        <button type="submit" disabled={sending}>
+        <button type="submit" disabled={sending || sendingImage}>
           전송
         </button>
       </form>

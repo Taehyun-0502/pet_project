@@ -1,58 +1,17 @@
-import { useState } from 'react'
-import Field from '../common/Field'
-import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
-import { useForm } from '../common/useForm'
+import { Link } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import { updateMyName, uploadMyImage } from './memberApi'
 
-// 서버(NameUpdateRequest)와 같은 규칙 — 가입 폼의 이름 검증과도 문구가 같다
-function validateName(values) {
-  const errors = {}
-  const trimmed = values.name.trim()
-  if (!trimmed) errors.name = '이름은 필수입니다.'
-  else if (trimmed.length > 50) errors.name = '이름은 50자 이하여야 합니다.'
-  return errors
-}
+// 가입 수단 표시 문구 — 서버 provider 값(api-spec.md 1절 4차)의 화면 이름
+const PROVIDER_LABEL = { LOCAL: '이메일', KAKAO: '카카오' }
 
-// 마이페이지 — 내 정보 탭 (프로필 사진 + 이름 수정). 레이아웃·분리 배경은 MyPage.jsx 주석 참조
+/**
+ * 마이페이지 — 내 정보 탭. **읽기 전용 요약 + 하위 화면 진입점**이다 (2026-08-13 개편).
+ *
+ * 수정 기능(사진·이름)은 MyPageEdit로 옮겼다. 이 화면이 "지금 내 계정이 어떤 상태인가"만
+ * 보여주고, 바꾸는 일은 목적 화면으로 들어가서 하는 구조다 (MyPage.jsx 주석 참조).
+ */
 export default function MyPageProfile() {
-  const { user, updateUser } = useAuth()
-
-  // 프로필 사진 — pet 상세와 같은 흐름 (검증 규칙도 서버 ImageStorageClient와 동일)
-  const [photoError, setPhotoError] = useState('')
-  const [photoUploading, setPhotoUploading] = useState(false)
-
-  const onPhotoChange = async (e) => {
-    const file = e.target.files[0]
-    e.target.value = '' // 같은 파일을 다시 골라도 change 이벤트가 나도록 초기화
-    if (!file) return
-    setPhotoError('')
-    setPhotoUploading(true)
-    try {
-      // 형식·용량 검증 + 512px 축소 (common/imageUpload — pet 화면들과 같은 규칙)
-      const prepared = await prepareImage(file)
-      updateUser(await uploadMyImage(prepared)) // 전역 user 갱신 — ?v= 덕에 즉시 새 이미지
-    } catch (err) {
-      setPhotoError(err.message)
-    } finally {
-      setPhotoUploading(false)
-    }
-  }
-
-  // 이름 수정 — 성공 시 updateUser로 전역 상태를 맞춰 홈의 "OO님" 표시도 함께 갱신된다
-  const [nameNotice, setNameNotice] = useState('')
-
-  const nameForm = useForm({
-    initialValues: { name: user.name },
-    validate: validateName,
-    onSubmit: async (values) => {
-      setNameNotice('')
-      const updated = await updateMyName({ name: values.name.trim() })
-      updateUser(updated)
-      nameForm.setValues({ name: updated.name }) // 서버가 trim한 값으로 폼도 맞춘다
-      setNameNotice('이름이 변경되었습니다.')
-    },
-  })
+  const { user } = useAuth()
 
   return (
     <section className="my-info">
@@ -63,32 +22,27 @@ export default function MyPageProfile() {
         ) : (
           <div className="profile-photo-placeholder" aria-hidden="true">👤</div>
         )}
-        <label className="profile-photo-upload">
-          {photoUploading ? '업로드 중…' : user.profileImageUrl ? '사진 변경' : '사진 등록'}
-          <input
-            type="file" accept={IMAGE_ACCEPT}
-            onChange={onPhotoChange} disabled={photoUploading}
-          />
-        </label>
       </div>
-      {photoError && <p className="submit-error" role="alert">{photoError}</p>}
       <dl>
+        <div>
+          <dt>이름</dt>
+          <dd>{user.name}</dd>
+        </div>
         <div>
           <dt>이메일</dt>
           {/* 소셜 계정은 이메일 미동의 시 null (api-spec.md 1절 4차) */}
           <dd>{user.email ?? '미제공 (카카오 계정)'}</dd>
         </div>
+        <div>
+          <dt>가입 수단</dt>
+          {/* 모르는 값이 와도 화면이 비지 않게 원문을 그대로 보여준다 */}
+          <dd>{PROVIDER_LABEL[user.provider] ?? user.provider}</dd>
+        </div>
       </dl>
-      <form className="auth-form" ref={nameForm.formRef} onSubmit={nameForm.handleSubmit} noValidate>
-        <Field form={nameForm} name="name" label="이름" type="text" autoComplete="name" />
-        {nameForm.submitError && (
-          <p className="submit-error" role="alert">{nameForm.submitError}</p>
-        )}
-        {nameNotice && <p className="notice" role="status">{nameNotice}</p>}
-        <button type="submit" disabled={nameForm.submitting}>
-          {nameForm.submitting ? '저장 중…' : '이름 저장'}
-        </button>
-      </form>
+      <div className="mypage-actions">
+        <Link to="/mypage/edit">정보 수정</Link>
+        <Link to="/mypage/security">보안</Link>
+      </div>
     </section>
   )
 }

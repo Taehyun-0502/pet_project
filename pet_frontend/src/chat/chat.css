@@ -28,7 +28,7 @@
 .room-edit select {
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -51,16 +51,16 @@
   display: block;
   padding: 10px;
   margin-bottom: 12px;
-  border: 1px solid #2b6cb0;
+  border: 1px solid var(--primary);
   border-radius: 6px;
-  color: #2b6cb0;
+  color: var(--primary);
   font-size: 15px;
   text-align: center;
   text-decoration: none;
 }
 
 .chat-new-link:hover {
-  background: #eef4ff;
+  background: var(--primary-soft);
 }
 
 /* 3차: 검색·필터 (검색창 + 카테고리 칩 + 정렬 토글) */
@@ -74,7 +74,7 @@
 .chat-filter input {
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -87,16 +87,16 @@
 
 .chat-chip {
   padding: 4px 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   font-size: 13px;
   cursor: pointer;
 }
 
 .chat-chip.active {
-  background: #2b6cb0;
-  border-color: #2b6cb0;
+  background: var(--primary-solid);
+  border-color: var(--primary-solid);
   color: #fff;
 }
 
@@ -106,7 +106,7 @@
   border: none;
   background: none;
   font-size: 13px;
-  color: #555;
+  color: var(--text-soft);
   cursor: pointer;
 }
 
@@ -119,25 +119,51 @@
   gap: 10px;
 }
 
+/* 방 한 줄 — 입장 영역은 안쪽 .room-row 버튼이 맡는다 (백로그 19번).
+   패딩·커서를 버튼으로 옮겨 클릭·포커스 영역과 시각 영역이 일치하게 했다 */
 .chat-room-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px;
-  border: 1px solid #ccc;
+  padding-right: 10px;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  cursor: pointer;
   text-align: left;
 }
 
+/* 목록 항목 안의 입장 버튼 — 버튼 기본 모양을 걷어내 종전 li와 같은 줄로 보이게 한다
+   (pet 마이페이지 탭의 .pet-row와 같은 패턴) */
+.chat-room-list .room-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0 12px 14px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-room-list .room-row:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .chat-room-list .count {
-  color: #888;
+  color: var(--text-muted);
   font-size: 14px;
   white-space: nowrap;
 }
 
 /* 3차: 방 프로필 표시 (목록 카드 + 방 화면 헤더 아래) */
 .room-info {
+  display: block; /* 목록에서는 span이다 (버튼 안이라 — 백로그 19번). 안쪽 소개 줄이 블록으로 잡히게 */
   text-align: left;
   min-width: 0; /* 긴 소개가 카드 폭을 밀어내지 않게 */
 }
@@ -147,15 +173,38 @@
   padding: 2px 8px;
   margin-right: 8px;
   border-radius: 10px;
-  background: #eef4ff;
-  color: #2b6cb0;
+  background: var(--primary-soft);
+  color: var(--primary);
   font-size: 12px;
 }
 
+/* 방 이름 줄 — 카테고리 + 이름 + 안읽음 배지가 항상 한 줄에 붙어 있게 (백로그 101번).
+   이름이 길면 배지를 밀어내지 말고 이름을 자른다 — 배지는 위치가 곧 의미다 */
+.room-name-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.room-name-line strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 카테고리 칩·배지는 줄이지 않는다 — flex 기본값(shrink:1)이면 칩이 눌려 "자유"가 두 줄로 접히고
+   줄 높이가 50px까지 늘어난다(실측). 폭이 부족하면 이름(strong)이 ellipsis로 대신 줄어든다 */
+.room-name-line .room-category,
+.room-name-line .unread-badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .room-desc {
+  display: block; /* 목록에서는 span — ellipsis가 걸리도록 블록으로 (백로그 19번 구조 변경) */
   margin: 4px 0 0;
   font-size: 13px;
-  color: #888;
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -177,7 +226,7 @@
 
 .room-capacity {
   font-size: 12px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 /* 3차: 방 정보 수정 폼 (OWNER) */
@@ -187,7 +236,7 @@
   gap: 8px;
   margin-bottom: 12px;
   padding: 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
 }
 
@@ -197,6 +246,80 @@
 }
 
 /* 채팅방 화면 (2덩어리에서 사용) */
+/* 사진 보내기 버튼 (F10b) — 입력창 왼쪽. label이 file input을 연다 */
+.chat-image-button {
+  position: relative;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  align-self: center;
+}
+
+/* file input·보조 텍스트는 **화면에서만** 숨긴다 (visually-hidden).
+   display:none으로 감추면 input이 포커스 트리에서 빠져 마우스 없이는 사진을 보낼 수 없다
+   (백로그 84번 — pet.css·member.css의 사진 등록 label과 같은 규칙) */
+.chat-image-button input,
+.visually-hidden-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* 숨긴 input이 포커스를 받으면 label에 포커스 링을 그린다 — 키보드 사용자가 위치를 볼 수 있게 */
+.chat-image-button:focus-within {
+  outline: 2px solid var(--success);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 말풍선 안 이미지 (F10b) — 원본 크기로 두면 목록이 무너진다. 눌러서 원본 열기는 <a>가 맡는다 */
+.chat-image {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* 내 방 섹션 (F7) — 검색·필터 위에 고정. 전체 목록과 시각적으로 구분되게 제목을 둔다 */
+.chat-my-rooms h2,
+.chat-section-title {
+  font-size: 14px;
+  color: var(--text-soft);
+  text-align: left;
+  margin: 16px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 고정 버튼 — 켜져 있으면 진하게, 꺼져 있으면 흐리게 (같은 아이콘의 상태 표시) */
+.room-pin {
+  background: none;
+  border: 0;
+  padding: 4px;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+
+.room-pin.active {
+  opacity: 1;
+  filter: none;
+}
+
+.room-pin:disabled {
+  cursor: default;
+}
+
 .chat-messages {
   list-style: none;
   padding: 0;
@@ -212,13 +335,16 @@
 .chat-messages li {
   padding: 8px 12px;
   border-radius: 10px;
-  background: #f1f1f1;
+  background: var(--surface-muted);
   align-self: flex-start;
   max-width: 80%;
+  /* 공백 없는 긴 문자열(주로 URL — F10a)이 말풍선을 가로로 밀어내지 않게 강제로 접는다.
+     max-width만으로는 부족하다: 브라우저는 끊을 곳이 없는 토큰을 넘치게 두기 때문 */
+  overflow-wrap: anywhere;
 }
 
 .chat-messages li.mine {
-  background: #d7e9ff;
+  background: var(--bubble-mine);
   align-self: flex-end;
 }
 
@@ -227,7 +353,7 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #777;
+  color: var(--text-muted);
   margin-bottom: 2px;
 }
 
@@ -245,7 +371,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #e4e4e4;
+  background: var(--surface-muted);
   font-size: 13px;
 }
 
@@ -255,7 +381,9 @@
   gap: 8px;
 }
 
-/* 방 목록의 안 읽은 메시지 배지 */
+/* 방 목록의 안 읽은 메시지 배지.
+   빨강+흰 글자는 라이트·다크 양쪽에서 대비가 충분해 변수로 빼지 않았다 (백로그 53번에서 의도적 제외 —
+   포커스 링 색·카카오 브랜드색·solid 배경 위 #fff도 같은 이유로 하드코딩 유지) */
 .unread-badge {
   display: inline-flex;
   align-items: center;
@@ -280,7 +408,7 @@
   flex: 1;
   padding: 10px 12px;
   font-size: 15px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -292,9 +420,9 @@
   gap: 8px;
   padding: 8px 12px;
   margin-bottom: 8px;
-  border: 1px solid #f0d264;
+  border: 1px solid var(--banner-border);
   border-radius: 8px;
-  background: #fff8dc;
+  background: var(--banner-bg);
   font-size: 13px;
   text-align: left;
 }
@@ -328,7 +456,7 @@
 .chat-status {
   margin: 8px 0;
   font-size: 13px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 /* 2차: 방 관리 버튼 줄 + 참여자 패널 */
@@ -340,15 +468,15 @@
 
 .chat-toolbar button.danger,
 .member-actions button.danger {
-  color: #c0392b;
-  border-color: #c0392b;
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .chat-members {
   list-style: none;
   padding: 0;
   margin: 0 0 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
   text-align: left;
 }
@@ -362,13 +490,13 @@
 }
 
 .chat-members li + li {
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 }
 
 .role-badge {
   font-style: normal;
   font-size: 12px;
-  color: #2b6cb0;
+  color: var(--primary);
   margin-left: 6px;
 }
 

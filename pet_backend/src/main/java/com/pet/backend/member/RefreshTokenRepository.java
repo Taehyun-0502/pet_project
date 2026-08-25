@@ -9,6 +9,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * ⚠ 이 저장소의 revoke 계열 벌크 UPDATE는 전부 {@code clearAutomatically = true}다 (리뷰 백로그 99번).
+ * 실행 시 영속성 컨텍스트를 통째로 비우므로, 다른 @Transactional 메서드 안에서 호출하면 그 트랜잭션의
+ * 관리 엔티티가 detach되어 **이후의 엔티티 변경이 조용히 유실된다** — 탈퇴 구현(2026-08-11)에서
+ * 벌크 뒤에 둔 member.withdraw()가 실제로 유실됐던 패턴(MemberService.withdraw 주석 참조).
+ * 엔티티 변경(비밀번호 저장 등)은 반드시 벌크 호출보다 **앞**에 두고 flush까지 끝낼 것
+ * (changePassword의 saveAndFlush가 그 예 — 백로그 97번).
+ */
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
     // 쿠키로 받은 원문을 해시해 조회 — 폐기된 토큰도 찾아야 재사용을 감지할 수 있으므로 상태로 거르지 않는다
@@ -55,6 +63,20 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
                                      @Param("reason") RevokedReason reason,
                                      @Param("rotated") RevokedReason rotated,
                                      @Param("graceCutoff") Instant graceCutoff);
+
+    /**
+     * 이 토큰이 지금 그 사유로 폐기돼 있는가 — **DB의 현재 값**을 읽는다 (리뷰 백로그 109번).
+     *
+     * <p>엔티티가 아니라 스칼라 집계를 조회하는 것이 핵심이다. 회전 대상 토큰은 이미 영속성 컨텍스트에
+     * 올라와 있고 그 스냅샷은 **검증 시점의 낡은 값**이라, 그 사이 다른 트랜잭션이 커밋한 폐기를 보지 못한다.
+     * 엔티티로 다시 조회해도 1차 캐시가 돌려주므로 낡은 값 그대로다.
+     *
+     * <p>이 조회를 왜 회전 **전에** 해야 하는지: 낡은 스냅샷으로 회전하면 `revoke(ROTATED)`의
+     * dirty update가 DB에 찍혀 있던 `DEVICE_REVOKED`를 **덮어쓴다**. 회전 뒤에 확인하면
+     * 방금 스스로 지운 흔적을 찾는 꼴이라 언제나 통과한다 (2026-08-13 검증에서 13라운드 중 4건 실측).
+     */
+    @Query("select count(t) > 0 from RefreshToken t where t.id = :tokenId and t.revokedReason = :reason")
+    boolean isRevokedWithReason(@Param("tokenId") Long tokenId, @Param("reason") RevokedReason reason);
 
     /**
      * {@link #expireRotationGraceBySession}의 회원 전체 판 — 재사용 감지 전용.

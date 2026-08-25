@@ -18,6 +18,9 @@ public enum ChatErrorCode implements ErrorCode {
     MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "CHAT_MESSAGE_NOT_FOUND", "메시지를 찾을 수 없습니다."),
     OWNER_CANNOT_LEAVE(HttpStatus.CONFLICT, "CHAT_OWNER_CANNOT_LEAVE", "방장은 위임 후에만 나갈 수 있습니다."),
     ROOM_FULL(HttpStatus.CONFLICT, "CHAT_ROOM_FULL", "정원이 가득 차 입장할 수 없습니다."),
+    // 방 고정 상한 (F7). 이름·코드에 ROOM_PIN을 쓴 것은 **공지 핀과 구분하기 위해서다** —
+    // 공지 핀은 방 전체에 걸리는 OWNER·MANAGER 기능이고, 이건 개인이 자기 목록을 정렬하는 기능이다
+    ROOM_PIN_LIMIT(HttpStatus.BAD_REQUEST, "CHAT_ROOM_PIN_LIMIT", "방 고정은 5개까지 가능합니다."),
     ;
 
     private final HttpStatus status;
