@@ -4,6 +4,7 @@ import { BACKEND_URL } from '../config'
 import { SkinDiagnosisPdfModal } from './SkinDiagnosisPdfModal'
 import DiagnosisTabNav from '../components/DiagnosisTabNav'
 import NearbyPlaces from '../components/NearbyPlaces'
+import InstallAppButton from '../components/InstallAppButton'
 
 // 생년월일(YYYY-MM-DD) 기반 만 나이 계산 유틸리티 함수
 const calculateAgeFromBirthDate = (birthDateStr) => {
@@ -527,8 +528,9 @@ export default function SkinDiagnosisPage() {
 
       {/* 모바일 전용 상단 헤더 바 */}
       <header style={mobileHeaderStyle}>
-        <div style={badgeRowStyle}>
+        <div style={{ ...badgeRowStyle, justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={mobileHeaderBadgeStyle}>AI 스크리닝 탭</span>
+          <InstallAppButton />
         </div>
         <h1 style={mobileTitleStyle}>{PAGE_TITLE}</h1>
         <p style={mobileSubtitleStyle}>{PAGE_SUBTITLE}</p>
