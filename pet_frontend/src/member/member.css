@@ -373,3 +373,309 @@ main.mn .auth-page {
   gap: 14px;
   padding: 4px 0 12px;
 }
+
+/* ── 로그인·가입 화면 — 웜톤 템플릿 리디자인 (2026-08-25 사용자 제공 시안) ──────
+   Modernist(.mn)와 별개 스코프: 첫인상 인증 화면(로그인·가입)만 라운드·크림톤 무드를 쓴다.
+   클래스명은 로그인에서 출발했지만 가입(main.login.signup)도 같은 스코프를 공유한다.
+   색은 아래 --lg-* 토큰으로만 관리한다. 폼 마크업(useForm/Field)은 공통 규약 그대로이고
+   여기서는 모양만 얹는다 — forms.css의 .field/.auth-form 기본 배치 위에 동작한다. */
+.login {
+  --lg-bg-top: #fdf6ec;
+  --lg-bg-bottom: #fae9d7;
+  --lg-text: #4b4037;
+  --lg-muted: #9a8d80;
+  --lg-line: #eee3d5;
+  --lg-placeholder: #c7bbac;
+  --lg-icon: #b9ab9c;
+  --lg-accent: #ef7d66;
+  --lg-accent-deep: #e2664e;
+  --lg-error: #d64530;
+  --lg-kakao: #fee500;
+
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  padding: 22px 20px 30px;
+  background: linear-gradient(180deg, var(--lg-bg-top), var(--lg-bg-bottom));
+  color: var(--lg-text);
+  text-align: left; /* #root의 text-align: center 되돌림 */
+}
+.login *,
+.login *::before,
+.login *::after { box-sizing: border-box; }
+
+/* 배경 데코 — 연분홍 블롭 두 개 */
+.login::before,
+.login::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.login::before {
+  width: 220px;
+  height: 220px;
+  right: -70px;
+  top: 90px;
+  background: radial-gradient(circle, rgba(246, 178, 160, 0.35), transparent 70%);
+}
+.login::after {
+  width: 180px;
+  height: 180px;
+  left: -60px;
+  top: 300px;
+  background: radial-gradient(circle, rgba(233, 200, 152, 0.35), transparent 70%);
+}
+
+/* 브랜드 — 로고 칩 + 서비스명 */
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.login-brand-logo {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 6px 16px -8px rgba(90, 60, 30, 0.3);
+}
+.login-brand-name {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--lg-accent);
+  letter-spacing: -0.3px;
+}
+
+/* 히어로 카피 */
+.login-hero {
+  position: relative;
+  padding: 26px 0 6px;
+}
+.login-hero h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.28;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  color: var(--lg-text);
+}
+.login-hero h1 em {
+  font-style: normal;
+  color: var(--lg-accent);
+}
+.login-hero p {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--lg-muted);
+}
+/* 시안의 사진 자리 — PetsIllustration(인라인 SVG 일러스트)이 들어온다 */
+.login-hero-pets {
+  position: absolute;
+  right: -10px;
+  top: 30px;
+  pointer-events: none;
+}
+.login-hero-pets svg { display: block; }
+
+/* 폼 카드 */
+.login-card {
+  position: relative; /* 배경 블롭 위로 */
+  margin-top: 24px;
+  padding: 22px 18px;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 24px 48px -28px rgba(90, 60, 30, 0.4);
+}
+.login-card .auth-form { gap: 12px; }
+.login-card .notice { font-size: 13px; margin-bottom: 10px; }
+
+/* 라벨은 스크린리더 전용 (시안은 placeholder만 노출) */
+.login .field { gap: 0; }
+.login .field > label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* 입력 — 라운드 + 좌측 아이콘 (아이콘은 input 배경이라 오류문이 떠도 안 흔들린다) */
+.login .field input {
+  width: 100%;
+  border: 1px solid var(--lg-line);
+  border-radius: 16px;
+  background-color: #fff;
+  padding: 15px 16px 15px 48px;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--lg-text);
+  background-repeat: no-repeat;
+  background-position: 16px center;
+  background-size: 20px;
+}
+.login .field input::placeholder { color: var(--lg-placeholder); }
+.login .field input:focus {
+  outline: none;
+  border-color: var(--lg-accent);
+  box-shadow: 0 0 0 3px rgba(239, 125, 102, 0.15);
+}
+.login .field input[aria-invalid='true'] { border-color: var(--lg-error); }
+.login-field.icon-mail input {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23b9ab9c'%20stroke-width='1.8'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='3'%20y='5'%20width='18'%20height='14'%20rx='3'/%3E%3Cpath%20d='m4%207%208%206%208-6'/%3E%3C/svg%3E");
+}
+.login-field.icon-lock input {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23b9ab9c'%20stroke-width='1.8'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Crect%20x='5'%20y='11'%20width='14'%20height='9'%20rx='2.5'/%3E%3Cpath%20d='M8%2011V8a4%204%200%200%201%208%200v3'/%3E%3C/svg%3E");
+}
+.login-field.icon-user input {
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='%23b9ab9c'%20stroke-width='1.8'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Ccircle%20cx='12'%20cy='8.5'%20r='4'/%3E%3Cpath%20d='M4.5%2020a7.5%207.5%200%200%201%2015%200'/%3E%3C/svg%3E");
+}
+
+/* 비밀번호 규칙 힌트 — 라벨을 숨겼으니 오류가 나기 전에 규칙이 보여야 한다 */
+.login .login-hint {
+  margin: -4px 4px 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--lg-muted);
+}
+
+/* 비밀번호 눈 토글 */
+.login-pw { position: relative; }
+.login-pw input { padding-right: 48px; }
+.login .login-eye {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  padding: 8px;
+  color: var(--lg-icon);
+  cursor: pointer;
+}
+.login .login-eye:hover { color: var(--lg-accent); }
+
+/* 오류 문구 */
+.login .field-error { margin: 6px 4px 0; font-size: 12px; color: var(--lg-error); }
+.login .submit-error { font-size: 13px; color: var(--lg-error); }
+
+/* 주 버튼 — 코럴 라운드. `.login` 접두는 forms.css `.auth-form button`(6px 라운드·12px 패딩)을
+   특이도로 이기기 위한 것 — 빼면 라운드가 6px로 되돌아간다 */
+.login .login-submit {
+  border: 0;
+  border-radius: 16px;
+  background: var(--lg-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  padding: 15px;
+  cursor: pointer;
+  box-shadow: 0 12px 22px -12px rgba(239, 125, 102, 0.65);
+}
+.login .login-submit:hover { background: var(--lg-accent-deep); }
+.login .login-submit:disabled { opacity: 0.6; cursor: default; }
+
+/* "또는" 구분선 */
+.login-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 0;
+  font-size: 12px;
+  color: var(--lg-muted);
+}
+.login-or::before,
+.login-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--lg-line);
+}
+
+/* 카카오 버튼 — 브랜드 노랑 유지, 이 화면에서는 라운드 (.login 접두 이유는 위와 동일) */
+.login .login-kakao {
+  border: 0;
+  border-radius: 16px;
+  background: var(--lg-kakao);
+  color: #3b1e1e;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  padding: 15px;
+  cursor: pointer;
+}
+.login .login-kakao:hover { filter: brightness(0.96); }
+
+/* 하단 전환 링크 */
+.login-switch {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--lg-muted);
+}
+.login-switch a { color: var(--lg-accent); font-weight: 800; }
+
+/* ── 가입 화면 전용 (.login.signup) ── */
+
+/* 가입은 히어로가 짧다 — 일러스트 없이 카피만, 폼 카드에 공간을 양보 */
+.signup .login-hero { padding: 20px 0 4px; }
+.signup .login-hero h1 { font-size: 26px; }
+
+/* 프로필 사진(선택) — .mn 스코프의 사각 스킨 대신 라운드·웜톤으로.
+   input 숨김·focus-within 링은 .mn쪽(.mn .profile-photo-upload)과 같은 이유의 동일 규칙이다 */
+.login .profile-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.login .profile-photo img,
+.login .profile-photo-placeholder {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--lg-line);
+  background: #f8efe2;
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+}
+.login .profile-photo-upload {
+  position: relative;
+  padding: 2px 4px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--lg-accent);
+  cursor: pointer;
+}
+.login .profile-photo-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+.login .profile-photo-upload:focus-within {
+  outline: 2px solid var(--lg-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}

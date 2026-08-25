@@ -7,7 +7,6 @@ import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { signup, uploadMyImage } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
-import '../common/modernist.css'
 import './member.css'
 
 // 서버(SignupRequest)와 같은 규칙으로 1차 검증 — 최종 차단은 서버가 한다
@@ -126,49 +125,78 @@ export default function SignupPage() {
   if (user && !signedUp) return <Navigate to="/" replace />
 
   return (
-    <main className="mn">
-      <div className="mn-top">
-        <div className="mn-brand">댕댕댕</div>
-      </div>
-      <div className="mn-rule" />
-      <div className="auth-page">
-      <h1>회원가입</h1>
-      <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
-        {/* 사진은 선택 — 등록하지 않으면 기본 이미지(👤)가 표시되고, 나중에 마이페이지에서 올릴 수 있다 */}
-        <div className="profile-photo">
-          {photoPreview ? (
-            <img src={photoPreview} alt="선택한 사진 미리보기" />
-          ) : (
-            <div className="profile-photo-placeholder" aria-hidden="true">👤</div>
-          )}
-          <label className="profile-photo-upload">
-            {preparing ? '불러오는 중…' : photo ? '사진 변경' : '프로필 사진 (선택)'}
-            <input
-              type="file" accept={IMAGE_ACCEPT}
-              onChange={onPhotoChange} disabled={preparing || form.submitting}
+    /* .login = 웜톤 인증 화면 공용 스코프 (로그인에서 출발했지만 가입도 같이 쓴다 — member.css 주석 참고) */
+    <main className="login signup">
+      <header className="login-brand">
+        <span className="login-brand-logo" aria-hidden="true">🐶</span>
+        <span className="login-brand-name">댕댕댕</span>
+      </header>
+
+      <section className="login-hero signup-hero">
+        <h1>
+          반가워요!
+          <br />
+          <em>댕댕댕</em>과 함께해요
+        </h1>
+        <p>계정을 만들고 우리 아이의 하루를 기록해 보세요</p>
+      </section>
+
+      <section className="login-card">
+        <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
+          {/* 사진은 선택 — 등록하지 않으면 기본 이미지(👤)가 표시되고, 나중에 마이페이지에서 올릴 수 있다 */}
+          <div className="profile-photo">
+            {photoPreview ? (
+              <img src={photoPreview} alt="선택한 사진 미리보기" />
+            ) : (
+              <div className="profile-photo-placeholder" aria-hidden="true">👤</div>
+            )}
+            <label className="profile-photo-upload">
+              {preparing ? '불러오는 중…' : photo ? '사진 변경' : '프로필 사진 (선택)'}
+              <input
+                type="file" accept={IMAGE_ACCEPT}
+                onChange={onPhotoChange} disabled={preparing || form.submitting}
+              />
+            </label>
+          </div>
+          {photoError && <p className="field-error" role="alert">{photoError}</p>}
+
+          {/* 라벨은 화면에서 숨기고 placeholder가 대신한다 (로그인과 동일한 시안 규칙) */}
+          <div className="login-field icon-mail">
+            <Field
+              form={form} name="email" label="이메일"
+              type="email" autoComplete="email" placeholder="이메일"
             />
-          </label>
-        </div>
-        {photoError && <p className="field-error" role="alert">{photoError}</p>}
-        <Field form={form} name="email" label="이메일" type="email" autoComplete="email" />
-        <Field
-          form={form} name="password" label={`비밀번호 (${PASSWORD_RULE_LABEL})`}
-          type="password" autoComplete="new-password"
-        />
-        <Field
-          form={form} name="passwordConfirm" label="비밀번호 확인"
-          type="password" autoComplete="new-password"
-        />
-        <Field form={form} name="name" label="이름" type="text" autoComplete="name" />
-        {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" className="mn-primary block" disabled={form.submitting || preparing}>
-          {form.submitting ? '가입 중…' : '가입하기'}
-        </button>
-      </form>
-      <p className="auth-switch">
-        <Link to="/login">이미 계정이 있으신가요? 로그인</Link>
-      </p>
-      </div>
+          </div>
+          <div className="login-field icon-lock">
+            <Field
+              form={form} name="password" label={`비밀번호 (${PASSWORD_RULE_LABEL})`}
+              type="password" autoComplete="new-password" placeholder="비밀번호"
+            />
+          </div>
+          {/* 라벨을 숨겼으니 규칙은 힌트 줄로 노출한다 — 오류가 나기 전에 보여야 한다 */}
+          <p className="login-hint">{PASSWORD_RULE_LABEL}</p>
+          <div className="login-field icon-lock">
+            <Field
+              form={form} name="passwordConfirm" label="비밀번호 확인"
+              type="password" autoComplete="new-password" placeholder="비밀번호 확인"
+            />
+          </div>
+          <div className="login-field icon-user">
+            <Field
+              form={form} name="name" label="이름"
+              type="text" autoComplete="name" placeholder="이름"
+            />
+          </div>
+
+          {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
+          <button type="submit" className="login-submit" disabled={form.submitting || preparing}>
+            {form.submitting ? '가입 중…' : '가입하기'}
+          </button>
+        </form>
+        <p className="login-switch">
+          이미 계정이 있나요? <Link to="/login">로그인</Link>
+        </p>
+      </section>
     </main>
   )
 }
