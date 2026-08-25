@@ -18,10 +18,12 @@ public class SkinAiClient {
 
     private final RestClient restClient;
 
-    // 피부병 AI 통신 클라이언트 생성자 및 RestClient 초기화
+    // 피부병 AI 통신 클라이언트 생성자 및 RestClient 초기화 (ngrok 바이패스 헤더 추가)
     public SkinAiClient(@Value("${ai.server.url}") String aiServerUrl) {
         this.restClient = RestClient.builder()
                 .baseUrl(aiServerUrl)
+                .defaultHeader("ngrok-skip-browser-warning", "true")
+                .defaultHeader("User-Agent", "SpringBoot-PetBackend")
                 .build();
     }
 

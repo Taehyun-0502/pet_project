@@ -11,15 +11,17 @@ public class HybridAiClient {
 
     private final RestClient restClient;
 
-    // 생성자를 통한 AI 서버 Base URL 및 3초 타임아웃 설정 주입
+    // 생성자를 통한 AI 서버 Base URL 및 타임아웃 설정 주입 (ngrok 바이패스 헤더 추가)
     public HybridAiClient(@Value("${ai.server.url:http://localhost:8000}") String aiServerUrl) {
         org.springframework.http.client.SimpleClientHttpRequestFactory requestFactory = new org.springframework.http.client.SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(3000);
-        requestFactory.setReadTimeout(3000);
+        requestFactory.setConnectTimeout(10000);
+        requestFactory.setReadTimeout(10000);
 
         this.restClient = RestClient.builder()
                 .requestFactory(requestFactory)
                 .baseUrl(aiServerUrl)
+                .defaultHeader("ngrok-skip-browser-warning", "true")
+                .defaultHeader("User-Agent", "SpringBoot-PetBackend")
                 .build();
     }
 

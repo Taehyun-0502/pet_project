@@ -32,8 +32,14 @@ export function resolveApiUrl(
   } catch {
     return target // 형식이 깨진 설정값 — 손대지 않고 그대로 둔다(원인이 드러나야 한다)
   }
+
   // 설정값이 이미 원격을 가리키면 그것이 유일한 진실이다 (배포)
   if (!isLocalHost(parsed.hostname)) return target
+
+  // dddang.duckdns.org 등 도메인 접속 처리
+  if (browserHost.includes('duckdns.org') || browserHost.includes('trycloudflare.com') || browserHost.includes('ngrok')) {
+    return `${browserProtocol}//${browserHost}${window.location.port ? ':' + window.location.port : ''}`
+  }
 
   return `${browserProtocol}//${browserHost}:${parsed.port || defaultPort}`
 }
