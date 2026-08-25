@@ -1,18 +1,17 @@
 {
-  "short_name": "하루빵 펫헬스",
-  "name": "HaruBread Pet Health AI - 펫 스마트 건강 검진",
-  "description": "반려동물 피부 질환 AI 정밀 진단 및 바이오 센서 스마트 문진 종합 건강 검진 서비스",
+  "name": "댕댕댕 - 반려견 스마트 건강 검진",
+  "short_name": "댕댕댕",
+  "description": "AI 기반 강아지 피부 질환 정밀 진단 및 융합 건강 검진 서비스",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
   "icons": [
     {
       "src": "/favicon.svg",
-      "sizes": "any",
+      "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
-  ],
-  "start_url": "/",
-  "background_color": "#FFFFFF",
-  "theme_color": "#4F46E5",
-  "display": "standalone",
-  "orientation": "portrait"
+  ]
 }
