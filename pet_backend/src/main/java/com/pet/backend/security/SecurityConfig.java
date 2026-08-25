@@ -79,6 +79,9 @@ public class SecurityConfig {
                         .requestMatchers("/ws").permitAll()
                         // 숏츠 피드와 댓글 목록은 로그인 없이 볼 수 있다.
                         .requestMatchers(HttpMethod.GET, "/api/shorts").permitAll()
+                        // 단건 조회도 공개다 — 공유 링크(/shorts?v=123)를 받은 사람이 로그인해야
+                        // 열린다면 공유가 의미를 잃는다. GET만 열리므로 DELETE는 아래 인증 대상이다
+                        .requestMatchers(HttpMethod.GET, "/api/shorts/*").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/shorts/*/comments").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/ads").permitAll()
                         .anyRequest().authenticated())

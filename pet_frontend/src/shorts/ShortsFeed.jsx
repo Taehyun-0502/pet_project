@@ -7,10 +7,16 @@
 //     viewCount, likeCount, commentCount, createdAt, likedByMe }
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../member/AuthContext";
 import CommentSheet from "./CommentSheet";
-import { getShortsFeed, sendShortsEvent, toggleShortLike } from "./shortsApi";
+import DeleteSheet from "./DeleteSheet";
+import ReportSheet from "./ReportSheet";
+import { copyText } from "./copyText";
+import { cropMediaStyle, cropPanStyle } from "./cropFrame";
+import MarqueeText from "./MarqueeText";
+import { findTrack } from "./musicCatalog";
+import { getShort, getShortsFeed, sendShortsEvent, toggleShortLike } from "./shortsApi";
 import "./ShortsFeed.css";
 
 const fmt = (n) => (n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "천" : "" + n);
@@ -60,10 +66,11 @@ const FALLBACK_BG = [
 ];
 const bgOf = (id) => FALLBACK_BG[id % FALLBACK_BG.length];
 
-// 업로드 화면 진입점. 카드는 한 장이 화면을 꽉 채우므로 카드마다 하나씩 두면
-// 지금 보이는 화면에 항상 떠 있는 것처럼 보인다 (빈 목록 화면에도 필요)
+// 만들기 진입점. 카드는 한 장이 화면을 꽉 채우므로 카드마다 하나씩 두면
+// 지금 보이는 화면에 항상 떠 있는 것처럼 보인다 (빈 목록 화면에도 필요).
+// 4페이지 제작 플로우(/shorts/create)로 보낸다 — 기존 한 화면 폼은 /shorts/new에 남아 있다
 const UploadButton = () => (
-  <Link className="sf-upload" to="/shorts/new" aria-label="숏츠 올리기" onClick={(e) => e.stopPropagation()}>
+  <Link className="sf-upload" to="/shorts/create" aria-label="숏츠 만들기" onClick={(e) => e.stopPropagation()}>
     +
   </Link>
 );
@@ -94,12 +101,36 @@ const Sound = ({ muted }) => (
     {muted ? <path d="M22 9l-6 6M16 9l6 6" /> : <path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14" />}
   </svg>
 );
+// 신고 메뉴를 여는 햄버거. 업로드(+)와 같은 원형 버튼 안에 들어가므로 선 3개만 그린다
+const Hamburger = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </svg>
+);
+// 내 영상일 때 햄버거 자리에 뜨는 휴지통
+const Trash = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </svg>
+);
+// 곡 정보 앞에 붙는 음표
+const Note = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+    <path d="M9 18V5l10-2v13" />
+    <circle cx="6" cy="18" r="3" />
+    <circle cx="16" cy="16" r="3" />
+  </svg>
+);
 
 /* ───────── 영상 카드 하나 ───────── */
-function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnter }) {
+function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnter, onRemove }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const videoRef = useRef(null);
+  // 배경음악. 업로더가 고른 곡을 카탈로그에서 찾는다 — 곡을 안 골랐거나(musicKey=null)
+  // 카탈로그에서 빠진 키면 null이고, 그 경우 오디오 요소와 곡 표시를 함께 건너뛴다
+  const track = findTrack(data.musicKey);
+  const audioRef = useRef(null);
   // 지금 이 카드가 화면에 있는지. 탭에 돌아왔을 때 시계를 다시 돌릴지 판단하는 데 쓴다.
   // state가 아니라 ref인 이유 — 화면에 그릴 값이 아니라서 리렌더가 필요 없다
   const visibleRef = useRef(false);
@@ -110,8 +141,22 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   const runningSinceRef = useRef(null);
   const [progress, setProgress] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [likePending, setLikePending] = useState(false);
   const [actionError, setActionError] = useState("");
+  // 공유 결과 안내. 성공/실패 모두 이 자리에 잠깐 띄운다
+  const [shareNotice, setShareNotice] = useState("");
+
+  /*
+   * 내 영상인지. memberId로 비교한다 — memberName은 동명이인이면 남의 영상에 삭제 버튼이 뜬다.
+   * 서버가 삭제 시 소유자를 다시 확인하므로 실제로 지워지지는 않지만, 눌러도 404가 나는
+   * 버튼을 보여줄 이유가 없다.
+   *
+   * 피드는 내가 올린 영상을 빼고 보여주므로(랭킹 쿼리) 이 값이 true가 되는 경우는 사실상
+   * 둘이다 — 업로드 직후 맨 앞에 끼워 넣은 카드, 그리고 자기 영상 공유 링크로 들어온 경우.
+   */
+  const isMine = user != null && data.memberId != null && user.id === data.memberId;
 
   /*
    * 시청 시계. 아래 관찰자 effect와 handleTap 양쪽에서 써야 해서 effect 밖에 둔다.
@@ -146,6 +191,120 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     else pauseClock();
   }, [pauseClock, startClock]);
 
+  /*
+   * 배경음악을 영상 재생 상태에 맞춘다.
+   *
+   * 재생 여부를 여기서 따로 판단하지 않고 **영상을 따라가게** 한 것이 핵심이다. 재생이 바뀌는
+   * 길이 여럿이라(관찰자의 자동 재생·정지, 탭 전환, 사용자 탭, 자동재생 차단) 각자 오디오를
+   * 건드리면 반드시 어긋난다. 영상 하나를 진실의 원천으로 두면 아래 play/pause 리스너만으로
+   * 모든 경로가 덮인다 — syncClock을 한 곳에 모은 것과 같은 이유다.
+   *
+   * play()가 거부돼도 무시한다. 브라우저 자동재생 정책상 muted가 아니면 사용자 조작 없이
+   * 재생할 수 없는데, 피드는 muted=true로 시작하므로 첫 재생은 통과하고, 음소거를 푸는 것은
+   * 사용자 조작(버튼 탭)이라 그때도 통과한다.
+   */
+  /*
+   * 업로더가 고른 구간의 시작점(초). 영상 길이만큼이 구간이므로 끝은 start + 영상 길이다.
+   * 컴포넌트가 사는 동안 바뀌지 않으므로 effect 의존성에 넣지 않는다 (id·durationSec과 같다).
+   */
+  const musicStart = data.musicStartSec ?? 0;
+
+  /*
+   * 재생 구간. 업로더가 ② 길이/비율 화면에서 고른 값이다.
+   *
+   * **영상 파일은 잘려 있지 않다** — 원본이 통째로 올라오고 여기서 그 구간만 돈다
+   * (가이드 4절 방법 A, 음악 트리밍과 같은 방식). trimEndSec이 null이면 원본 끝까지이고,
+   * 칼럼이 생기기 전에 올라간 영상이 전부 그 경우다.
+   */
+  const trimStart = data.trimStartSec ?? 0;
+  const trimEnd = data.trimEndSec ?? null;
+
+  /*
+   * 9:16 프레임 안 위치. null이면 지금까지와 똑같이 가운데 cover다.
+   *
+   * 영상의 원래 크기를 알아야 계산이 되는데(cropFrame.js) 그것은 메타데이터가 와야 안다.
+   * crop이 없는 영상에서는 state를 채우지 않는다 — 대부분의 카드가 그렇고, 쓰지도 않을 값
+   * 때문에 리렌더를 한 번 더 할 이유가 없다.
+   */
+  const crop = data.crop ?? null;
+  const [videoSize, setVideoSize] = useState(null);
+
+  /*
+   * 업로더가 정한 두 볼륨 (0~100). 칼럼이 생기기 전 영상은 서버가 100으로 채워 내려보내므로
+   * "값이 없으면" 분기가 필요 없다 — 그래도 ??를 두는 것은 캐시된 옛 응답을 위해서다.
+   *
+   * muteOriginal과 videoVolume은 **둘 다** 봐야 한다. 새 영상은 서버가 둘을 맞춰 저장하지만,
+   * 칼럼이 생기기 전에 음소거로 올라간 영상은 muteOriginal만 true이고 볼륨은 기본 100이다.
+   */
+  const musicVolume = (data.musicVolume ?? 100) / 100;
+  const videoVolume = (data.videoVolume ?? 100) / 100;
+
+  /*
+   * 볼륨은 요소의 프로퍼티라 JSX 속성으로 줄 수 없다. 요소가 만들어진 뒤 대입해야 하는데,
+   * onLoadedMetadata만으로는 부족하다 — 그 이벤트는 소스가 바뀌지 않으면 다시 오지 않으므로
+   * 값이 나중에 바뀌는 경로(응답 갱신)에서 반영되지 않는다.
+   */
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = videoVolume;
+    if (audioRef.current) audioRef.current.volume = musicVolume;
+  }, [videoVolume, musicVolume]);
+
+  const syncAudio = useCallback(() => {
+    const v = videoRef.current;
+    const a = audioRef.current;
+    if (v == null || a == null) return;
+    if (v.paused) a.pause();
+    else a.play().catch(() => {});
+  }, []);
+
+  /*
+   * 곡을 영상 진행에 맞춘다 — 구간 재생의 핵심이다.
+   *
+   * audio의 loop 속성을 쓸 수 없는 이유: loop은 **0초로** 되감는다. 업로더가 1분 지점을
+   * 골랐는데 영상이 한 바퀴 돌면 그 뒤로는 곡 맨 앞이 나가버린다.
+   *
+   * 그래서 영상의 재생 위치를 기준으로 삼는다 — 목표 위치는 항상 `시작점 + 영상 위치`다.
+   * 영상이 loop으로 0으로 돌아가면 목표도 시작점으로 돌아가므로 구간 반복이 공짜로 얻어진다.
+   * 사용자가 영상을 정지·재생하거나 탭을 전환해 어긋난 경우도 같은 식으로 복구된다.
+   *
+   * 매 timeupdate마다 currentTime을 대입하지 않고 오차가 커질 때만 손대는 이유: 대입은
+   * 곧 seek이라 소리가 끊긴다. timeupdate는 초당 4~5회 오므로 0.35초는 "한 번 놓쳤다"가
+   * 아니라 "정말 어긋났다"에 해당하는 값이다.
+   *
+   * 곡이 영상보다 짧으면 목표 위치가 곡 끝을 넘는다. 그때는 곡 길이로 나눈 나머지를 쓴다 —
+   * 업로드 화면이 안내하는 "부족한 만큼 반복됩니다"가 이 계산이다.
+   */
+  const RESYNC_TOLERANCE_SEC = 0.35;
+  const syncAudioPosition = useCallback(() => {
+    const v = videoRef.current;
+    const a = audioRef.current;
+    if (v == null || a == null || a.readyState < 1) return;
+
+    // 곡의 시작점은 **구간의 시작**과 맞춘다 — v.currentTime을 그대로 더하면 원본 앞부분을
+    // 잘라낸 만큼 곡이 앞서 나간다
+    let target = musicStart + Math.max(0, v.currentTime - trimStart);
+    if (Number.isFinite(a.duration) && a.duration > 0 && target >= a.duration) {
+      // 시작점이 곡 끝을 넘을 만큼 크면(카탈로그 교체 등) 0으로 떨어뜨려 무음이 되지 않게 한다
+      target = musicStart < a.duration ? musicStart + ((target - musicStart) % (a.duration - musicStart)) : 0;
+    }
+    if (Math.abs(a.currentTime - target) > RESYNC_TOLERANCE_SEC) {
+      a.currentTime = target;
+    }
+  }, [musicStart, trimStart]);
+
+  /*
+   * 음소거를 켜고 끌 때 곡 재생을 다시 맞춘다.
+   *
+   * 이게 없으면 이런 일이 생긴다 — 첫 로드 때 audio.play()가 거부되면(브라우저 정책·네트워크)
+   * 그 카드에서는 다시 시도할 계기가 없다. 영상은 이미 재생 중이라 play 이벤트도 더 오지 않는다.
+   * 그러면 소리 버튼을 눌러도 영원히 음악이 안 들린다.
+   *
+   * 음소거를 푸는 것은 사용자 조작이라 이 시점의 play()는 자동재생 정책을 통과한다.
+   */
+  useEffect(() => {
+    syncAudio();
+  }, [muted, syncAudio]);
+
   // 화면에 50% 이상 보이면 재생, 벗어나면 정지+처음으로.
   // 같은 관찰자에 시청 기록을 얹는다 — 재생 판정과 시청 판정이 어긋나면 안 되기 때문이다
   //
@@ -157,6 +316,11 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
+    // 오디오 요소를 effect 안에서 한 번 붙잡아 둔다. cleanup에서 audioRef.current를 그대로
+    // 읽으면 그 시점의 ref가 이미 다른 요소(또는 null)일 수 있다.
+    // musicKey는 id·durationSec처럼 카드가 사는 동안 바뀌지 않으므로 한 번 잡아두면 된다
+    const audio = audioRef.current;
 
     // 시청 한 묶음을 마감해 보낸다. 완료율로 watch / skip을 가른다
     const emitWatch = () => {
@@ -180,13 +344,22 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         if (entry.isIntersecting) {
           video.play().catch(() => {});
           syncClock();
+          // play 이벤트로도 syncAudio가 불리지만 여기서 한 번 더 부른다 —
+          // 자동재생이 거부되면 play 이벤트가 아예 발생하지 않아 곡이 시작되지 않는다.
+          // syncAudio는 영상의 paused 상태를 보고 판단하므로 두 번 불려도 안전하다
+          syncAudio();
           onEvent(id, "view");
           // 끝에 가까워졌는지 부모가 판단한다. view 이벤트와 달리 중복 억제나 로그인 조건이
           // 없어야 해서(비로그인도 스크롤은 한다) 별도 통로로 알린다
           onEnter(index);
         } else {
           video.pause();
-          video.currentTime = 0;
+          // 0이 아니라 구간 시작으로 되돌린다 — 다시 올라온 카드가 잘라낸 앞부분부터 재생되면 안 된다
+          video.currentTime = trimStart;
+          // 곡도 구간 시작점으로 되돌린다(0이 아니다 — 업로더가 고른 지점이다).
+          // video.pause()가 pause 이벤트를 내보내 syncAudio가 정지까지는 해주지만 재생 위치는
+          // 남아, 다시 올라온 카드에서 노래가 구간 중간부터 시작한다
+          if (audio) audio.currentTime = musicStart;
           emitWatch();
         }
       },
@@ -217,6 +390,11 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     document.addEventListener("visibilitychange", syncClock);
     window.addEventListener("pagehide", onPageHide);
 
+    // 배경음악도 같은 이벤트를 타고 영상 상태를 따라간다 (syncAudio 주석 참고)
+    video.addEventListener("play", syncAudio);
+    video.addEventListener("pause", syncAudio);
+    document.addEventListener("visibilitychange", syncAudio);
+
     // 관찰자를 끊는 것만으로는 '벗어남' 콜백이 오지 않는다 — 보던 중에 다른 화면으로
     // 이동하면 마지막 시청 기록이 통째로 사라지므로 여기서 직접 남긴다
     return () => {
@@ -225,9 +403,19 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
       video.removeEventListener("pause", syncClock);
       document.removeEventListener("visibilitychange", syncClock);
       window.removeEventListener("pagehide", onPageHide);
+
+      video.removeEventListener("play", syncAudio);
+      video.removeEventListener("pause", syncAudio);
+      document.removeEventListener("visibilitychange", syncAudio);
+      // 카드가 사라질 때 노래가 계속 흐르지 않게 직접 멈춘다. 요소가 DOM에서 빠지면 대개
+      // 함께 멈추지만, 리액트가 요소를 재사용하는 경우(같은 위치의 다른 카드)에는 남는다
+      if (audio) audio.pause();
+
       emitWatch();
     };
-  }, [id, durationSec, index, onEvent, onEnter, pauseClock, syncClock]);
+    // musicStart도 id·durationSec과 같이 카드가 사는 동안 바뀌지 않는 값이라
+    // 의존성에 넣어도 관찰자가 다시 만들어지지 않는다
+  }, [id, durationSec, index, musicStart, trimStart, onEvent, onEnter, pauseClock, syncClock, syncAudio]);
 
   /*
    * 탭 한 번에 정지/재생 + 가운데 표시.
@@ -259,9 +447,60 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     tapHintTimerRef.current = setTimeout(() => setTapHint(null), TAP_HINT_MS);
   };
 
+  /*
+   * 구간 끝이라고 볼 여유(초). timeupdate는 250ms 안팎으로 띄엄띄엄 오기 때문에
+   * `>= end`만 보면 매번 조금씩 넘겨 재생한 뒤 되감겨 끝부분이 튄다.
+   */
+  const TRIM_EPSILON = 0.05;
   const onTimeUpdate = () => {
     const v = videoRef.current;
-    if (v?.duration) setProgress((v.currentTime / v.duration) * 100);
+    if (!v) return;
+
+    /*
+     * 구간 반복. <video loop>은 **원본 끝**에서만 되감으므로, 잘라낸 구간이 원본보다 짧으면
+     * 그 뒤가 그대로 이어 재생된다. 여기서 직접 되돌려야 한다.
+     */
+    const end = trimEnd ?? v.duration;
+    if (
+      Number.isFinite(end) &&
+      (v.currentTime >= end - TRIM_EPSILON || v.currentTime < trimStart - 0.3)
+    ) {
+      v.currentTime = trimStart;
+      // 곡도 함께 구간 처음으로. 놔두면 두 번째 재생부터 노래가 어긋난 채 돈다
+      const a = audioRef.current;
+      if (a) a.currentTime = musicStart;
+    }
+
+    // 진행 막대는 **잘린 구간** 기준이다. 원본 길이로 재면 막대가 중간까지만 차고 끝난다
+    const span = (Number.isFinite(end) ? end : 0) - trimStart;
+    if (span > 0) {
+      setProgress(Math.min(100, Math.max(0, ((v.currentTime - trimStart) / span) * 100)));
+    }
+
+    // 곡 위치를 여기서 맞춘다 — 영상 진행에 붙여야 하므로 영상의 시계를 그대로 쓰는 것이 맞다
+    syncAudioPosition();
+  };
+
+  /*
+   * 공유 — 이 영상으로 바로 열리는 링크를 클립보드에 복사한다.
+   *
+   * `?v={id}`를 붙이는 이유: /shorts만 복사하면 링크를 받은 사람이 자기 피드를 보게 되어
+   * 공유가 아무 의미가 없다. 피드가 이 파라미터를 읽어 해당 영상을 맨 앞에 놓는다.
+   * 단건 조회는 공개 경로라 링크를 받은 사람이 로그인하지 않아도 열린다.
+   *
+   * 복사가 실패할 수 있어(비보안 컨텍스트 등 — copyText 주석 참고) 그때는 주소를 그대로
+   * 보여준다. "복사 실패"만 알리면 사용자가 할 수 있는 일이 없다.
+   */
+  const shareNoticeTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(shareNoticeTimerRef.current), []);
+
+  const onShare = async () => {
+    const link = `${window.location.origin}/shorts?v=${data.id}`;
+    const copied = await copyText(link);
+    setShareNotice(copied ? "링크를 복사했습니다." : link);
+    clearTimeout(shareNoticeTimerRef.current);
+    // 복사 실패로 주소를 보여주는 경우는 읽고 손으로 옮길 시간이 필요해 더 길게 둔다
+    shareNoticeTimerRef.current = setTimeout(() => setShareNotice(""), copied ? 1800 : 8000);
   };
 
   // 좋아요는 서버가 최종 상태와 개수를 알려주므로 화면에서 미리 더하지 않는다.
@@ -291,17 +530,98 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         자동 넘김(onEnded)과는 양자택일이다 — loop이면 ended 이벤트가 아예 발생하지 않는다.
         인스타·틱톡·쇼츠의 기본 동작도 loop이고 자동 넘김은 별도 옵션이다.
       */}
+      {/* 9:16 위치는 cropFrame.js/css가 정한다 — 제작 플로우 ②의 미리보기와 **같은 공식**이어야
+          거기서 맞춰 놓은 화면이 여기서 그대로 나온다 */}
+      <div className="crop-pan" style={cropPanStyle(crop)}>
       <video
         ref={videoRef}
+        className="crop-media"
+        style={cropMediaStyle(crop, videoSize)}
         src={data.videoUrl}
         poster={data.thumbnailUrl ?? undefined}
-        muted={muted}
+        /* 구간 시작으로 옮겨두지 않으면 첫 재생이 잘라낸 앞부분부터 나간다 */
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget;
+          v.currentTime = trimStart;
+          // 볼륨은 속성이 아니라 프로퍼티라 JSX로 줄 수 없다 — 요소가 준비되는 즉시 대입한다
+          v.volume = videoVolume;
+          if (crop && !videoSize) setVideoSize({ width: v.videoWidth, height: v.videoHeight });
+        }}
+        /*
+          두 층의 음소거가 곱해진다. muted는 **보는 사람**이 카드 소리를 끈 것이고,
+          data.muteOriginal은 **올린 사람**이 영상 트랙을 죽여둔 것이다 — 후자는 보는 사람이
+          소리 버튼을 켜도 되살아나지 않아야 한다(그래서 OR).
+          업로더가 원본을 끄고 곡을 골랐으면 소리 버튼은 사실상 BGM 스위치가 된다.
+        */
+        muted={muted || data.muteOriginal}
         loop
         playsInline
         preload="metadata"
         onTimeUpdate={onTimeUpdate}
       />
+      </div>
+      {/*
+        배경음악. 곡을 고른 영상에만 요소가 생긴다.
+        loop인 이유는 영상과 같다 — 영상이 계속 돌므로 노래가 먼저 끝나면 무음 구간이 생긴다.
+        재생·정지는 syncAudio가 영상을 따라가게 맞추므로 여기서 제어하지 않는다.
+        preload="metadata"로 둔 것은 곡이 늦게 시작하는 것을 줄이면서(none이면 탭한 뒤 받기
+        시작한다) 카드마다 수 MB를 미리 받지는 않게 하는 절충이다.
+      */}
+      {track && (
+        <audio
+          ref={audioRef}
+          src={track.url}
+          muted={muted}
+          preload="metadata"
+          /*
+            loop을 쓰지 않는다 — loop은 0초로 되감아 업로더가 고른 구간을 벗어난다.
+            구간 반복은 syncAudioPosition이 영상 위치를 기준으로 맞춘다(그 주석 참고).
+            메타데이터가 오는 즉시 시작점으로 옮겨둔다 — 그러지 않으면 첫 재생이 0초부터 나간다.
+          */
+          onLoadedMetadata={(e) => {
+            const a = e.currentTarget;
+            /*
+             * 곡 길이를 넘는 시작점은 0으로 떨어뜨린다.
+             *
+             * 서버는 이 값의 상한을 검증하지 못한다 — 곡 길이를 모르기 때문이다(파일은
+             * Storage에 있다). 그래서 조작된 요청이나 카탈로그 교체로 범위를 넘은 값이
+             * DB에 남을 수 있고, 그대로 대입하면 브라우저가 곡 끝으로 붙여 무음이 된다.
+             * 여기서 걸러 최소한 곡 처음부터는 들리게 한다.
+             */
+            const safe = Number.isFinite(a.duration) && musicStart < a.duration ? musicStart : 0;
+            a.currentTime = safe;
+            // 볼륨은 프로퍼티라 JSX로 줄 수 없다 (영상 쪽과 같은 이유)
+            a.volume = musicVolume;
+          }}
+        />
+      )}
       <div className="sf-scrim" />
+
+      {/*
+        업로더가 얹은 글자들(최대 5개). 영상 파일에 굽지 않고 표시 시점에 올린다
+        (ShortsOverlayText 주석). 위치는 %로 저장되고 그 좌표가 글자 블록의 중심이다.
+        스크림(2) 위, 정보·액션(4) 아래에 두고 탭을 가로채지 않게 한다
+      */}
+      {/* key에 index를 쓴다 — 목록이 업로드 시점에 고정되고 순서가 바뀌거나 중간이 지워지는
+          일이 없어서, 여기서는 index가 안정적인 식별자다 */}
+      {(data.overlayTexts ?? []).map((item, i) => (
+        <div
+          key={i}
+          className="sf-overlay-text"
+          /* 업로더가 누른 지점이 글자 블록의 중심이다 — CSS의 translate(-50%,-50%)와 짝이다.
+             color·size·rotate는 이 필드들이 생기기 전 영상에는 없다 — 그때는 CSS 기본값
+             (흰색·1배·0도)이 그대로 쓰이고, 그것이 예전 표시와 같다 */
+          style={{
+            top: `${item.top}%`,
+            left: `${item.left}%`,
+            color: item.color || undefined,
+            '--ov-size': item.size ?? 1,
+            '--ov-rotate': `${item.rotate ?? 0}deg`,
+          }}
+        >
+          {item.text}
+        </div>
+      ))}
       {/* 화면에 잠깐 뜨는 상태 표시일 뿐이라 스크린리더에는 읽히지 않게 한다 */}
       {tapHint && (
         <div key={tapHint.seq} className="sf-tap-hint" aria-hidden="true">
@@ -309,6 +629,30 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         </div>
       )}
       <UploadButton />
+      {/*
+        같은 자리에 두 역할이 들어간다 — 내 영상이면 삭제(휴지통), 남의 영상이면 신고(햄버거).
+        자기 영상을 신고할 일은 없고(서버도 막을 대상이다) 남의 영상을 지울 수는 없으니
+        둘을 나란히 두면 항상 하나는 쓸모없는 버튼이 된다.
+
+        stopPropagation이 필요한 이유는 sf-actions와 같다 — 없으면 카드의 onClick(handleTap)까지
+        올라가 영상이 함께 정지된다.
+      */}
+      <button
+        type="button"
+        className="sf-more"
+        aria-label={isMine ? "이 영상 삭제하기" : "이 영상 신고하기"}
+        aria-expanded={isMine ? deleteOpen : reportOpen}
+        onClick={(e) => {
+          e.stopPropagation();
+          // 댓글 시트를 함께 닫는다 — 이 버튼은 댓글 시트(하단 65%)에 가리지 않는 위쪽에 있어서
+          // 댓글을 열어둔 채로 누를 수 있고, 그러면 같은 z-index의 시트 둘이 겹쳐 보인다
+          setCommentsOpen(false);
+          if (isMine) setDeleteOpen(true);
+          else setReportOpen(true);
+        }}
+      >
+        {isMine ? <Trash /> : <Hamburger />}
+      </button>
 
       <div className="sf-info">
         <div className="sf-user">
@@ -316,6 +660,18 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
           <span className="sf-name">@{data.memberName}</span>
         </div>
         <div className="sf-caption">{data.caption}</div>
+        {/* 곡 정보는 설명 아래에 붙인다 — 오른쪽 위(업로드·햄버거)와 겹치지 않고, 영상 위를
+            덮는 요소를 한쪽에 모아둘 수 있다. 곡을 안 고른 영상에는 아무것도 뜨지 않는다 */}
+        {track && (
+          <div className="sf-music">
+            <Note />
+            {/* 잘라내지 않고 흘려 보여준다 — "…"로 끊기면 제목도 아티스트도 알 수 없다 */}
+            <MarqueeText className="sf-music-text">
+              {track.title}
+              {track.artist && <em> · {track.artist}</em>}
+            </MarqueeText>
+          </div>
+        )}
       </div>
 
       <div className="sf-actions" onClick={(e) => e.stopPropagation()}>
@@ -325,11 +681,29 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         <button onClick={() => setCommentsOpen(true)}>
           <Comment /><span>{fmt(data.commentCount)}</span>
         </button>
-        <button><Share /><span>공유</span></button>
+        <button onClick={onShare}><Share /><span>공유</span></button>
         <button onClick={onToggleMute}><Sound muted={muted} /><span>{muted ? "음소거" : "소리"}</span></button>
       </div>
 
-      {actionError && <p className="sf-action-error">{actionError}</p>}
+      {/* 좋아요 실패와 공유 결과가 같은 자리를 쓴다 — 동시에 뜰 일이 없고, 카드 위에 알림 줄을
+          여러 개 두면 영상을 덮는 면적만 늘어난다. 복사 실패 시에는 주소가 그대로 들어온다 */}
+      {(actionError || shareNotice) && (
+        <p className="sf-action-error">{actionError || shareNotice}</p>
+      )}
+
+      {/* shortId를 넘기지 않는다 — 지금은 서버로 보내지 않아 쓸 곳이 없다.
+          접수 API가 생기면 shortId={data.id}를 다시 넘긴다 */}
+      {reportOpen && <ReportSheet onClose={() => setReportOpen(false)} />}
+
+      {deleteOpen && (
+        <DeleteSheet
+          shortId={data.id}
+          onClose={() => setDeleteOpen(false)}
+          // 지운 카드는 부모가 목록에서 빼므로 이 컴포넌트가 곧 언마운트된다 —
+          // setDeleteOpen(false)를 따로 부르지 않아도 된다
+          onDeleted={onRemove}
+        />
+      )}
 
       {commentsOpen && (
         <CommentSheet
@@ -350,6 +724,7 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
 /* ───────── 피드 전체 ───────── */
 export default function ShortsFeed() {
   const { user } = useAuth();
+  const location = useLocation();
   const [muted, setMuted] = useState(true); // 모바일 자동재생은 muted 필수
   const [shorts, setShorts] = useState(null); // null = 아직 불러오는 중
   const [error, setError] = useState("");
@@ -440,14 +815,80 @@ export default function ShortsFeed() {
     };
   }, [flushEvents]);
 
+  /*
+   * 업로드 화면이 실어 보낸 "방금 올린 영상" (ShortsUploadPage의 navigate state).
+   *
+   * 피드는 내 영상을 빼고 보여주므로 이것이 없으면 올린 결과를 한 번도 못 본다.
+   * 목록 맨 앞에 한 번 끼워 넣기 위한 값이다.
+   *
+   * ref로 붙잡아 두는 이유: 아래에서 히스토리 state를 즉시 비우기 때문에 location.state를
+   * 그대로 참조하면 값이 사라진다. 첫 렌더에 읽은 값만 쓰면 되므로 ref가 맞다.
+   */
+  const justUploadedRef = useRef(location.state?.justUploaded ?? null);
+
+  /*
+   * 히스토리에서 그 값을 지운다 — "한 번만" 보이게 하기 위한 것이다.
+   *
+   * navigate state는 히스토리 항목에 저장되어 새로고침해도 되살아난다. 지우지 않으면
+   * 며칠 뒤 같은 탭을 새로고침할 때 예전에 올린 영상이 맨 앞에 다시 뜬다.
+   * 이미 ref에 담아뒀으므로 이번 화면에서는 정상적으로 보인다.
+   */
   useEffect(() => {
-    // 첫 페이지. 목록은 이미 점수 순으로 정렬돼 있어 그대로 그리면 된다
-    getShortsFeed()
-      .then((feed) => {
-        setShorts(feed.items);
+    if (location.state?.justUploaded) {
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
+
+  /**
+   * 목록 맨 앞에 고정할 항목을 정한다. 없으면 null.
+   *
+   * 두 경로가 같은 자리를 쓴다 — ① 방금 올린 영상, ② 공유 링크(`/shorts?v=123`)로 들어온 영상.
+   * 둘 다 "피드 순위와 무관하게 이 영상을 보여줘야 한다"는 같은 요구라서 한 갈래로 합쳤다.
+   *
+   * location.search가 아니라 window.location.search를 읽는 이유: 이 effect는 처음 한 번만
+   * 돌아야 하는데(deps []) location을 참조하면 반응형 의존성이 되어 규칙이 어긋난다.
+   */
+  const loadPinned = async () => {
+    if (justUploadedRef.current) return justUploadedRef.current;
+
+    const raw = new URLSearchParams(window.location.search).get("v");
+    const sharedId = Number(raw);
+    if (!raw || !Number.isInteger(sharedId) || sharedId <= 0) return null;
+
+    // 삭제된 영상 링크를 받은 경우 등은 조용히 넘긴다 — 링크가 죽었다고 피드 전체를
+    // 에러 화면으로 바꾸면 할 수 있는 일이 없어진다. 아래로 스크롤하면 평소 피드가 나온다
+    return getShort(sharedId).catch(() => null);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const pinned = await loadPinned();
+      try {
+        // 첫 페이지. 목록은 이미 점수 순으로 정렬돼 있어 그대로 그리면 된다
+        const feed = await getShortsFeed();
+        if (cancelled) return;
+        // 서버가 내 영상을 빼주므로 업로드 직후 경로에서는 겹칠 일이 없지만, 공유 링크는
+        // 남의 영상일 수도 있어 실제로 겹친다 — 걸러내지 않으면 리액트 key가 중복돼 화면이 깨진다
+        setShorts(pinned ? [pinned, ...feed.items.filter((s) => s.id !== pinned.id)] : feed.items);
         setHasNext(feed.hasNext);
-      })
-      .catch((err) => setError(err.message));
+      } catch (err) {
+        if (cancelled) return;
+        /*
+         * 목록을 못 받아도 고정 항목은 보여준다. 업로드에 성공한 직후 에러 화면만 뜨면
+         * 업로드가 실패한 것처럼 읽히고(실제로는 저장까지 끝난 상태다), 공유 링크로 들어온
+         * 사람도 정작 보려던 영상을 못 본다.
+         */
+        if (pinned) setShorts([pinned]);
+        else setError(err.message);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -498,6 +939,15 @@ export default function ShortsFeed() {
   const updateShort = (id, patch) =>
     setShorts((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
 
+  /*
+   * 삭제된 영상을 목록에서 뺀다. 목록을 다시 불러오지 않는 이유는 updateShort와 같다 —
+   * 다시 받으면 보고 있던 위치와 재생이 함께 끊긴다.
+   *
+   * 마지막 한 장이었다면 목록이 비어 "아직 올라온 숏츠가 없습니다" 안내로 바뀐다.
+   * 그 화면에도 업로드 버튼이 있어 막다른 길은 아니다.
+   */
+  const removeShort = (id) => setShorts((prev) => prev.filter((s) => s.id !== id));
+
   // 상태 메시지도 같은 9:16 박스 안에 넣는다 — 로딩→목록으로 바뀔 때 화면 크기가 튀지 않게
   if (error || shorts === null || shorts.length === 0) {
     return (
@@ -528,6 +978,7 @@ export default function ShortsFeed() {
           onChange={updateShort}
           onEvent={handleEvent}
           onEnter={handleCardEnter}
+          onRemove={removeShort}
         />
       ))}
     </div>
