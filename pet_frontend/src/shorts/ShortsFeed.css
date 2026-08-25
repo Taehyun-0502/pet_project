@@ -202,8 +202,41 @@
   100% { opacity: 0; transform: scale(1.25); }
 }
 
-.sf-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 5; background: rgba(255,255,255,.2); }
-.sf-progress > i { display: block; height: 100%; width: 0%; background: #fff; }
+/*
+ * 진행 막대. 누르거나 끌면 그 시점부터 재생된다 (ShortsFeed.jsx의 onScrubDown).
+ *
+ * touch-action: none이 **필수다.** 피드가 scroll-snap-type: y mandatory라, 이게 없으면
+ * 막대 위에서 손가락을 움직이는 순간 브라우저가 그 제스처를 세로 스크롤로 가로채
+ * 시점을 옮기는 대신 다음 영상으로 넘어가 버린다.
+ */
+.sf-progress {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 3px; z-index: 5;
+  background: rgba(255,255,255,.2);
+  touch-action: none;
+  cursor: pointer;
+  /* 잡았을 때 굵어지는 것만 부드럽게. width(진행)는 매 프레임 바뀌므로 절대 넣지 않는다 */
+  transition: height .12s ease;
+}
+/*
+ * 누를 수 있는 높이를 위로 넓힌다. 3px은 손가락으로 잡을 수 없는데, 보이는 굵기를 키우면
+ * 영상을 가린다 — 배경 없는 영역만 위에 얹어 화면은 그대로 두고 잡을 곳만 넓힌다.
+ * 카드가 overflow:hidden이지만 위로 늘리는 것이라 잘리지 않는다.
+ */
+.sf-progress::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; top: -14px;
+}
+.sf-progress > i { display: block; height: 100%; width: 0%; background: #fff; position: relative; }
+
+/* 잡고 있는 동안 — 굵게 + 끝에 손잡이. 지금 만지는 중이라는 표시가 없으면 반응이 없어 보인다 */
+.sf-progress.is-scrubbing { height: 6px; }
+.sf-progress.is-scrubbing > i::after {
+  content: "";
+  position: absolute; right: -6px; top: 50%;
+  width: 12px; height: 12px; margin-top: -6px;
+  border-radius: 50%; background: #fff;
+  box-shadow: 0 0 4px rgba(0,0,0,.4);
+}
 
 /* 좋아요 실패 등 동작 오류. 영상 위에는 표시할 자리가 없어 액션 버튼 아래에 짧게 띄운다 */
 .sf-action-error {
