@@ -25,6 +25,7 @@ const AiSearchPage = lazy(() => import('./pages/aisearch/AiSearchPage'))
 const WalkPage = lazy(() => import('./pages/walk/WalkPage'))
 const ShortsFeed = lazy(() => import('./shorts/ShortsFeed'))
 const ShortsUploadPage = lazy(() => import('./shorts/ShortsUploadPage'))
+const ShortsCreateFlow = lazy(() => import('./shorts/create/ShortsCreateFlow'))
 const SkinDiagnosisPage = lazy(() => import('./skin/SkinDiagnosisPage'))
 const HybridDiagnosisPage = lazy(() => import('./hybrid/HybridDiagnosisPage'))
 
@@ -61,6 +62,10 @@ function App() {
           <Route path="/chat" element={<ChatRoomListPage />} />
           <Route path="/chat/new" element={<ChatRoomCreatePage />} />
           <Route path="/chat/rooms/:roomId" element={<ChatRoomPage />} />
+          {/* 숏츠 만들기 — 4페이지 풀스크린 플로우 (숏츠_제작_플로우_구조_가이드.md).
+              피드의 (+)가 여기로 온다. 아래 /shorts/new(기존 한 화면 업로드 폼)는 플로우가
+              전 단계 완성될 때까지 되돌아갈 곳으로 남겨둔다 — 지우는 것은 그 뒤다 */}
+          <Route path="/shorts/create" element={<ShortsCreateFlow />} />
           <Route path="/shorts/new" element={<ShortsUploadPage />} />
           {/* 지도 + AI 장소 추천 (루트 CLAUDE.md 지도 Phase). 주의: 이 라우트 계열은 병합 시
               유실이 반복돼 왔다 — /map 두 차례(035375f, 0c5ea7e), /aisearch 한 차례
