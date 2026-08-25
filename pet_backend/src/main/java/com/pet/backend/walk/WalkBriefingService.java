@@ -3,6 +3,7 @@ package com.pet.backend.walk;
 import com.pet.backend.common.BusinessException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -78,6 +79,20 @@ public class WalkBriefingService {
 
         log.info("산책 브리핑 저장 완료 — event={}, notify={}, gapDays={}",
                 judgement.event().code(), judgement.shouldNotify(), gapDays);
+    }
+
+    /**
+     * 오늘(KST) 최신 판정 1건 조회 — MCP 도구 ④(mcp 패키지)가 사용한다. 새 판정 로직은
+     * 만들지 않고, 이미 저장된 값을 {@link WalkBriefingSummary}로 그대로 옮겨 담는다.
+     * 오늘 행이 없으면(스케줄러 미실행 등) 빈 Optional을 반환한다.
+     */
+    @Transactional(readOnly = true)
+    public Optional<WalkBriefingSummary> getTodaysBriefing() {
+        Instant now = Instant.now();
+        Instant startOfDay = LocalDate.now(KST).atStartOfDay(KST).toInstant();
+        return walkBriefingRepository
+                .findFirstByCheckedAtBetweenOrderByCheckedAtDesc(startOfDay, now)
+                .map(WalkBriefingSummary::from);
     }
 
     // 게이트 우선순위(기획 확정): hot이 gap_good보다 우선한다 — 둘 다 조건을 만족해도 hot만 기록.

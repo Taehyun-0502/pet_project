@@ -63,6 +63,17 @@ async function main() {
     return { ok: true, found: false, reason: "오늘 판정 행 없음 — 자바 스케줄 미실행(백엔드 미가동) 또는 날씨 조회 실패" };
   }
 
+  // MCP Desktop 등록 여부 (읽기 전용) — 미등록이면 브리지가 알림 하단에 등록 안내
+  // 배너를 붙이고, 등록되면 자동으로 배너가 사라진다 (2026-08-24 사용자 요청).
+  let mcpDesktopRegistered = false;
+  try {
+    const cfg = JSON.parse(readFileSync(
+      join(process.env.HOME, "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+      "utf8"
+    ));
+    mcpDesktopRegistered = Boolean(cfg?.mcpServers?.["pet-care"]);
+  } catch { /* 파일 없음/파싱 실패 = 미등록 취급 */ }
+
   const b = rows[0];
   let petName = null;
   if (b.pet_id != null) {
@@ -89,6 +100,7 @@ async function main() {
       checkedAt: b.checked_at,
     },
     link: WALK_LINK,
+    mcpDesktopRegistered,
   };
 }
 

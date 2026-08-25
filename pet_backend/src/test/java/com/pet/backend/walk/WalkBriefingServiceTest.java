@@ -222,4 +222,39 @@ class WalkBriefingServiceTest {
         assertThat(saved.getEvent()).isEqualTo(WalkBriefingEvent.HOT);
         assertThat(saved.isNotify()).isTrue();
     }
+
+    // 오늘 산책 브리핑 조회(getTodaysBriefing()) — MCP 도구 ④(mcp 패키지)가 사용하는 경로.
+    // 새 판정 로직은 없고 저장된 값을 WalkBriefingSummary로 옮겨 담기만 하므로, 매핑이
+    // 정확한지와 "오늘 행 없음"일 때 빈 Optional을 돌려주는지만 검증한다.
+    @Test
+    void 오늘_판정이_있으면_요약으로_변환해_반환한다() {
+        setUp();
+        Instant checkedAt = Instant.now();
+        WalkBriefing briefing = WalkBriefing.judged(checkedAt, SEOUL_LAT, SEOUL_LNG, 32.0, 1.5, 60.0, 500.0,
+                40.3, RiskLevel.DANGER, false, 3, 7L, WalkBriefingEvent.HOT, true, "테스트 사유");
+        when(walkBriefingRepository.findFirstByCheckedAtBetweenOrderByCheckedAtDesc(any(), any()))
+                .thenReturn(Optional.of(briefing));
+
+        Optional<WalkBriefingSummary> summary = walkBriefingService.getTodaysBriefing();
+
+        assertThat(summary).isPresent();
+        WalkBriefingSummary value = summary.get();
+        assertThat(value.eventCode()).isEqualTo("hot");
+        assertThat(value.shouldNotify()).isTrue();
+        assertThat(value.reason()).isEqualTo("테스트 사유");
+        assertThat(value.riskLevel()).isEqualTo(RiskLevel.DANGER);
+        assertThat(value.asphaltTemp()).isEqualTo(40.3);
+        assertThat(value.gapDays()).isEqualTo(3);
+        assertThat(value.petId()).isEqualTo(7L);
+        assertThat(value.checkedAt()).isEqualTo(checkedAt);
+    }
+
+    @Test
+    void 오늘_판정이_없으면_빈_값을_반환한다() {
+        setUp();
+        when(walkBriefingRepository.findFirstByCheckedAtBetweenOrderByCheckedAtDesc(any(), any()))
+                .thenReturn(Optional.empty());
+
+        assertThat(walkBriefingService.getTodaysBriefing()).isEmpty();
+    }
 }

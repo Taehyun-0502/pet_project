@@ -1,0 +1,26 @@
+{
+  "manifest_version": "0.3",
+  "name": "pet-care",
+  "display_name": "Pet Care",
+  "version": "1.0.0",
+  "description": "반려견 산책 날씨·질병예측·주변 장소를 Claude Desktop에서 바로 조회하는 Pet Care 서비스 MCP 서버",
+  "long_description": "Pet Care 백엔드(Spring Boot)의 기존 서비스(질병예측 조회·장소 검색·산책 날씨·오늘의 산책 브리핑)를 그대로 감싼 도구 4종을 stdio로 노출합니다. 판정·검색 로직을 새로 만들지 않고 기존 REST API 서비스에 위임하며, 답변은 전부 자연어 한국어 문장이고 관련 페이지 링크(지도/산책 화면)를 함께 안내합니다.",
+  "author": {
+    "name": "Pet Care Team"
+  },
+  "server": {
+    "type": "binary",
+    "entry_point": "pet_backend/mcp-server.sh",
+    "mcp_config": {
+      "command": "/Users/guyeongju/team/pet_project/pet_backend/mcp-server.sh",
+      "args": []
+    }
+  },
+  "keywords": [
+    "pet",
+    "dog",
+    "walk",
+    "health",
+    "kakao-map"
+  ]
+}

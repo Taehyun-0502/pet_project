@@ -1,0 +1,28 @@
+# Pet Care — dddang.duckdns.org 리버스 프록시 (2026-08-24, 루트 CLAUDE.md "HTTPS 배포" 참고)
+#
+# 단일 오리진 구성: 프론트 정적 파일 + /api·/ws만 백엔드(8080)로 전달.
+# TLS 인증서는 Caddy가 Let's Encrypt로 자동 발급·갱신한다 (EC2 보안그룹에 80/443 개방 필수 —
+# 80은 인증서 발급(HTTP-01)에 쓰이므로 닫으면 안 된다. 8080은 외부 개방 금지: 프록시 내부 전용).
+#
+# 배치 위치: EC2의 /etc/caddy/Caddyfile
+
+dddang.duckdns.org {
+	encode zstd gzip
+
+	# 백엔드 API (Spring Boot :8080)
+	handle /api/* {
+		reverse_proxy localhost:8080
+	}
+
+	# 채팅 STOMP WebSocket — 프론트가 BACKEND_URL 기반으로 wss://…/ws 로 접속 (chatSocket.js)
+	handle /ws {
+		reverse_proxy localhost:8080
+	}
+
+	# 프론트 정적 빌드 (Vite dist) — SPA 라우팅은 index.html 폴백
+	handle {
+		root * /opt/petcare/front
+		try_files {path} /index.html
+		file_server
+	}
+}
