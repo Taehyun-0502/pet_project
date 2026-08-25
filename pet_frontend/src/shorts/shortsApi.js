@@ -66,6 +66,28 @@ export function getShortsFeed({ limit, excludeIds } = {}) {
 }
 
 /**
+ * 영상 한 건 조회. 공유 링크(`/shorts?v=123`)로 들어온 경우에 쓴다.
+ * 피드와 같이 공개 조회라 비로그인도 볼 수 있고, 그 경우 likedByMe는 false다.
+ * 삭제됐거나 없는 영상이면 404 SHORTS_NOT_FOUND.
+ */
+export function getShort(shortId) {
+  return request(`/api/shorts/${shortId}`)
+}
+
+/**
+ * 영상 삭제. 인증 필요하고 **올린 사람만** 지울 수 있다.
+ *
+ * 소프트 삭제라 좋아요·댓글·시청 이력은 DB에 남는다(그 테이블들이 이 영상을 참조하므로
+ * 물리 삭제하면 FK 위반이 난다). 영상 파일도 Storage에 남는다.
+ *
+ * 남의 영상을 지우려 하면 403이 아니라 **404**가 온다 — 403은 "그 영상은 있는데 네 것이 아니다"를
+ * 알려주는 셈이라 id를 훑어 남의 영상 존재를 알아낼 수 있다.
+ */
+export function deleteShorts(shortId) {
+  return request(`/api/shorts/${shortId}`, { method: 'DELETE' })
+}
+
+/**
  * 영상 파일을 백엔드에 보내고 저장된 공개 URL을 받는다. 인증 필요.
  *
  * 프론트에서 Storage로 직접 올리지 않는 이유: 그러려면 Storage 쓰기 키가 프론트에 있어야 하고,
@@ -78,6 +100,24 @@ export function uploadVideoFile(file) {
   const form = new FormData()
   form.append('file', file)
   return postFormData('/api/shorts/video', form)
+}
+
+/**
+ * 커버(썸네일) 이미지를 올리고 저장된 공개 URL을 받는다. 인증 필요.
+ *
+ * 브라우저가 canvas로 구운 720×1280 jpeg를 보낸다(bakeThumbnail.js). 영상과 엔드포인트를
+ * 나눈 이유는 허용 형식·크기 상한이 전혀 다르기 때문이다(jpeg 2MB vs 영상 50MB).
+ *
+ * **실패해도 발행을 막지 않는다.** 커버가 없으면 피드가 영상 첫 프레임을 쓰므로,
+ * 호출한 쪽이 오류를 삼키고 thumbnailUrl 없이 등록하면 된다.
+ *
+ * 성공 시 { thumbnailUrl }
+ */
+export function uploadThumbnailFile(blob) {
+  const form = new FormData()
+  // 파일 이름을 주지 않으면 브라우저가 "blob"으로 보내 서버 로그에서 구분이 안 된다
+  form.append('file', blob, 'cover.jpg')
+  return postFormData('/api/shorts/thumbnail', form)
 }
 
 /**
@@ -95,11 +135,45 @@ export function uploadVideoFile(file) {
  * 합쳐 넣는다** — 품종 문자열을 프론트가 직접 topics에 넣지 않는다. topics는 고정 목록 13종만
  * 허용이라 품종을 넣으면 400이 되고, 무엇보다 남의 반려동물 품종을 사칭해 보낼 수 있다.
  * 서버가 소유자를 확인한 뒤 붙이는 이유다 (하나라도 내 것이 아니면 404 PET_NOT_FOUND).
+ *
+ * musicKey는 배경음악이고 **선택 사항**이다(null이면 곡 없이 올린다). 값은 musicCatalog.js의
+ * 66곡 중 하나의 key여야 하며, 서버가 `ShortsMusicKeys`로 최종 검증한다 — 임의 값이면 400이다.
+ * URL이 아니라 key를 보내는 이유: URL을 받으면 클라이언트가 외부 주소를 넣을 수 있어
+ * "저작권 없는 음원만 쓴다"는 전제가 무너진다.
+ *
+ * muteOriginal은 **영상 원본 소리를 끌지**다. 화면은 세 모드(영상 소리 그대로 / 음소거 /
+ * 배경음악)로 고르게 하고 여기서 두 값으로 풀어 보낸다 — 배경음악을 고르면 원본은 자동으로
+ * 꺼진다(muteOriginal=true). 보내지 않으면 서버가 false(원본 유지)로 본다.
+ *
+ * musicStartSec은 곡의 어느 지점부터 쓸지(초)다. 구간 길이는 영상 길이와 같아 따로 보내지 않는다.
+ *
+ * trimStartSec·trimEndSec은 **재생 구간**(초)이다. 영상 파일은 잘려 있지 않고 원본 그대로 올라가며,
+ * 재생 쪽이 이 구간만 반복한다 (가이드 4절 방법 A — 음악 트리밍과 같은 방식). trimEndSec을
+ * 보내지 않으면 원본 끝까지다. durationSec은 이 구간의 길이와 맞아야 한다.
+ *
+ * crop은 9:16 프레임 안 위치이며 `{ scale, offsetX, offsetY }`다. null이면 기본(가운데 cover)이고
+ * 지금까지의 표시와 같다. offset은 픽셀이 아니라 **프레임 크기 기준 비율**이다 — 계산과 표시
+ * 규칙은 cropFrame.js 한 곳에 있고 편집기와 피드가 그것을 함께 쓴다.
+ *
+ * overlayTexts는 **영상 화면 위에 얹는 글자들**이고 caption(영상 아래 설명)과 다른 값이다.
+ * `[{ text, top, left }, ...]` 형태이며 최대 5개다(서버가 @Size로 막는다).
+ * top/left는 0~100(%)이고 글자 블록의 **중심** 좌표다 — 픽셀로 보내면 보는 기기의 프레임
+ * 크기가 달라 폰에서 맞춘 위치가 데스크톱에서 엉뚱한 곳에 뜬다.
  */
-export function createShorts({ petIds, videoUrl, thumbnailUrl, caption, topics, durationSec }) {
+export function createShorts({
+  petIds, videoUrl, thumbnailUrl, caption, topics, durationSec,
+  musicKey, muteOriginal, musicStartSec, overlayTexts,
+  trimStartSec, trimEndSec, crop, musicVolume, videoVolume,
+  thumbnailTimeSec, thumbnailTextOverlays,
+}) {
   return request('/api/shorts', {
     method: 'POST',
-    body: { petIds, videoUrl, thumbnailUrl, caption, topics, durationSec },
+    body: {
+      petIds, videoUrl, thumbnailUrl, caption, topics, durationSec,
+      musicKey, muteOriginal, musicStartSec, overlayTexts,
+      trimStartSec, trimEndSec, crop, musicVolume, videoVolume,
+      thumbnailTimeSec, thumbnailTextOverlays,
+    },
   })
 }
 

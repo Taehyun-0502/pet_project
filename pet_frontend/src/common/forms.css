@@ -5,7 +5,20 @@
 
 /* 폼 페이지 공용 레이아웃 (로그인·가입·마이페이지·pet 등록/수정·숏츠 업로드) */
 .auth-page {
-  max-width: 400px;
+  /*
+   * min(400px, 100%) + border-box는 폰 프레임을 뚫지 못하게 하는 안전장치다.
+   *
+   * .auth-page는 #root(flex column)의 항목이라 보통 컬럼 폭(360px)으로 늘어나지만, 안에
+   * 줄일 수 없는 내용(nowrap 긴 글자 등)이 있으면 브라우저가 그 min-content 폭까지 항목을
+   * 넓히고 max-width에서야 멈춘다. 400px가 content-box면 패딩 32px이 더해져 432px이 되어
+   * 컬럼(360px) 밖으로 나가고, 그러면 폼 안의 영상·버튼까지 전부 가로로 늘어난다
+   * (숏츠 업로드에서 긴 곡 제목으로 실제로 발생 — 원인은 shortsUpload.css에서 따로 고쳤다).
+   *
+   * 넘침의 근본 원인은 그때그때 고치되, 여기서 폭을 한 번 더 잠가 화면 전체가 무너지는 것까지
+   * 가지 않게 한다. 100%가 400px보다 작을 때만 값이 바뀌므로 정상 화면에는 영향이 없다.
+   */
+  box-sizing: border-box;
+  max-width: min(400px, 100%);
   margin: 60px auto;
   padding: 0 16px;
 }

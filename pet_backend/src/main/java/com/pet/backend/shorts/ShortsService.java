@@ -10,9 +10,11 @@ import com.pet.backend.pet.PetErrorCode;
 import com.pet.backend.pet.PetRepository;
 import java.io.IOException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,11 +38,33 @@ public class ShortsService {
     // 제외 목록이 무한정 자라지 않게 하는 상한 (MAX_LIMIT 기준 10페이지분)
     private static final int MAX_EXCLUDE_IDS = 300;
 
-    // 영상 파일 규칙. 프론트에서도 검사하지만 그건 우회 가능하므로 최종 차단은 여기다
-    private static final String VIDEO_MIME = "video/mp4";
+    /*
+     * 영상 파일 규칙. 프론트에서도 검사하지만 그건 우회 가능하므로 최종 차단은 여기다.
+     *
+     * mp4 하나였다가 webm을 더했다 — 제작 플로우의 카메라 녹화(MediaRecorder) 때문이다.
+     * 크롬 계열은 webm(VP8/VP9)만 뱉고 mp4를 지원하지 않는 버전이 많다. 사파리/iOS는 mp4를
+     * 주므로, 둘 다 받지 않으면 어느 한쪽에서는 녹화 기능 자체가 성립하지 않는다.
+     *
+     * ⚠️ Supabase 버킷에 allowed_mime_types 제한이 걸려 있으면 여기서 통과해도 Storage가 거절한다.
+     * 버킷 설정에 video/webm이 함께 있어야 한다.
+     */
+    private static final String MIME_MP4 = "video/mp4";
+    private static final String MIME_WEBM = "video/webm";
     private static final long MAX_VIDEO_BYTES = 50L * 1024 * 1024;
+
+    /*
+     * 커버 이미지. 브라우저가 canvas로 구워 보내는 720x1280 jpeg라 형식을 하나로 고정한다 —
+     * 사용자가 고른 파일이 아니라 우리가 만든 파일이므로 여러 형식을 받을 이유가 없다.
+     * 2MB면 그 크기의 고화질 jpeg에 충분하고, 넘으면 뭔가 잘못 만든 것이다.
+     */
+    private static final String MIME_JPEG = "image/jpeg";
+    private static final long MAX_THUMBNAIL_BYTES = 2L * 1024 * 1024;
+    // jpeg는 파일 맨 앞이 SOI 마커 0xFFD8이고 그 뒤에 마커가 이어진다(0xFF)
+    private static final byte[] JPEG_SOI = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
     // mp4(ISO BMFF)는 파일 시작 부분 5~8번째 바이트가 'ftyp'이다
     private static final byte[] MP4_FTYP = {'f', 't', 'y', 'p'};
+    // webm(Matroska)은 파일 맨 앞 4바이트가 EBML 헤더 0x1A45DFA3이다
+    private static final byte[] WEBM_EBML = {(byte) 0x1A, 0x45, (byte) 0xDF, (byte) 0xA3};
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -50,6 +74,48 @@ public class ShortsService {
     private final PetRepository petRepository; // 업로드할 때 고른 반려동물의 소유자 확인 + 품종 자동 태그
     private final ShortsStorageClient storageClient;
     private final ShortsEventService eventService;
+
+    /**
+     * 영상 한 건 조회. 공유 링크({@code /shorts?v=123})로 들어온 사람이 그 영상을 보게 하려고 있다.
+     *
+     * <p>피드와 같은 <b>공개 조회</b>다 — 링크를 받은 사람이 로그인해야 볼 수 있으면 공유가
+     * 의미를 잃는다. 비로그인이면 viewerId가 null이고 likedByMe는 false가 된다.
+     *
+     * <p>랭킹·개인화를 거치지 않는다. "내가 올린 영상은 피드에서 제외"라는 규칙도 여기서는
+     * 적용하지 않는다 — 자기 영상 링크를 열었을 때 못 보는 것이 오히려 이상하다.
+     *
+     * @param shortId 없거나 삭제된 영상이면 404
+     */
+    public ShortsResponse getOne(Long viewerId, Long shortId) {
+        // findAllByIds를 재사용한다 — 회원 이름 조인과 필드 구성이 피드와 완전히 같아야 하고,
+        // 같은 응답을 만드는 쿼리를 두 벌 두면 한쪽만 고치는 사고가 난다.
+        // 탈퇴 회원의 영상은 이 쿼리가 걸러내므로 빈 목록이 되어 404가 된다
+        List<ShortsResponse> found = shortsRepository.findAllByIds(List.of(shortId));
+        if (found.isEmpty()) {
+            throw new BusinessException(ShortsErrorCode.NOT_FOUND);
+        }
+        return fillLikedByMe(found, viewerId).get(0);
+    }
+
+    /**
+     * 영상 삭제. 올린 사람만 지울 수 있다.
+     *
+     * <p>물리 삭제가 아니라 {@code deleted_at}을 채운다 — 좋아요·댓글·이력이 이 행을 참조하므로
+     * 지우면 FK 위반이 난다 (Shorts.softDelete 주석 참고).
+     *
+     * <p>남의 영상이면 <b>404를 준다</b>(403이 아니다). 403은 "그 영상은 있는데 네 것이 아니다"를
+     * 알려주는 셈이라, id를 훑어 남의 영상 존재 여부를 알아낼 수 있다. 반려동물 조회에서
+     * 존재 여부를 숨기는 것과 같은 규칙이다.
+     */
+    @Transactional
+    public void delete(Long memberId, Long shortId) {
+        Shorts shorts = shortsRepository.findByIdAndDeletedAtIsNull(shortId)
+                .filter(found -> found.getMemberId().equals(memberId))
+                .orElseThrow(() -> new BusinessException(ShortsErrorCode.NOT_FOUND));
+
+        shorts.softDelete(Instant.now());
+        // 더티 체킹으로 UPDATE가 나가므로 save 호출이 필요 없다 (트랜잭션 커밋 시 flush)
+    }
 
     /**
      * 영상 좋아요 토글. 이미 눌렀으면 취소한다 (shorts_guide_1.md 4절).
@@ -99,8 +165,14 @@ public class ShortsService {
             throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
                     "영상은 %dMB 이하만 올릴 수 있습니다.".formatted(MAX_VIDEO_BYTES / 1024 / 1024));
         }
-        if (!VIDEO_MIME.equals(file.getContentType())) {
-            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "mp4 영상만 올릴 수 있습니다.");
+        /*
+         * 녹화본의 Content-Type에는 코덱 파라미터가 붙어 온다(video/webm;codecs=vp9,opus).
+         * 정확히 일치시키면 브라우저·버전마다 다른 그 꼬리표 때문에 멀쩡한 녹화가 튕긴다.
+         */
+        String declared = baseMime(file.getContentType());
+        if (!MIME_MP4.equals(declared) && !MIME_WEBM.equals(declared)) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
+                    "mp4 또는 webm 영상만 올릴 수 있습니다.");
         }
 
         byte[] bytes;
@@ -109,14 +181,56 @@ public class ShortsService {
         } catch (IOException e) {
             throw new BusinessException(ShortsErrorCode.UPLOAD_FAILED, "영상 파일을 읽을 수 없습니다.");
         }
-        // Content-Type은 클라이언트가 보낸 값이라 위조할 수 있다. 내용으로 한 번 더 확인한다
-        if (!isMp4(bytes)) {
+
+        /*
+         * Content-Type은 클라이언트가 보낸 값이라 위조할 수 있다. 내용으로 한 번 더 확인하고,
+         * **선언한 형식과 같은지까지** 본다. 내용만 보면 mp4를 webm이라 우겨 올릴 수 있고,
+         * 그러면 .webm 확장자에 mp4 내용인 파일이 Storage에 남아 재생이 깨진다.
+         */
+        String actual = sniffVideoMime(bytes);
+        if (actual == null || !actual.equals(declared)) {
             throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
-                    "mp4 영상이 아닙니다. 확장자만 바꾼 파일은 올릴 수 없습니다.");
+                    "mp4 또는 webm 영상이 아닙니다. 확장자만 바꾼 파일은 올릴 수 없습니다.");
         }
 
-        String path = "%d/%d-%s.mp4".formatted(memberId, System.currentTimeMillis(), randomSuffix());
-        return new ShortsVideoResponse(storageClient.upload(path, bytes, VIDEO_MIME));
+        String extension = MIME_MP4.equals(actual) ? "mp4" : "webm";
+        String path = "%d/%d-%s.%s"
+                .formatted(memberId, System.currentTimeMillis(), randomSuffix(), extension);
+        return new ShortsVideoResponse(storageClient.upload(path, bytes, actual));
+    }
+
+    /**
+     * 커버(썸네일) 이미지를 Storage에 올리고 공개 URL을 돌려준다.
+     *
+     * <p>영상과 나눈 이유는 컨트롤러 주석 참고 — 허용 형식과 크기 상한이 전혀 다르다.
+     * 트랜잭션을 걸지 않는 것도 {@link #uploadVideo}와 같다(DB를 건드리지 않는다).
+     */
+    public ShortsThumbnailResponse uploadThumbnail(Long memberId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "올릴 커버 이미지가 없습니다.");
+        }
+        if (file.getSize() > MAX_THUMBNAIL_BYTES) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
+                    "커버 이미지는 %dMB 이하만 올릴 수 있습니다.".formatted(MAX_THUMBNAIL_BYTES / 1024 / 1024));
+        }
+        if (!MIME_JPEG.equals(baseMime(file.getContentType()))) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "커버 이미지는 jpeg만 올릴 수 있습니다.");
+        }
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new BusinessException(ShortsErrorCode.UPLOAD_FAILED, "커버 이미지를 읽을 수 없습니다.");
+        }
+        // Content-Type은 클라이언트가 보낸 값이라 위조할 수 있다 — 내용으로 한 번 더 확인한다
+        if (!startsWith(bytes, JPEG_SOI, 0)) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "jpeg 이미지가 아닙니다.");
+        }
+
+        String path = "%d/thumb-%d-%s.jpg"
+                .formatted(memberId, System.currentTimeMillis(), randomSuffix());
+        return new ShortsThumbnailResponse(storageClient.upload(path, bytes, MIME_JPEG));
     }
 
     /**
@@ -136,7 +250,13 @@ public class ShortsService {
 
         Shorts shorts = Shorts.upload(memberId, request.videoUrl().trim(),
                 blankToNull(request.thumbnailUrl()), blankToNull(request.caption()),
-                toTags(request.topics(), pets), request.durationSec());
+                toTags(request.topics(), pets), request.durationSec(),
+                validMusicKey(request.musicKey()), request.muteOriginalOrDefault(),
+                request.musicStartSecOrDefault(),
+                request.overlayTextsOrEmpty(),
+                request.trimStartSecOrDefault(), request.trimEndSec(), request.crop(),
+                request.musicVolumeOrDefault(), request.videoVolumeOrDefault(),
+                request.thumbnailTimeSecOrDefault(), request.thumbnailTextOverlaysOrEmpty());
         shortsRepository.save(shorts);
 
         return ShortsResponse.of(shorts, member.getName());
@@ -315,6 +435,29 @@ public class ShortsService {
         return merged.isEmpty() ? null : merged;
     }
 
+    /**
+     * 배경음악 키를 검증한다. 고르지 않았으면(null·빈 문자열) null을 돌려준다.
+     *
+     * <p>목록을 닫아두는 이유는 {@code topics}와 같지만 이유가 하나 더 있다 — 이 기능의 목적이
+     * <b>저작권 없는 음원만 쓰게 하는 것</b>이라서다. 임의 키(나아가 URL)를 허용하면
+     * 통제가 무너지고, 업로드 화면의 저작권 고지도 의미가 없어진다.
+     *
+     * <p>허용 목록을 메시지에 담지 않는다 — 66개를 늘어놓으면 오히려 읽히지 않는다.
+     * 애초에 사용자가 손으로 넣는 값이 아니라 화면이 카탈로그에서 골라 보내는 값이라,
+     * 여기에 걸리는 것은 카탈로그와 서버 목록이 어긋난 <b>개발 실수</b>다.
+     */
+    private String validMusicKey(String musicKey) {
+        String key = blankToNull(musicKey);
+        if (key == null) {
+            return null;
+        }
+        if (!ShortsMusicKeys.ALL.contains(key)) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
+                    "알 수 없는 음원입니다. 목록에서 다시 골라주세요.");
+        }
+        return key;
+    }
+
     private List<String> toTopicLabels(List<String> topics) {
         if (topics == null) {
             return List.of();
@@ -334,13 +477,44 @@ public class ShortsService {
         return labels;
     }
 
-    // mp4(ISO BMFF) 여부: [0..3]은 박스 크기, [4..7]이 'ftyp'이어야 한다
-    private boolean isMp4(byte[] bytes) {
+    /**
+     * 파라미터를 떼어낸 기본 MIME 타입. {@code video/webm;codecs=vp9,opus} → {@code video/webm}.
+     * 값이 없으면 null을 돌려주고, 호출부가 허용 목록에 없는 것으로 처리한다.
+     */
+    private String baseMime(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return null;
+        }
+        int semicolon = contentType.indexOf(';');
+        String base = (semicolon < 0) ? contentType : contentType.substring(0, semicolon);
+        return base.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 파일 내용으로 형식을 판별한다. 허용 목록 밖이면 null.
+     *
+     * <p>mp4(ISO BMFF)는 [0..3]이 박스 크기이고 [4..7]이 {@code 'ftyp'},
+     * webm(Matroska)은 [0..3]이 EBML 헤더 {@code 0x1A45DFA3}이다.
+     */
+    private String sniffVideoMime(byte[] bytes) {
         if (bytes.length < 12) {
+            return null;
+        }
+        if (startsWith(bytes, WEBM_EBML, 0)) {
+            return MIME_WEBM;
+        }
+        if (startsWith(bytes, MP4_FTYP, 4)) {
+            return MIME_MP4;
+        }
+        return null;
+    }
+
+    private boolean startsWith(byte[] bytes, byte[] signature, int offset) {
+        if (bytes.length < offset + signature.length) {
             return false;
         }
-        for (int i = 0; i < MP4_FTYP.length; i++) {
-            if (bytes[4 + i] != MP4_FTYP[i]) {
+        for (int i = 0; i < signature.length; i++) {
+            if (bytes[offset + i] != signature[i]) {
                 return false;
             }
         }

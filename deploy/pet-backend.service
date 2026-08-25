@@ -1,0 +1,39 @@
+; pet_project 백엔드 systemd 유닛 — EC2에 /etc/systemd/system/pet-backend.service 로 설치한다.
+; 설치·등록 절차는 docs/deploy-ec2.md 4절 참조.
+;
+; jar 실행을 systemd에 맡기는 이유: 재부팅 자동 시작·비정상 종료 시 재시작·journald 로그 수집을
+; 공짜로 얻는다(별도 프로세스 관리자나 docker 없이).
+
+[Unit]
+Description=pet_project backend (Spring Boot)
+; DNS·네트워크가 준비된 뒤 시작 — Supabase 연결이 첫 부팅에서 실패하지 않게
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/pet-backend
+
+; 비밀값은 jar 옆이 아니라 별도 경로에 둔다 (배포가 jar를 갈아치워도 그대로 남는다).
+; 형식은 KEY=VALUE 한 줄씩 — `export`나 따옴표를 붙이지 않는다(systemd가 값의 일부로 읽는다).
+; 권한은 600, 소유자는 root 권장 (docs/deploy-ec2.md 4절)
+EnvironmentFile=/etc/pet-backend/app.env
+
+; 서버 시간대 고정 (리뷰 백로그 61번) — 컨테이너·인스턴스 기본이 UTC면
+; 생년월일 "오늘" 검증이 KST 00:00~09:00 사이에 클라이언트와 어긋난다
+Environment=TZ=Asia/Seoul
+
+; 힙 상한 512m — 프리티어 t2/t3.micro는 RAM이 1GB이고 nginx와 함께 떠야 한다.
+; 상한을 두지 않으면 JVM이 컨테이너 밖 물리 메모리 기준으로 크게 잡아 OOM Killer에 죽는다
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar /opt/pet-backend/app.jar --spring.profiles.active=prod
+
+; Spring Boot가 SIGTERM에 143으로 종료하는 것을 정상으로 취급 (restart 루프 방지)
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

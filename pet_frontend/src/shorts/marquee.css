@@ -1,0 +1,66 @@
+/* MarqueeText 전용. 폭 계산과 사본 개수는 컴포넌트가 정하고 여기서는 그 결과만 그린다.
+   --mq-distance / --mq-gap / --mq-duration / --mq-delay는 컴포넌트가 인라인으로 넣는다 */
+
+/* 폭이 잘리는 창. 넘치는 글자는 여기서 잘려 화면 밖으로 나가지 않는다.
+   min-width:0이 있어야 flex 부모(.sf-music 등) 안에서 줄어든다 */
+.mq {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 사본들을 한 줄로 늘어놓는 띠. max-content라 사본이 줄지 않고 제 폭을 유지한다 */
+.mq-track {
+  display: flex;
+  width: max-content;
+}
+
+.mq-copy {
+  white-space: nowrap;
+}
+
+/* 넘치지 않을 때 — 애니메이션도 두 번째 사본도 없다. 트랙을 창 폭에 맞춰
+   혹시 남는 1~2px 넘침은 ellipsis로 처리한다 (흐르기에는 너무 짧은 양이다) */
+.mq:not(.mq-on) .mq-track {
+  width: 100%;
+}
+.mq:not(.mq-on) .mq-copy {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 넘칠 때 — 사본 폭 + 간격만큼 왼쪽으로 밀면 두 번째 사본이 첫 번째 자리에 와서
+   되돌아가는 순간이 보이지 않는다. linear가 아니면 이음매에서 속도가 튄다 */
+.mq-on .mq-track {
+  gap: var(--mq-gap);
+  animation: mq-roll var(--mq-duration) var(--mq-delay) linear infinite;
+}
+
+@keyframes mq-roll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--mq-distance)));
+  }
+}
+
+/* 움직임을 줄여달라고 한 사용자에게는 흐르지 않는다.
+   이때는 두 번째 사본을 감추고 ellipsis로 되돌려, 애니메이션이 멈춘 채 글자가 두 번
+   보이는 상태가 되지 않게 한다 */
+@media (prefers-reduced-motion: reduce) {
+  .mq-on .mq-track {
+    width: 100%;
+    gap: 0;
+    animation: none;
+  }
+  .mq-on .mq-copy {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mq-on .mq-copy + .mq-copy {
+    display: none;
+  }
+}

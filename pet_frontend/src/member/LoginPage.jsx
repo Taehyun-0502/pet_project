@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Field from '../common/Field'
 import Loading from '../common/Loading'
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user, restoring, login } = useAuth()
+  const [kakaoError, setKakaoError] = useState('') // 카카오 시작 실패 사유 (백로그 58·103번)
 
   // 회원가입 직후 넘어온 경우 이메일을 미리 채워준다
   const signupEmail = location.state?.signupEmail
@@ -56,10 +58,16 @@ export default function LoginPage() {
         <button type="submit" disabled={form.submitting}>
           {form.submitting ? '로그인 중…' : '로그인'}
         </button>
-        {/* 인가 페이지로 이동하므로 submit이 아니라 일반 버튼 — 폼 검증을 타면 안 된다 */}
-        <button type="button" className="kakao-login" onClick={startKakaoLogin}>
+        {/* 인가 페이지로 이동하므로 submit이 아니라 일반 버튼 — 폼 검증을 타면 안 된다.
+            실패 사유(키 미설정·난수 불가)를 문자열로 돌려주므로 화면에 띄운다 (백로그 58·103번) */}
+        <button
+          type="button"
+          className="kakao-login"
+          onClick={() => setKakaoError(startKakaoLogin() ?? '')}
+        >
           카카오로 시작하기
         </button>
+        {kakaoError && <p className="submit-error" role="alert">{kakaoError}</p>}
       </form>
       <p className="auth-switch">
         <Link to="/signup">계정이 없으신가요? 회원가입</Link>

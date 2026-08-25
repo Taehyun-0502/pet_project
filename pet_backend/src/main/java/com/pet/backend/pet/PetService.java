@@ -88,8 +88,10 @@ public class PetService {
         } catch (IOException e) {
             throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
-        // 확장자 없는 고정 경로 — 형식이 바뀌어도 같은 객체를 덮어써 고아 파일이 없다 (ImageStorageClient 주석)
-        String url = imageStorageClient.upload("pet-" + petId, bytes, file.getContentType());
+        // 확장자 없는 고정 경로 — 형식이 바뀌어도 같은 객체를 덮어써 고아 파일이 없다.
+        // 경로에 HMAC 접미사가 붙어 열거되지 않는다 (백로그 87번 — ImageStorageClient.profilePath 주석)
+        String url = imageStorageClient.upload(
+                imageStorageClient.profilePath("pet", petId), bytes, file.getContentType());
 
         // ?v=업로드시각 — 같은 URL 덮어쓰기의 브라우저 캐시를 무효화한다
         Pet pet = petProfileImageUpdater.apply(

@@ -1,0 +1,48 @@
+# dev·sub에 올라오는 코드가 **빌드는 되는지**만 빠르게 확인한다.
+#
+# 이 프로젝트에서 실제로 반복된 사고가 "머지 후 컴파일 실패 / 수정분 유실"이었다
+# (백로그 22번 핸들러 유실, /map 라우트 유실, 외부 도구가 파일을 되돌린 사례 2건).
+# 배포 전에 그것을 잡는 것이 이 워크플로의 목적이라 테스트보다 빌드가 먼저다.
+#
+# 테스트를 돌리지 않는 이유: PetBackendApplicationTests가 @SpringBootTest라 DB·JWT 시크릿이
+# 있어야 컨텍스트가 뜬다. CI에서 팀 공용 Supabase에 붙는 것은 부작용이 커서 보류했다 —
+# 순수 단위 테스트만 골라 돌리는 개선안은 docs/deploy-ec2.md "남은 항목" 참조.
+name: ci
+
+on:
+  push:
+    branches: [dev, sub]
+  pull_request:
+    branches: [dev, sub, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Compile backend
+        working-directory: pet_backend
+        run: |
+          chmod +x ./gradlew
+          ./gradlew clean bootJar -x test --no-daemon
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: pet_frontend/package-lock.json
+
+      # 배포와 같은 방식으로 빌드해 본다 — 값은 없어도 된다(빌드 자체가 목적).
+      # 미설정 값은 config.js·kakaoOAuth의 가드가 런타임에 안내하므로 빌드는 통과한다(백로그 58번)
+      - name: Build frontend
+        working-directory: pet_frontend
+        run: |
+          npm ci
+          npm run build
