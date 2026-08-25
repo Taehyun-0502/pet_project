@@ -228,9 +228,11 @@ public class ShortsService {
             throw new BusinessException(CommonErrorCode.VALIDATION_ERROR, "jpeg 이미지가 아닙니다.");
         }
 
+        // 영상과 **버킷이 다르다**(shorts-thumbnails) — 이유는 ShortsStorageClient 주석 참고.
+        // 버킷이 나뉘어 있으므로 thumb- 접두어는 사람이 로그에서 알아보기 위한 것뿐이다
         String path = "%d/thumb-%d-%s.jpg"
                 .formatted(memberId, System.currentTimeMillis(), randomSuffix());
-        return new ShortsThumbnailResponse(storageClient.upload(path, bytes, MIME_JPEG));
+        return new ShortsThumbnailResponse(storageClient.uploadThumbnail(path, bytes, MIME_JPEG));
     }
 
     /**

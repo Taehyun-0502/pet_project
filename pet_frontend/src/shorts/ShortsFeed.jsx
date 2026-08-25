@@ -482,6 +482,99 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   };
 
   /*
+   * 진행 막대 스크럽 — 누르거나 끌면 그 시점부터 재생된다 (유튜브 쇼츠와 같은 동작).
+   *
+   * 좌표 계산은 **잘린 구간** 기준이다. 막대가 원래 구간 비율로 차오르므로(onTimeUpdate),
+   * 되돌릴 때도 같은 기준을 써야 손가락 위치와 실제 시점이 맞는다 — 원본 길이로 계산하면
+   * 30초를 잘라낸 8분짜리 영상에서 막대 끝을 눌러도 구간 안 어딘가로 밖에 못 간다.
+   *
+   * 상태가 아니라 ref로 진행 여부를 판단하는 이유: pointermove가 setScrubbing(true)로 인한
+   * 리렌더보다 먼저 올 수 있어, 그때 state를 보면 첫 몇 프레임을 놓친다.
+   */
+  const progressRef = useRef(null);
+  const scrubbingRef = useRef(false);
+  const [scrubbing, setScrubbing] = useState(false);
+  // 끌기 전에 재생 중이었는지 — 놓았을 때 그 상태로 되돌린다. 정지 중에 만졌으면 정지를 유지한다
+  const wasPlayingRef = useRef(false);
+
+  /** 막대 위 x좌표 → 원본 기준 시각(초). 구간 길이를 모르면 null */
+  const scrubTimeAt = (clientX) => {
+    const v = videoRef.current;
+    const bar = progressRef.current;
+    if (v == null || bar == null) return null;
+
+    /*
+     * duration이 Infinity인 경우가 있다 — MediaRecorder가 만든 webm에는 길이가 안 적혀 있다
+     * (useCameraRecorder 주석 참고). trimEndSec이 있으면 그 값이 쓰이므로 보통은 걸리지 않지만,
+     * 둘 다 없으면 비율을 낼 수 없으므로 조용히 아무것도 하지 않는다
+     */
+    const end = trimEnd ?? v.duration;
+    if (!Number.isFinite(end)) return null;
+    const span = end - trimStart;
+    if (!(span > 0)) return null;
+
+    const rect = bar.getBoundingClientRect();
+    if (!(rect.width > 0)) return null;
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+
+    /*
+     * 끝에 정확히 붙이지 않는다. onTimeUpdate의 구간 반복 조건이 `>= end - TRIM_EPSILON`이라
+     * 딱 끝으로 옮기면 놓는 즉시 처음으로 튀어 "끝을 눌렀는데 되감겼다"가 된다.
+     * 그 여유보다 조금 앞에 세우면 막대는 끝까지 찬 것처럼 보이면서 반복은 정상적으로 돈다
+     */
+    return Math.min(trimStart + span * ratio, end - TRIM_EPSILON - 0.01);
+  };
+
+  const seekToClientX = (clientX) => {
+    const v = videoRef.current;
+    const t = scrubTimeAt(clientX);
+    if (v == null || t == null) return;
+
+    v.currentTime = t;
+
+    // 정지 중에는 timeupdate가 오지 않아 막대와 곡이 따라오지 않는다 — 여기서 직접 맞춘다
+    const end = trimEnd ?? v.duration;
+    const span = end - trimStart;
+    if (span > 0) setProgress(Math.min(100, Math.max(0, ((t - trimStart) / span) * 100)));
+    syncAudioPosition();
+  };
+
+  const onScrubDown = (e) => {
+    const v = videoRef.current;
+    if (v == null) return;
+    // 카드 전체의 탭(정지/재생)과 겹치지 않게 한다. click은 따로 올라가므로 그쪽도 막는다
+    e.stopPropagation();
+    // 손가락이 막대를 벗어나도 계속 따라오게 한다 — 없으면 조금만 위로 올려도 끌기가 끊긴다
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+
+    wasPlayingRef.current = !v.paused;
+    /*
+     * 끄는 동안은 멈춘다. 재생을 둔 채로 seek을 연달아 넣으면 브라우저가 앞선 seek을 취소하며
+     * 화면과 소리가 튄다. 멈추면 pause 이벤트를 타고 곡도 함께 서고 시청 시계도 멎는다
+     * (syncClock·syncAudio 주석 참고) — 끌고 있는 시간은 본 시간이 아니므로 그게 맞다
+     */
+    v.pause();
+    scrubbingRef.current = true;
+    setScrubbing(true);
+    seekToClientX(e.clientX);
+  };
+
+  const onScrubMove = (e) => {
+    if (!scrubbingRef.current) return;
+    e.stopPropagation();
+    seekToClientX(e.clientX);
+  };
+
+  // pointerup·pointercancel 양쪽에서 부른다 — 전화가 오는 등으로 취소되면 up이 오지 않는다
+  const onScrubEnd = (e) => {
+    if (!scrubbingRef.current) return;
+    e.stopPropagation();
+    scrubbingRef.current = false;
+    setScrubbing(false);
+    if (wasPlayingRef.current) videoRef.current?.play().catch(() => {});
+  };
+
+  /*
    * 공유 — 이 영상으로 바로 열리는 링크를 클립보드에 복사한다.
    *
    * `?v={id}`를 붙이는 이유: /shorts만 복사하면 링크를 받은 사람이 자기 피드를 보게 되어
@@ -716,7 +809,22 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
         />
       )}
 
-      <div className="sf-progress"><i style={{ width: progress + "%" }} /></div>
+      {/*
+        진행 막대. 보기만 하는 것이 아니라 눌러서 그 시점으로 옮길 수 있다(onScrubDown 주석).
+        onClick을 따로 막는 이유: pointerdown을 막아도 click은 별개 이벤트로 카드까지 올라가
+        옮기자마자 정지/재생이 함께 토글된다
+      */}
+      <div
+        ref={progressRef}
+        className={"sf-progress" + (scrubbing ? " is-scrubbing" : "")}
+        onPointerDown={onScrubDown}
+        onPointerMove={onScrubMove}
+        onPointerUp={onScrubEnd}
+        onPointerCancel={onScrubEnd}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <i style={{ width: progress + "%" }} />
+      </div>
     </div>
   );
 }
