@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../member/AuthContext'
 import { getMyPets } from './petApi'
+import InstallAppButton from '../components/InstallAppButton'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
 // AI 검색 진입 버튼의 시각(둥근 검색바 모양)을 SearchBar 공용 컴포넌트와 맞추기 위해
 // 클래스만 재사용한다(.search-bar) — 컴포넌트 자체는 쓰지 않는다(아래 주석 참고).
@@ -49,6 +50,7 @@ export default function PetListPage() {
         <h1>내 반려동물</h1>
         <div className="who">
           <span>{user.name}님</span>
+          <InstallAppButton />
           {/* 홈 구조 확정 전까지 로그아웃·회원 정보는 홈에 유지, 진입점만 추가 (roadmap 3번) */}
           <Link to="/mypage">마이페이지</Link>
           <button type="button" onClick={() => onLogout()} disabled={loggingOut}>

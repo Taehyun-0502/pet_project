@@ -1,5 +1,6 @@
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Field from '../common/Field'
+import InstallAppButton from '../components/InstallAppButton'
 import Loading from '../common/Loading'
 import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
@@ -41,7 +42,10 @@ export default function LoginPage() {
 
   return (
     <main className="auth-page">
-      <h1>로그인</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: '16px' }}>
+        <h1 style={{ margin: 0 }}>로그인</h1>
+        <InstallAppButton />
+      </div>
       {signupEmail && (
         <p className="notice">가입이 완료되었습니다. 로그인해 주세요.</p>
       )}

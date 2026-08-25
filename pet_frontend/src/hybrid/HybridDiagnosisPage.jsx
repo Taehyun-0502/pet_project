@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
 import DiagnosisTabNav from '../components/DiagnosisTabNav'
 import { HybridDiagnosisPdfModal } from './HybridDiagnosisPdfModal'
+import InstallAppButton from '../components/InstallAppButton'
 // 주변 동물병원 지도+리스트 공용 섹션 (2026-08-13 추가 — 페이지 소유자와 공유 필요)
 import NearbyPlaces from '../components/NearbyPlaces'
 import { getMyPets } from '../pet/petApi'
@@ -362,8 +363,9 @@ export default function HybridDiagnosisPage() {
 
       {/* 모바일 상단 헤더 */}
       <header style={mobileHeaderStyle}>
-        <div style={badgeRowStyle}>
+        <div style={{ ...badgeRowStyle, justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={mobileHeaderBadgeStyle}>스마트 문진 탭</span>
+          <InstallAppButton />
         </div>
         <h1 style={mobileTitleStyle}>{PAGE_TITLE}</h1>
         <p style={mobileSubtitleStyle}>{PAGE_SUBTITLE}</p>
