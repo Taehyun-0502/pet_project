@@ -15,7 +15,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SupabaseStorageProperties(
         String url,             // 예: https://<project-ref>.supabase.co
         String serviceRoleKey,
-        String shortsBucket
+        String shortsBucket,            // 영상 — video/mp4 · video/webm만 허용하도록 좁혀둔 버킷
+        String shortsThumbnailsBucket   // 커버(썸네일) — image/jpeg만. 영상과 나눈 이유는 아래 참고
 ) {
 
     public boolean isConfigured() {
