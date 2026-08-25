@@ -2,6 +2,12 @@ HELP.md
 .env
 .gradle
 build/
+# MCP stdio 서버 실행 로그 (mcp-server.sh, logging.file.name=logs/mcp-server.log)
+logs/
+# .mcpb 패키징 빌드 산출물 — manifest.json·README.md는 커밋 대상,
+# 패킹된 .mcpb 바이너리만 제외 (매번 로컬에서 mcpb pack으로 재생성). 이 .gitignore는
+# pet_backend/ 기준이라 경로가 mcpb/*.mcpb (pet_backend/mcpb/*.mcpb 아님) — 주의.
+mcpb/*.mcpb
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/

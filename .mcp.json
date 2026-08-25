@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "pet-care": {
+      "command": "pet_backend/mcp-server.sh",
+      "args": []
+    }
+  }
+}
