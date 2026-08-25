@@ -38,6 +38,8 @@ public class ChatWebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        // ERROR 프레임의 내부 정보 노출 차단 (백로그 24번) — 클래스 주석 참조
+        registry.setErrorHandler(new ChatStompErrorHandler());
         // SockJS 폴백 없음 — 최신 브라우저의 native WebSocket만 대상
         registry.addEndpoint("/ws")
                 .setAllowedOrigins(allowedOrigins.toArray(String[]::new));

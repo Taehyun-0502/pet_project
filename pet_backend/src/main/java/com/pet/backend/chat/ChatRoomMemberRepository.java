@@ -12,6 +12,20 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
     // 참여자 검증 — 메시지 조회/전송 전 Service가 반드시 확인 (이 도메인의 소유자 격리)
     boolean existsByRoomIdAndMemberIdAndLeftAtIsNull(Long roomId, Long memberId);
 
+    /**
+     * SUBSCRIBE 검증 — 참여 활성에 **방 활성까지** 한 쿼리로 확인한다 (리뷰 백로그 26번).
+     * 삭제된 방의 참여 행은 설계상 활성으로 남으므로(조회 필터 방식) 이 exists가 없으면
+     * 삭제된 방 토픽의 구독이 계속 허용된다 — "모든 조회가 삭제된 방을 걸러낸다" 규칙의 구멍.
+     * 거부 사유 판별(방 없음/강퇴/미참여)은 실패 경로에서만 따로 조회한다 — ChatStompInterceptor 참조
+     */
+    @Query("""
+            select count(crm) > 0 from ChatRoomMember crm
+            where crm.roomId = :roomId and crm.memberId = :memberId and crm.leftAt is null
+              and exists (select 1 from ChatRoom r where r.id = crm.roomId and r.deletedAt is null)
+            """)
+    boolean existsActiveParticipantInActiveRoom(
+            @Param("roomId") Long roomId, @Param("memberId") Long memberId);
+
     // 참여 중인 행 조회 — 나가기·강퇴·지명·위임의 대상 행
     Optional<ChatRoomMember> findByRoomIdAndMemberIdAndLeftAtIsNull(Long roomId, Long memberId);
 
@@ -77,6 +91,13 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
      * ② 엔티티 변경은 @Version을 올려, 잦은 읽음 보고가 위임·강퇴 같은 권한 변경과
      *    불필요한 409 충돌을 일으킨다. 벌크 UPDATE는 version을 건드리지 않는다(의도).
      * WHERE의 참여 조건이 검증을 겸한다 — 미참여자·과거 값 보고는 0행 갱신(무해한 no-op).
+     *
+     * <p>⚠ **clearAutomatically 규약** (리뷰 백로그 99번): 이 메서드는 실행 시 영속성 컨텍스트를
+     * 통째로 비운다. 다른 @Transactional 메서드 안에서 호출하면 **그 트랜잭션이 들고 있던 관리
+     * 엔티티가 전부 detach되어 이후의 엔티티 변경이 조용히 유실된다** — 탈퇴 구현(2026-08-11)에서
+     * leaveAllByMemberId 뒤에 둔 member.withdraw()가 실제로 유실됐던 그 패턴(MemberService.withdraw
+     * 주석 참조). 벌크 UPDATE는 짧은 단독 트랜잭션에서만 부르거나, 엔티티 변경을 벌크 **앞**에 둘 것.
+     * 이 규약은 leaveAllByMemberId·RefreshTokenRepository의 revoke 계열에도 똑같이 적용된다.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
@@ -110,6 +131,7 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
      * 회원 탈퇴 시 참여 방 일괄 나가기 (docs/api-spec.md 1절 6차) — 탈퇴 회원이 참여자 목록에 남지 않게.
      * 벌크 UPDATE인 이유는 markRead와 같다(@Version 미충돌 + 왕복 1회). MEMBERS_CHANGED 신호는
      * 보내지 않는다 — 열려 있는 참여자 패널은 다음 재조회에 반영된다(명세에 기록된 감수 사항).
+     * ⚠ clearAutomatically 규약(백로그 99번)은 markRead 주석 참조 — 엔티티 변경은 이 호출보다 앞에.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

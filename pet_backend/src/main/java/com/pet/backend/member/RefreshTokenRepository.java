@@ -9,6 +9,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * ⚠ 이 저장소의 revoke 계열 벌크 UPDATE는 전부 {@code clearAutomatically = true}다 (리뷰 백로그 99번).
+ * 실행 시 영속성 컨텍스트를 통째로 비우므로, 다른 @Transactional 메서드 안에서 호출하면 그 트랜잭션의
+ * 관리 엔티티가 detach되어 **이후의 엔티티 변경이 조용히 유실된다** — 탈퇴 구현(2026-08-11)에서
+ * 벌크 뒤에 둔 member.withdraw()가 실제로 유실됐던 패턴(MemberService.withdraw 주석 참조).
+ * 엔티티 변경(비밀번호 저장 등)은 반드시 벌크 호출보다 **앞**에 두고 flush까지 끝낼 것
+ * (changePassword의 saveAndFlush가 그 예 — 백로그 97번).
+ */
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
     // 쿠키로 받은 원문을 해시해 조회 — 폐기된 토큰도 찾아야 재사용을 감지할 수 있으므로 상태로 거르지 않는다

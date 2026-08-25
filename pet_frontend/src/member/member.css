@@ -20,16 +20,16 @@
 .onboarding-actions button {
   padding: 12px;
   font-size: 16px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
 }
 
 /* 권장 선택지 — 색으로 "지금 등록하기"를 먼저 읽히게 한다 */
 .onboarding-actions .primary {
-  background: #2a7;
-  border-color: #2a7;
+  background: var(--success-solid);
+  border-color: var(--success-solid);
   color: #fff;
 }
 
@@ -38,13 +38,13 @@
   display: flex;
   gap: 4px;
   margin-bottom: 24px;
-  border-bottom: 1px solid #ccc;
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .mypage-tabs a {
   padding: 8px 14px;
   font-size: 14px;
-  color: #555;
+  color: var(--text-soft);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -54,7 +54,7 @@
 .mypage-tabs a.active {
   color: inherit;
   font-weight: 600;
-  border-bottom-color: #2a7;
+  border-bottom-color: var(--success);
 }
 
 /* 마이페이지 — 내 정보에서 하위 화면(정보 수정·보안)으로 들어가는 버튼.
@@ -70,12 +70,12 @@
   font-size: 14px;
   color: inherit;
   text-decoration: none;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
 .mypage-actions a:hover {
-  background: #f5f5f5;
+  background: var(--surface-muted);
 }
 
 /* 탭 네비에 없는 하위 화면의 복귀 링크 — 없으면 뒤로가기 말고 나갈 방법이 없다 */
@@ -100,7 +100,7 @@
 
 .my-info dt {
   width: 64px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .my-info dd {
@@ -121,14 +121,14 @@
   height: 80px;
   border-radius: 50%;
   object-fit: cover;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
 }
 
 .profile-photo-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f1f1;
+  background: var(--surface-muted);
   font-size: 32px;
 }
 
@@ -178,7 +178,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
 }
 
@@ -196,22 +196,22 @@
   margin-left: 8px;
   padding: 2px 6px;
   border-radius: 4px;
-  background: #2a7;
+  background: var(--success-solid);
   color: #fff;
   font-size: 12px;
 }
 
 .session-times {
   font-size: 12px;
-  color: #888;
+  color: var(--text-muted);
 }
 
 .session-list button {
   padding: 6px 12px;
   font-size: 13px;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -223,7 +223,7 @@
 
 /* 마이페이지 — 회원 탈퇴 (위험 영역, api-spec.md 1절 6차) */
 .danger-zone {
-  border-top: 1px solid #ccc;
+  border-top: 1px solid var(--border-strong);
   padding-top: 24px;
 }
 
@@ -231,13 +231,13 @@
   background: none;
   border: none;
   padding: 0;
-  color: #c0392b;
+  color: var(--danger);
   font-size: 14px;
   text-decoration: underline;
   cursor: pointer;
 }
 
 .auth-form button.danger {
-  background: #c0392b;
+  background: var(--danger-solid);
   color: #fff;
 }
