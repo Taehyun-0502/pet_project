@@ -14,6 +14,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,8 +24,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 // 오픈채팅 API (docs/api-spec.md 7절). 전부 인증 필요 — memberId는 토큰에서
 @RestController
@@ -58,6 +61,49 @@ public class ChatController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String sort) {
         return ApiResponse.ok(chatService.getRooms(memberId, keyword, category, sort));
+    }
+
+    /**
+     * 이미지 메시지 전송 (F10b) — multipart, part 이름 {@code file}. 규칙은 프로필 사진과 같다
+     * (jpeg·png·webp, 5MB 이하). 응답은 텍스트 전송과 <b>같은 메시지 객체</b>라
+     * 프론트가 같은 경로로 화면에 붙인다.
+     */
+    @PostMapping(value = "/api/chat/rooms/{roomId}/images",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<ChatMessageResponse> sendImage(@AuthenticationPrincipal Long memberId,
+                                                      @PathVariable Long roomId,
+                                                      @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(chatService.sendImage(memberId, roomId, file));
+    }
+
+    /**
+     * 내가 참여 중인 방 목록 (F7). 고정된 방 먼저 → 마지막 대화가 최근인 순.
+     * 전체 목록과 달리 검색·필터가 없다(ChatService.getMyRooms 주석 참조).
+     */
+    @GetMapping("/api/chat/rooms/mine")
+    public ApiResponse<List<ChatRoomResponse>> getMyRooms(@AuthenticationPrincipal Long memberId) {
+        return ApiResponse.ok(chatService.getMyRooms(memberId));
+    }
+
+    /**
+     * 방 고정/해제 (F7). 경로가 {@code /pin}이 아니라 {@code /pin-room}인 이유는
+     * <b>공지 핀({@code PUT /rooms/{roomId}/pin})과 다른 기능</b>이기 때문이다 —
+     * 공지 핀은 방 전체에 걸리는 OWNER·MANAGER 권한이고, 이건 개인이 자기 목록을 정렬하는 기능이다.
+     * 둘 다 멱등이다.
+     */
+    @PutMapping("/api/chat/rooms/{roomId}/pin-room")
+    public ApiResponse<Void> pinRoom(@AuthenticationPrincipal Long memberId,
+                                     @PathVariable Long roomId) {
+        chatService.pinRoom(memberId, roomId);
+        return ApiResponse.ok();
+    }
+
+    @DeleteMapping("/api/chat/rooms/{roomId}/pin-room")
+    public ApiResponse<Void> unpinRoom(@AuthenticationPrincipal Long memberId,
+                                       @PathVariable Long roomId) {
+        chatService.unpinRoom(memberId, roomId);
+        return ApiResponse.ok();
     }
 
     // 읽음 위치 보고 — 멱등, 과거 값은 무시된다 (docs/api-spec.md 7절)

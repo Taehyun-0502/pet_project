@@ -9,13 +9,17 @@ public record ChatMessageResponse(
         Long senderId,
         String senderName,
         String senderProfileImageUrl,  // 사진 없으면 null — 프론트가 placeholder 표시
+        // 이미지 메시지에서는 null (F10b) — 둘 중 정확히 하나만 값이 있다
         String content,
+        // 이미지 메시지의 공개 URL. 텍스트 메시지에서는 null
+        String imageUrl,
         Instant createdAt
 ) {
 
     public static ChatMessageResponse of(ChatMessage message, String senderName,
                                          String senderProfileImageUrl) {
         return new ChatMessageResponse(message.getId(), message.getSenderId(), senderName,
-                senderProfileImageUrl, message.getContent(), message.getCreatedAt());
+                senderProfileImageUrl, message.getContent(), message.getImageUrl(),
+                message.getCreatedAt());
     }
 }

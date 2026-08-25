@@ -70,13 +70,29 @@ public class ImageStorageClient {
      * @return 공개 URL (버킷이 public read). 캐시 무효화용 ?v=는 호출자가 붙인다
      */
     public String upload(String path, byte[] bytes, String mimeType) {
+        return uploadTo(properties.profilesBucket(), path, bytes, mimeType);
+    }
+
+    /**
+     * 채팅 이미지 업로드 (F10b). 프로필과 <b>버킷이 다르다</b> — 프로필은 개체당 1장을 덮어쓰지만
+     * 채팅 이미지는 대화 기록이라 누적되고, 정리 정책도 달라질 것이기 때문이다.
+     *
+     * <p>경로는 호출자가 <b>추측 불가능한 값</b>으로 준다. 공개 버킷이라 경로를 아는 사람은
+     * 방 밖에서도 열람할 수 있으므로, 순차 id 같은 열거 가능한 경로를 쓰면 안 된다
+     * (프로필의 {@code member-{id}}가 백로그 87번으로 지적된 그 문제다).
+     */
+    public String uploadChatImage(String path, byte[] bytes, String mimeType) {
+        return uploadTo(properties.chatBucket(), path, bytes, mimeType);
+    }
+
+    private String uploadTo(String bucket, String path, byte[] bytes, String mimeType) {
         if (!properties.isConfigured()) {
             throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED,
                     "서버에 Storage 설정이 없습니다. .env의 SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY를 확인해 주세요.");
         }
 
         String baseUrl = trimTrailingSlash(properties.url());
-        String objectUrl = "%s/storage/v1/object/%s/%s".formatted(baseUrl, properties.profilesBucket(), path);
+        String objectUrl = "%s/storage/v1/object/%s/%s".formatted(baseUrl, bucket, path);
 
         try {
             restClient.post()
@@ -92,11 +108,11 @@ public class ImageStorageClient {
                     .toBodilessEntity();
         } catch (RestClientException e) {
             // 키·정책·네트워크 문제는 사용자가 손쓸 수 없으므로 상세는 로그로만 남긴다
-            log.error("프로필 이미지 업로드 실패 path={}", path, e);
+            log.error("이미지 업로드 실패 bucket={} path={}", bucket, path, e);
             throw new BusinessException(CommonErrorCode.IMAGE_UPLOAD_FAILED);
         }
 
-        return "%s/storage/v1/object/public/%s/%s".formatted(baseUrl, properties.profilesBucket(), path);
+        return "%s/storage/v1/object/public/%s/%s".formatted(baseUrl, bucket, path);
     }
 
     // .env에 https://xxx.supabase.co/ 처럼 끝에 슬래시를 넣어도 URL이 깨지지 않게 한다

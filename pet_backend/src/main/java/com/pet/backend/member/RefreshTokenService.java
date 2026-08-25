@@ -173,6 +173,25 @@ public class RefreshTokenService {
     }
 
     /**
+     * 회원 행 잠금을 얻은 **뒤에** "그 사이 이 기기가 원격 로그아웃당했는가"를 DB에서 다시 확인한다
+     * (리뷰 백로그 109번).
+     *
+     * <p>{@link #findUsableOrThrow}의 검증은 잠금 밖에서 일어나므로, 검증과 잠금 사이에 커밋된
+     * 원격 로그아웃을 놓친다. 비밀번호 변경은 `tokens_valid_from`(백로그 77번)이 그 창을 막지만
+     * 기기 원격 로그아웃은 세션 단위 폐기라 회원 행을 건드리지 않아 **그 검사에 걸리지 않는다.**
+     *
+     * <p>회전 **전에** 확인해야 한다. 낡은 스냅샷으로 회전하면 `revoke(ROTATED)`가 DB의
+     * `DEVICE_REVOKED`를 덮어써, 회전 뒤의 확인은 스스로 지운 흔적을 찾게 된다
+     * ({@link RefreshTokenRepository#isRevokedWithReason} 주석 — 실측으로 확인한 함정).
+     *
+     * <p>반대 순서(재발급이 먼저 INSERT하고 원격 로그아웃이 그 뒤)는 이 검사가 아니라
+     * {@link MemberRepository#findActiveByIdForUpdate}의 배타 잠금이 직렬화로 막는다.
+     */
+    boolean isRevokedByDeviceLogout(RefreshToken token) {
+        return refreshTokenRepository.isRevokedWithReason(token.getId(), RevokedReason.DEVICE_REVOKED);
+    }
+
+    /**
      * 제출된 토큰을 찾아 "지금 쓸 수 있는가"까지 판정한다 (만료·폐기·재사용 감지).
      * 한 토큰은 한 번만 쓰이므로, 폐기된 토큰이 다시 오면 복사본이 돌아다닌다는 뜻으로 보고
      * 그 회원의 활성 토큰을 전부 끊는다 (docs/api-spec.md 1절 재사용 감지).

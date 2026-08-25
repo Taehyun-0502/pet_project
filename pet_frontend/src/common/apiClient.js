@@ -31,6 +31,25 @@ export class ApiError extends Error {
 }
 
 /**
+ * 세션 만료 알림 콜백 (백로그 34번). "재로그인 외에는 방법이 없는" 상태 —
+ * 재발급 401 거부, 토큰 위조·폐기(AUTH_TOKEN_INVALID) — 에서 발화한다.
+ * 이 파일은 React를 모르므로 등록 방식으로 연결한다: AuthContext가 setUser(null)을 등록해
+ * RequireLogin이 자연히 /login으로 보낸다(returnTo 포함). 네트워크 오류(status 0)는
+ * 세션 만료가 아니므로 **절대 태우지 않는다** (백로그 49번과 같은 구분).
+ */
+let onSessionExpired = null
+
+export function setOnSessionExpired(handler) {
+  onSessionExpired = handler
+}
+
+// clearToken과 콜백은 항상 짝으로 — 토큰만 지우면 user가 남아 화면이 굳는다(34번의 원래 증상)
+function expireSession() {
+  clearToken()
+  onSessionExpired?.()
+}
+
+/**
  * 진행 중인 재발급 요청. 여러 요청이 동시에 만료를 만나도 재발급은 **한 번만** 나가야 한다 —
  * 서버가 재발급 때마다 토큰을 회전시키므로, 두 번 나가면 늦은 쪽이 이미 폐기된 토큰을 들고 가
  * "재사용 감지"에 걸려 모든 세션이 끊긴다. (채팅 화면은 요청이 겹치기 쉬워 실제로 발생한다)
@@ -65,8 +84,12 @@ async function requestNewAccessToken() {
 
   const payload = await response.json().catch(() => null)
   if (!payload?.success) {
-    // 리프레시 토큰이 만료·폐기됨 — 재로그인 외에는 방법이 없다
-    clearToken()
+    // 401 = 리프레시 토큰이 만료·폐기됨 — 재로그인 외에는 방법이 없어 세션 만료로 전환한다.
+    // 그 외(서버 500 등)는 일시 장애일 수 있으므로 토큰을 남긴다 — 다음 만료 시 재발급을 다시 시도한다
+    // (예전에는 모든 실패에 clearToken이었다 — 49번과 같은 구분을 여기에도 적용, 2026-08-24)
+    if (response.status === 401) {
+      expireSession()
+    }
     throw new ApiError(
       payload?.error?.code ?? 'AUTH_INVALID_REFRESH_TOKEN',
       payload?.error?.message ?? '로그인이 만료되었습니다. 다시 로그인해 주세요.',
@@ -118,6 +141,12 @@ export async function request(path, options = {}) {
     throw new ApiError('INVALID_RESPONSE', '서버 응답을 해석할 수 없습니다.', response.status)
   }
   if (!payload.success) {
+    // 위조·누락 토큰 — 대표 사례는 다른 탭에서 로그아웃한 뒤 이 탭이 낡은 메모리 상태(user)로
+    // 요청한 경우다(localStorage는 탭 간 공유라 토큰이 이미 없다). 재발급으로 해결되지 않으므로
+    // (그 로그아웃이 리프레시 쿠키도 폐기했다) 세션 만료로 전환한다 (백로그 34번, 2026-08-24 확정 범위)
+    if (payload.error.code === 'AUTH_TOKEN_INVALID') {
+      expireSession()
+    }
     throw new ApiError(
       payload.error.code, payload.error.message, response.status, payload.error.details,
     )

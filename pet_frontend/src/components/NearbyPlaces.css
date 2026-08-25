@@ -1,0 +1,214 @@
+/* NearbyPlaces — "주변 장소" 섹션 스타일 (아이템 UI는 PlaceList.css 재사용,
+   여기는 섹션 배치 + 목록 보기 버튼 + 바텀시트). #root 전역 text-align: center를 상쇄한다. */
+
+.nearby-places {
+  margin: 24px 0 8px;
+  text-align: left;
+}
+
+.nearby-places__title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+.nearby-places__status {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* deferred 모드의 "<제목> 보기" 버튼 — 진단 후 이 버튼만 먼저 노출, 클릭 시
+   지도·조회 시작 (2026-08-13 사용자 결정). 터치 타깃 44px 이상. */
+.nearby-places__reveal-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nearby-places__reveal-btn:hover {
+  background: var(--accent-bg);
+}
+
+.nearby-places__reveal-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 목록 보기 버튼을 지도 위에 겹치기 위한 기준 컨테이너 */
+.nearby-places__map-wrap {
+  position: relative;
+}
+
+/* 진단 페이지 노출 지도는 mini 기본(220px)보다 48px 크게 (2026-08-13 사용자 결정).
+   PetMap 공용 스타일은 건드리지 않고 이 섹션 안에서만 오버라이드한다. */
+.nearby-places__map-wrap .pet-map--mini {
+  height: 268px;
+}
+
+/* 지도 하단 중앙 "목록 보기 (N)" — 지도 페이지(.map-page__list-btn)와 같은 필 스타일.
+   bottom 44px: 좌하단 카카오 로고·축척 라인 회피 (MapPage에서 실렌더로 확정한 값). */
+.nearby-places__list-btn {
+  position: absolute;
+  z-index: 1;
+  bottom: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.nearby-places__list-btn:hover {
+  background: var(--accent-bg);
+}
+
+.nearby-places__list-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 장소 목록 바텀시트 — 지도 페이지 목록 시트와 같은 시각 언어·모션.
+   애니메이션 지속시간은 NearbyPlaces.jsx의 SHEET_MOTION_MS(340)와 일치 필수. */
+.nearby-places__sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  animation: nearby-places-fade-in 340ms ease both;
+}
+
+.nearby-places__sheet-backdrop--closing {
+  animation: nearby-places-fade-out 340ms ease both;
+}
+
+.nearby-places__sheet {
+  position: relative;
+  width: 100%;
+  /* position:fixed 시트라 #root의 360px 컬럼 제약 밖 — 컬럼 폭으로 직접 제한
+     (index.css #root max-width와 같은 값 유지. border-box 필수 — 폭 버그 재발 방지) */
+  max-width: 360px;
+  box-sizing: border-box;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px 20px 20px;
+  border-radius: 16px 16px 0 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  box-shadow: var(--shadow);
+  animation: nearby-places-sheet-in 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.nearby-places__sheet--closing {
+  animation: nearby-places-sheet-out 340ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.nearby-places__sheet-handle {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 4px auto 12px;
+}
+
+/* 헤더 한 줄: 제목 좌측 + 닫기 우측 (마커 상세 시트의 한 줄 배치 원칙과 동일) */
+.nearby-places__sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.nearby-places__sheet-title {
+  color: var(--text-h);
+  font-size: 15px;
+}
+
+.nearby-places__sheet-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.nearby-places__sheet-close:hover {
+  background: var(--accent-bg);
+}
+
+.nearby-places__sheet-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes nearby-places-sheet-in {
+  from {
+    transform: translateY(105%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes nearby-places-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes nearby-places-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nearby-places-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* 모션 최소화 선호 사용자는 애니메이션 없이 즉시 완료 상태로 */
+@media (prefers-reduced-motion: reduce) {
+  .nearby-places__sheet-backdrop,
+  .nearby-places__sheet-backdrop--closing,
+  .nearby-places__sheet,
+  .nearby-places__sheet--closing {
+    animation-duration: 1ms;
+  }
+}

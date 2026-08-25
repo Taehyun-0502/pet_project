@@ -23,8 +23,15 @@ import org.springframework.web.client.RestClientException;
 @Component
 class KakaoOAuthClient {
 
-    // email·nickname은 동의 항목이라 null일 수 있다 — 처리 방침은 MemberService가 정한다
-    record KakaoUserInfo(String providerId, String email, String nickname) {}
+    /**
+     * email은 동의 항목이라 null일 수 있다 — 처리 방침은 MemberService가 정한다.
+     *
+     * <p><b>닉네임은 받지 않는다</b> (2026-08-13 확정, docs/plan-2026-08-13.md F3).
+     * 표시 이름은 카카오 값을 쓰지 않고 서버가 임의로 만든다(MemberService.generateKakaoName).
+     * 쓰지 않을 값을 응답에서 굳이 꺼내 두면 "언젠가 다시 쓰는" 경로가 생기므로 파싱 자체를 지웠다.
+     * 카카오 콘솔의 <b>닉네임 동의항목도 함께 해제할 수 있다</b> — 이 코드는 어느 쪽이든 동작한다.
+     */
+    record KakaoUserInfo(String providerId, String email) {}
 
     // place/KakaoClient와 같은 값. 타임아웃이 없으면 카카오가 응답하지 않을 때 요청 스레드가
     // 무한 대기한다 (리뷰 백로그 86번). 초과 시 던져지는 것도 RestClientException이라
@@ -98,10 +105,7 @@ class KakaoOAuthClient {
                 throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);
             }
             JsonNode account = body.path("kakao_account");
-            return new KakaoUserInfo(
-                    providerId,
-                    account.path("email").asText(null),
-                    account.path("profile").path("nickname").asText(null));
+            return new KakaoUserInfo(providerId, account.path("email").asText(null));
         } catch (RestClientException e) {
             log.warn("카카오 사용자 정보 조회 실패: {}", e.getMessage());
             throw new BusinessException(MemberErrorCode.SOCIAL_LOGIN_FAILED);

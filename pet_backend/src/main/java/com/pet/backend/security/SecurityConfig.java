@@ -53,12 +53,17 @@ public class SecurityConfig {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+                        // 회원 공개 경로 — JwtAuthenticationFilter.MEMBER_PUBLIC_URIS가 단일 출처 (백로그 40번).
                         // /api/members 아래에 보호 대상(/me)도 있으므로 공개 경로를 정확히 지정.
                         // refresh·logout은 Authorization 헤더가 아니라 쿠키로 인증하므로 여기서는 공개다
-                        .requestMatchers("/api/members/signup", "/api/members/login",
-                                "/api/members/login/kakao",
-                                "/api/members/refresh", "/api/members/logout",
-                                "/api/v1/skin/**", "/api/v1/hybrid/**").permitAll()
+                        .requestMatchers(
+                                JwtAuthenticationFilter.MEMBER_PUBLIC_URIS.toArray(String[]::new))
+                        .permitAll()
+                        // 아래 공개 경로들은 필터의 스킵 목록과 공유하지 않는다 — "인증 불요"일 뿐,
+                        // 만료 토큰을 달고도 성공해야 할 요구가 없어 토큰 검사 스킵이 불필요하거나(skin·hybrid),
+                        // 스킵하면 오히려 깨진다(GET /api/shorts의 @AuthenticationPrincipal 개인화).
+                        // 상세는 JwtAuthenticationFilter.OTHER_SKIPPED_URIS 주석 참조 (로드맵 20번 묶음 3)
+                        .requestMatchers("/api/v1/skin/**", "/api/v1/hybrid/**").permitAll()
                         // WebSocket 핸드셰이크(HTTP GET). 브라우저가 헤더를 못 붙이므로 여기서는 인증하지 않고,
                         // 그 다음 STOMP CONNECT 프레임에서 ChatStompInterceptor가 JWT를 검증한다
                         .requestMatchers("/ws").permitAll()

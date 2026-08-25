@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -145,6 +146,48 @@ class WalkRecordControllerTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
+    }
+
+    @Test
+    void path_좌표가_한반도_범위를_벗어나면_400을_반환한다() throws Exception {
+        // QA M-3: GeoPoint 범위 검증 경계 테스트 — 위도 90.0(전역 범위로는 유효하나 한반도 밖)
+        String body = objectMapper.writeValueAsString(new WalkRecordCreateRequest(
+                1L,
+                Instant.parse("2026-08-12T05:00:00Z"),
+                Instant.parse("2026-08-12T05:30:00Z"),
+                1800, 1200.5,
+                List.of(new GeoPoint(90.0, 126.9780)),
+                null, null
+        ));
+
+        mockMvc.perform(post("/api/walk/records")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
+    }
+
+    @Test
+    void path가_최대_길이를_초과하면_400을_반환한다() throws Exception {
+        // QA M-3: @Size(max = 20000) 경계 테스트 — 20001개면 거부돼야 한다.
+        List<GeoPoint> tooLongPath = new ArrayList<>();
+        for (int i = 0; i < 20001; i++) {
+            tooLongPath.add(new GeoPoint(37.5665, 126.9780));
+        }
+        String body = objectMapper.writeValueAsString(new WalkRecordCreateRequest(
+                1L,
+                Instant.parse("2026-08-12T05:00:00Z"),
+                Instant.parse("2026-08-12T05:30:00Z"),
+                1800, 1200.5,
+                tooLongPath,
+                null, null
+        ));
+
+        mockMvc.perform(post("/api/walk/records")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error.code").value("VALIDATION_ERROR"));
     }
 
     @Test

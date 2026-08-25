@@ -8,6 +8,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  */
 @ConfigurationProperties(prefix = "jwt")
 public record JwtProperties(
-        String secret,        // 서명 시크릿 (32바이트 이상)
-        long expirationMs     // 액세스 토큰 만료 (밀리초)
+        // 서명 시크릿. **문자열 그 자체가 키**이며 HS512 고정이므로 UTF-8 기준 64바이트 이상이어야 한다
+        // (짧으면 JwtTokenProvider 생성자가 기동을 막는다 — 리뷰 백로그 6번)
+        String secret,
+        long expirationMs     // 액세스 토큰 만료 (밀리초). 현재 합의값 15분 = 900000
 ) {}

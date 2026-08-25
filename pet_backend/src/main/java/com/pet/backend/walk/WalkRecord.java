@@ -16,8 +16,10 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * 산책 한 회차 기록. ddl-auto=none — 스키마는 docs/sql/walk_record.sql을 Supabase에서
- * 직접 실행해 관리한다("DB 테이블 없음" 방침의 예외 — 루트 CLAUDE.md 산책 Phase 확정사항).
+ * 산책 한 회차 기록. ddl-auto=none — 스키마는 확정된 동선대로 docs/sql/walk_record.sql을
+ * Supabase SQL Editor에서 1회 실행해 테이블을 만든 뒤 그 파일은 삭제됐다(2026-08-12,
+ * QA L-3·D-4 정정 — 더 이상 실행할 파일이 없다). 이제 스키마는 Supabase에서 직접
+ * 관리한다("DB 테이블 없음" 방침의 예외 — 루트 CLAUDE.md 산책 Phase 확정사항).
  *
  * <p>petId는 JWT 인증 연동 전이라 nullable이다. 로그인 연동 시 토큰에서 꺼낸 값으로
  * 필수화하고 소유권 검증을 추가해야 한다(그 전까지는 누구나 임의 petId로 기록을 남길 수 있음 —

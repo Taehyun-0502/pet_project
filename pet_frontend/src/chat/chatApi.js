@@ -14,6 +14,31 @@ export function getRooms({ keyword, category, sort } = {}) {
   return request(`/api/chat/rooms${query ? `?${query}` : ''}`)
 }
 
+// 이미지 메시지 전송 (F10b) — multipart, part 이름 "file".
+// 응답은 텍스트 전송(sendMessage)과 **같은 메시지 객체**라 화면에 붙이는 경로도 같다.
+// 규칙은 프로필 사진과 동일(jpeg·png·webp, 5MB) — 호출 전에 common/imageUpload.prepareImage를 거칠 것
+export function sendImageMessage(roomId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return request(`/api/chat/rooms/${roomId}/images`, { method: 'POST', body: form })
+}
+
+// 내가 참여 중인 방만 (F7). 고정된 방 먼저 → 마지막 대화가 최근인 순으로 서버가 정렬해 준다.
+// 응답에 pinned(boolean)가 추가로 실린다 — 전체 목록(getRooms)에서는 null이다
+export function getMyRooms() {
+  return request('/api/chat/rooms/mine')
+}
+
+// 방 고정/해제 (F7) — 둘 다 멱등. 경로가 /pin이 아니라 /pin-room인 이유는
+// 공지 핀(pinMessage/unpinMessage)과 다른 기능이기 때문이다 (api-spec.md 7절)
+export function pinRoom(roomId) {
+  return request(`/api/chat/rooms/${roomId}/pin-room`, { method: 'PUT' })
+}
+
+export function unpinRoom(roomId) {
+  return request(`/api/chat/rooms/${roomId}/pin-room`, { method: 'DELETE' })
+}
+
 // category 필수(ROOM_CATEGORIES 값), description·maxMembers 선택(null 허용) — api-spec.md 7절 3차
 export function createRoom({ name, category, description, maxMembers }) {
   return request('/api/chat/rooms', { method: 'POST', body: { name, category, description, maxMembers } })

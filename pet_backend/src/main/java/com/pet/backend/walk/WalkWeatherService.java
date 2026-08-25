@@ -47,7 +47,11 @@ public class WalkWeatherService {
         KmaWeatherSnapshot snapshot = cache.getIfPresent(cacheKey);
         if (snapshot == null) {
             snapshot = kmaClient.fetch(grid.nx(), grid.ny());
-            cache.put(cacheKey, snapshot);
+            // mock 폴백 스냅샷(키 미설정)은 캐시하지 않는다 — 캐시하면 운영 중 키를 뒤늦게
+            // 등록해도 이미 채워진 캐시 탓에 최대 10분 동안 mock 값이 유지된다(QA L-2).
+            if (kmaClient.isServiceKeyConfigured()) {
+                cache.put(cacheKey, snapshot);
+            }
         }
 
         double solar = SolarEstimator.estimate(lat, lng, ZonedDateTime.now(KST), snapshot.sky(), snapshot.pty());
