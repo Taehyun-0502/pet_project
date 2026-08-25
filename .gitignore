@@ -4,6 +4,15 @@
 # 단, 값 없이 키 이름만 담은 예시 파일은 커밋 대상 (팀원이 참고해 .env를 채운다)
 !.env.example
 
+# SSH·서버 키 — EC2 키페어(.pem)를 저장소 폴더에 두는 실수를 막는다 (2026-08-24, 배포 착수).
+# 이 키가 새면 저장소 접근 권한을 가진 누구나 배포 서버에 SSH로 들어갈 수 있다.
+# 키는 저장소 밖(예: ~/.ssh)에 두고, GitHub Actions에는 Secrets(EC2_SSH_KEY)로만 넣는다.
+*.pem
+*.ppk
+*.key
+# 배포 설정 파일 자체는 커밋 대상이다 — deploy/의 nginx·systemd·셋업 스크립트에는
+# 비밀값이 없고(값은 서버의 /etc/pet-backend/app.env에만 있다) 변경 이력이 남아야 한다
+
 
 # OS가 만드는 파일
 .DS_Store
