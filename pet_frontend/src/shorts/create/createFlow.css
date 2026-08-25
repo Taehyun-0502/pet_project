@@ -272,6 +272,18 @@
 }
 .sc-zoom button:disabled { opacity: .35; cursor: default; }
 .sc-zoom input[type='range'] { flex: 1; min-width: 0; accent-color: #fff; }
+.sc-cam-size {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .5);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, .8);
+}
+
 .sc-zoom em {
   flex: none;
   width: 34px;

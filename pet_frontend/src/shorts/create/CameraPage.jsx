@@ -114,95 +114,111 @@ export default function CameraPage({ goBack, onPicked }) {
       </header>
 
       <div
-        className="sc-viewport"
+        className="sc-viewport sc-viewport-frame"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={endPinch}
         onTouchCancel={endPinch}
       >
         {/*
-          실시간 미리보기. muted가 없으면 자기 소리가 스피커로 되돌아 하울링이 나고,
-          playsInline이 없으면 iOS가 전체화면 재생기로 띄운다.
-          전면 카메라는 좌우를 뒤집어 보여준다 — 폰 카메라 앱과 같은 동작이라 이게 자연스럽다.
-          (기본은 후면이라 대개 뒤집지 않는다)
-          (저장되는 파일은 뒤집히지 않는다. 화면 속 글자는 미리보기에서만 거울처럼 보인다)
+          비율이 다른 기기(갤럭시 4:3 · 아이폰 9:16)라도 **같은 9:16 틀**에 담는다.
+          틀 규격이 ②·피드와 같아서, 여기서 잡은 구도가 뒤 단계에서 달라지지 않는다.
+          틀보다 넓은 영상은 contain이라 위아래에 검은 띠가 생긴다 — 잘라 감추지 않는 쪽을 택했다.
+          찍힌 화각을 다 보여줘야 ②에서 무엇을 남길지 고를 수 있기 때문이다.
         */}
-        <video
-          ref={camera.videoRef}
-          className={camera.facing === 'user' ? 'sc-cam sc-cam-mirror' : 'sc-cam'}
-          muted
-          playsInline
-          autoPlay
-        />
+        <div className="sc-frame">
+          {/*
+            실시간 미리보기. muted가 없으면 자기 소리가 스피커로 되돌아 하울링이 나고,
+            playsInline이 없으면 iOS가 전체화면 재생기로 띄운다.
+            전면 카메라는 좌우를 뒤집어 보여준다 — 폰 카메라 앱과 같은 동작이라 이게 자연스럽다.
+            (기본은 후면이라 대개 뒤집지 않는다)
+            (저장되는 파일은 뒤집히지 않는다. 화면 속 글자는 미리보기에서만 거울처럼 보인다)
+          */}
+          <video
+            ref={camera.videoRef}
+            className={camera.facing === 'user' ? 'sc-cam sc-cam-mirror' : 'sc-cam'}
+            muted
+            playsInline
+            autoPlay
+          />
 
-        {camera.status !== 'ready' && (
-          <div className="sc-cam-cover">
-            {camera.status === 'starting' && <p>카메라를 켜는 중…</p>}
-            {camera.status === 'denied' && (
-              <p>
-                카메라 사용이 <strong>거부</strong>되었습니다.
-                <br />
-                주소창의 자물쇠에서 권한을 허용하거나, 아래에서 영상을 골라주세요.
-              </p>
-            )}
-            {camera.status === 'unsupported' && (
-              <p>
-                이 환경에서는 카메라를 쓸 수 없습니다.
-                <br />
-                카메라는 <strong>https</strong> 또는 localhost에서만 켜집니다.
-                <br />
-                아래에서 영상 파일을 골라주세요.
-              </p>
-            )}
-            {camera.status === 'error' && <p>{camera.error}</p>}
-          </div>
-        )}
+          {camera.status !== 'ready' && (
+            <div className="sc-cam-cover">
+              {camera.status === 'starting' && <p>카메라를 켜는 중…</p>}
+              {camera.status === 'denied' && (
+                <p>
+                  카메라 사용이 <strong>거부</strong>되었습니다.
+                  <br />
+                  주소창의 자물쇠에서 권한을 허용하거나, 아래에서 영상을 골라주세요.
+                </p>
+              )}
+              {camera.status === 'unsupported' && (
+                <p>
+                  이 환경에서는 카메라를 쓸 수 없습니다.
+                  <br />
+                  카메라는 <strong>https</strong> 또는 localhost에서만 켜집니다.
+                  <br />
+                  아래에서 영상 파일을 골라주세요.
+                </p>
+              )}
+              {camera.status === 'error' && <p>{camera.error}</p>}
+            </div>
+          )}
 
-        {/*
-          확대 조절. 이 기기가 확대를 지원할 때만(zoomRange !== null) 나온다 —
-          지원하지 않는 기기에서 슬라이더만 띄우면 만져도 아무 일이 없어 고장으로 보인다.
-          녹화 중에도 막지 않는다(트랙 제약만 바뀌므로 녹화가 끊기지 않는다).
-        */}
-        {camera.zoomRange && camera.status === 'ready' && (
-          <div className="sc-zoom">
-            <button
-              type="button"
-              onClick={() => camera.setZoom(camera.zoom - zoomStep)}
-              disabled={camera.zoom <= camera.zoomRange.min}
-              aria-label="축소"
-            >
-              −
-            </button>
-            <input
-              type="range"
-              min={camera.zoomRange.min}
-              max={camera.zoomRange.max}
-              step={camera.zoomRange.step}
-              value={camera.zoom}
-              onChange={(e) => camera.setZoom(Number(e.target.value))}
-              aria-label="확대 배율"
-            />
-            <button
-              type="button"
-              onClick={() => camera.setZoom(camera.zoom + zoomStep)}
-              disabled={camera.zoom >= camera.zoomRange.max}
-              aria-label="확대"
-            >
-              +
-            </button>
-            {/* 배율은 min을 1배로 놓고 센다 — min이 100인 기기에서 "×100"이라고 쓸 수는 없다 */}
-            <em>×{(camera.zoom / camera.zoomRange.min).toFixed(1)}</em>
-          </div>
-        )}
+          {/*
+            확대 조절. 이 기기가 확대를 지원할 때만(zoomRange !== null) 나온다 —
+            지원하지 않는 기기에서 슬라이더만 띄우면 만져도 아무 일이 없어 고장으로 보인다.
+            녹화 중에도 막지 않는다(트랙 제약만 바뀌므로 녹화가 끊기지 않는다).
+          */}
+          {camera.zoomRange && camera.status === 'ready' && (
+            <div className="sc-zoom">
+              <button
+                type="button"
+                onClick={() => camera.setZoom(camera.zoom - zoomStep)}
+                disabled={camera.zoom <= camera.zoomRange.min}
+                aria-label="축소"
+              >
+                −
+              </button>
+              <input
+                type="range"
+                min={camera.zoomRange.min}
+                max={camera.zoomRange.max}
+                step={camera.zoomRange.step}
+                value={camera.zoom}
+                onChange={(e) => camera.setZoom(Number(e.target.value))}
+                aria-label="확대 배율"
+              />
+              <button
+                type="button"
+                onClick={() => camera.setZoom(camera.zoom + zoomStep)}
+                disabled={camera.zoom >= camera.zoomRange.max}
+                aria-label="확대"
+              >
+                +
+              </button>
+              {/* 배율은 min을 1배로 놓고 센다 — min이 100인 기기에서 "×100"이라고 쓸 수는 없다 */}
+              <em>×{(camera.zoom / camera.zoomRange.min).toFixed(1)}</em>
+            </div>
+          )}
 
-        {/* 녹화 중 경과. 최소 길이를 못 채우면 버려지므로 남은 시간을 함께 알려준다 */}
-        {camera.recording && (
-          <div className="sc-rec-badge">
-            <span className="sc-rec-live" aria-hidden="true" />
-            {camera.elapsed.toFixed(1)}초 / {MAX_SEC}초
-            {remaining > 0 && <em> · {Math.ceil(remaining)}초 더</em>}
-          </div>
-        )}
+          {/* 녹화 중 경과. 최소 길이를 못 채우면 버려지므로 남은 시간을 함께 알려준다 */}
+          {camera.recording && (
+            <div className="sc-rec-badge">
+              <span className="sc-rec-live" aria-hidden="true" />
+              {camera.elapsed.toFixed(1)}초 / {MAX_SEC}초
+              {remaining > 0 && <em> · {Math.ceil(remaining)}초 더</em>}
+            </div>
+          )}
+
+          {/* 지금 찍히는 해상도. 고를 수 있는 모드가 기기마다 달라 비율이 갈리는데,
+              적어 두면 폰마다 왜 다르게 보이는지 코드를 열지 않고도 알 수 있다 */}
+          {camera.size && camera.status === 'ready' && !camera.recording && (
+            <span className="sc-cam-size">
+              {camera.size.width}×{camera.size.height}
+            </span>
+          )}
+        </div>
       </div>
 
       {camera.muted && camera.status === 'ready' && !camera.recording && (

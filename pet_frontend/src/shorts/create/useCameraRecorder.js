@@ -75,6 +75,8 @@ export default function useCameraRecorder({ maxSec, onDone }) {
    */
   const [zoom, setZoomValue] = useState(1)
   const [zoomRange, setZoomRange] = useState(null)
+  // 실제로 잡힌 해상도 { width, height }. 요청은 ideal이라 기기가 가진 모드로 떨어진다
+  const [size, setSize] = useState(null)
   const zoomRangeRef = useRef(null)
   zoomRangeRef.current = zoomRange
 
@@ -83,7 +85,10 @@ export default function useCameraRecorder({ maxSec, onDone }) {
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
-    if (videoRef.current) videoRef.current.srcObject = null
+    if (videoRef.current) {
+      videoRef.current.onloadedmetadata = null
+      videoRef.current.srcObject = null
+    }
   }, [])
 
   /*
@@ -102,20 +107,48 @@ export default function useCameraRecorder({ maxSec, onDone }) {
     let cancelled = false
     setStatus('starting')
     setError('')
+    setSize(null) // 전/후면을 바꾸면 해상도도 바뀐다 — 이전 값을 남겨두면 잠깐 거짓말이 된다
 
     /*
-     * 해상도는 **높이만** 힌트로 준다.
+     * 가로·세로를 **둘 다** 준다. 그리고 9:16이 아니라 세로 4:3(1080×1440)을 요청한다.
      *
-     * 예전에는 1080×1920(9:16)을 달라고 했는데, 폰 센서는 보통 4:3이라 브라우저가 9:16을 맞추려고
-     * 좌우를 잘라낸다 — 화각이 4분의 1쯤 날아가 "확대된 채 고정된" 화면이 됐다. 가로를 비워 두면
-     * 기기가 자기 기본 모드를 그대로 주고, 그게 기본 카메라 앱과 같은 화각이다.
-     * 9:16으로 맞추는 일은 ② 크롭 화면이 하므로 여기서 미리 자를 이유가 없다.
+     * 폰 센서는 4:3이다. 9:16(1080×1920)을 달라고 하면 브라우저가 좌우를 잘라 맞추므로
+     * 화각이 4분의 1쯤 날아가 "확대된 채 고정된" 화면이 된다 — 처음 증상이 이것이었다.
+     * 반대로 높이만 주고 가로를 비우면 삼성 기기가 **1080×1080(정사각)** 모드를 고른다.
+     * 그 목록에 정사각이 있어서, 높이 1080만 맞으면 완벽 일치로 뽑히기 때문이다.
+     * 4:3을 콕 집어야 두 함정을 모두 피하고 센서 화각을 그대로 받는다.
+     *
+     * 그래도 기기가 가진 모드가 달라 결과 비율은 갈린다 — 갤럭시는 1080×1440(4:3)을 주지만,
+     * 아이폰은 HD 4:3 비디오 모드 자체가 없어 가장 가까운 1080×1920(9:16)으로 떨어진다.
+     * 억지로 맞추면 결국 화각을 깎는 일이라 그대로 두고, **화면 쪽에서** 9:16 틀에 담아
+     * 어느 기기든 같은 구도로 보이게 한다(CameraPage의 .sc-frame). 최종 9:16 자르기는 ②가 한다.
      *
      * facingMode에 exact를 쓰지 않는다 — 후면 카메라가 없는 기기에서 exact는 실패로 끝난다
      */
     const constraints = {
-      video: { facingMode: facing, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      video: {
+        facingMode: facing,
+        width: { ideal: 1080 },
+        height: { ideal: 1440 },
+        frameRate: { ideal: 30 },
+      },
       audio: true,
+    }
+
+    /*
+     * 실제로 잡힌 크기를 읽는다.
+     *
+     * getSettings()보다 video 엘리먼트의 videoWidth를 **앞에** 둔다 — iOS는 트랙 설정을
+     * 가로(1920×1080)로 알려주면서 화면에는 세로로 그린다. 설정값만 믿으면 비율이 뒤집혀 보인다.
+     * 메타데이터 도착 전에는 videoWidth가 0이라 loadedmetadata에서 한 번 더 읽는다.
+     */
+    const readSize = (stream) => {
+      if (cancelled) return
+      const el = videoRef.current
+      const settings = stream.getVideoTracks()[0]?.getSettings?.() ?? {}
+      const width = el?.videoWidth || settings.width || 0
+      const height = el?.videoHeight || settings.height || 0
+      if (width && height) setSize({ width, height })
     }
 
     /*
@@ -143,8 +176,13 @@ export default function useCameraRecorder({ maxSec, onDone }) {
         return
       }
       streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
+      const el = videoRef.current
+      if (el) {
+        el.srcObject = stream
+        el.onloadedmetadata = () => readSize(stream)
+      }
       setupZoom(stream)
+      readSize(stream)
       setMuted(withoutAudio)
       setStatus('ready')
     }
@@ -279,6 +317,7 @@ export default function useCameraRecorder({ maxSec, onDone }) {
     error,
     facing,
     flip,
+    size,
     zoom,
     zoomRange,   // null이면 이 기기는 확대를 못 한다 → 화면에서 확대 UI를 감춘다
     setZoom,
