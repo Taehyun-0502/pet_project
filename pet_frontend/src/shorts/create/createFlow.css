@@ -234,8 +234,52 @@
 }
 
 /* ───── ① 카메라 ───── */
-/* 실시간 미리보기. .sc-viewport video와 같은 규칙이라 cover로 프레임을 꽉 채운다 */
-.sc-cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* 실시간 미리보기.
+   contain으로 .sc-viewport의 cover를 **일부러 덮는다**(선택자가 같은 (0,2,1)이고 뒤에 있어 이긴다).
+   cover로 채우면 4:3 카메라가 뷰포트 비율에 맞춰 잘려 "확대된" 화면이 되는데, 여기서 잘라 봐야
+   ②에서 다시 9:16으로 맞춘다. 기본 카메라 앱처럼 **찍히는 화각 전체**를 보여주고
+   자르기는 ②(crop.scale·offset)에 맡긴다 */
+.sc-viewport video.sc-cam { object-fit: contain; }
+.sc-cam { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* 핀치 확대를 브라우저의 페이지 확대·스크롤이 가로채지 않게 한다 (.sc-frame-grab과 같은 이유) */
+.sc-camera .sc-viewport { touch-action: none; }
+
+/* 확대 조절. 미리보기 아래쪽에 얹는다 — 녹화 버튼과 겹치지 않고 엄지로 닿는 자리다 */
+.sc-zoom {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .42);
+  backdrop-filter: blur(6px);
+}
+.sc-zoom button {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .18);
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.sc-zoom button:disabled { opacity: .35; cursor: default; }
+.sc-zoom input[type='range'] { flex: 1; min-width: 0; accent-color: #fff; }
+.sc-zoom em {
+  flex: none;
+  width: 34px;
+  font-style: normal;
+  font-size: 12px;
+  text-align: right;
+  color: rgba(255, 255, 255, .9);
+}
 /* 전면 카메라만 좌우 반전 — 폰 카메라 앱과 같다. 저장되는 파일은 뒤집히지 않는다 */
 .sc-cam-mirror { transform: scaleX(-1); }
 

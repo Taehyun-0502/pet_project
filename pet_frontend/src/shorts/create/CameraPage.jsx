@@ -12,7 +12,7 @@
  *   muted        카메라만 켜지고 마이크는 막힘 → 소리 없는 녹화가 된다
  */
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { MAX_SEC, MIN_SEC, VIDEO_ACCEPT, maxMegabytes, pickVideoFile } from '../videoFile'
 import useCameraRecorder from './useCameraRecorder'
 
@@ -34,6 +34,35 @@ export default function CameraPage({ goBack, onPicked }) {
   }
 
   const camera = useCameraRecorder({ maxSec: MAX_SEC, onDone: handleRecorded })
+
+  /*
+   * 핀치 확대. 두 손가락 **간격의 비율**로 직전 배율에 곱한다.
+   * 절대값을 쓰지 않는 이유: zoom 단위가 기기마다 달라(1~10인 기기도, 100~400인 기기도 있다)
+   * 손가락 몇 px에 몇 배를 더할지 정할 수 없다. 비율이면 어느 기기에서나 같은 손맛이 난다.
+   * (브라우저의 페이지 확대가 제스처를 가로채지 않게 .sc-camera .sc-viewport에 touch-action:none)
+   */
+  const pinchRef = useRef(null)
+  const touchGap = (touches) =>
+    Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
+
+  const onTouchStart = (e) => {
+    if (e.touches.length !== 2 || !camera.zoomRange) return
+    pinchRef.current = { gap: touchGap(e.touches), zoom: camera.zoom }
+  }
+  const onTouchMove = (e) => {
+    const from = pinchRef.current
+    if (!from || e.touches.length !== 2) return
+    camera.setZoom(from.zoom * (touchGap(e.touches) / from.gap))
+  }
+  // 한 손가락만 떼도 비율의 기준이 사라지므로 제스처를 끝낸다 (다시 모으면 새로 시작한다)
+  const endPinch = () => {
+    pinchRef.current = null
+  }
+
+  // 버튼 한 번에 움직일 폭. 기기 step은 0.01처럼 잘아서 그대로 쓰면 눌러도 티가 안 난다
+  const zoomStep = camera.zoomRange
+    ? Math.max(camera.zoomRange.step, (camera.zoomRange.max - camera.zoomRange.min) / 10)
+    : 0
 
   const onFileChange = async (e) => {
     const selected = e.target.files?.[0]
@@ -84,11 +113,18 @@ export default function CameraPage({ goBack, onPicked }) {
         )}
       </header>
 
-      <div className="sc-viewport">
+      <div
+        className="sc-viewport"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={endPinch}
+        onTouchCancel={endPinch}
+      >
         {/*
           실시간 미리보기. muted가 없으면 자기 소리가 스피커로 되돌아 하울링이 나고,
           playsInline이 없으면 iOS가 전체화면 재생기로 띄운다.
           전면 카메라는 좌우를 뒤집어 보여준다 — 폰 카메라 앱과 같은 동작이라 이게 자연스럽다.
+          (기본은 후면이라 대개 뒤집지 않는다)
           (저장되는 파일은 뒤집히지 않는다. 화면 속 글자는 미리보기에서만 거울처럼 보인다)
         */}
         <video
@@ -119,6 +155,43 @@ export default function CameraPage({ goBack, onPicked }) {
               </p>
             )}
             {camera.status === 'error' && <p>{camera.error}</p>}
+          </div>
+        )}
+
+        {/*
+          확대 조절. 이 기기가 확대를 지원할 때만(zoomRange !== null) 나온다 —
+          지원하지 않는 기기에서 슬라이더만 띄우면 만져도 아무 일이 없어 고장으로 보인다.
+          녹화 중에도 막지 않는다(트랙 제약만 바뀌므로 녹화가 끊기지 않는다).
+        */}
+        {camera.zoomRange && camera.status === 'ready' && (
+          <div className="sc-zoom">
+            <button
+              type="button"
+              onClick={() => camera.setZoom(camera.zoom - zoomStep)}
+              disabled={camera.zoom <= camera.zoomRange.min}
+              aria-label="축소"
+            >
+              −
+            </button>
+            <input
+              type="range"
+              min={camera.zoomRange.min}
+              max={camera.zoomRange.max}
+              step={camera.zoomRange.step}
+              value={camera.zoom}
+              onChange={(e) => camera.setZoom(Number(e.target.value))}
+              aria-label="확대 배율"
+            />
+            <button
+              type="button"
+              onClick={() => camera.setZoom(camera.zoom + zoomStep)}
+              disabled={camera.zoom >= camera.zoomRange.max}
+              aria-label="확대"
+            >
+              +
+            </button>
+            {/* 배율은 min을 1배로 놓고 센다 — min이 100인 기기에서 "×100"이라고 쓸 수는 없다 */}
+            <em>×{(camera.zoom / camera.zoomRange.min).toFixed(1)}</em>
           </div>
         )}
 

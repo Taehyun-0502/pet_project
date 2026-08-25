@@ -56,11 +56,27 @@ export default function useCameraRecorder({ maxSec, onDone }) {
   // idle → starting → ready | denied | unsupported | error
   const [status, setStatus] = useState('starting')
   const [error, setError] = useState('')
-  const [facing, setFacing] = useState('user')
+  // 후면이 기본이다 — 반려동물을 찍는 앱이라 셀카로 시작할 일이 거의 없다
+  const [facing, setFacing] = useState('environment')
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   // 마이크를 못 받은 채 카메라만 켜진 상태. 이 경우 녹화본에 소리가 없다
   const [muted, setMuted] = useState(false)
+
+  /*
+   * 광학/센서 확대(MediaStreamTrack의 zoom 제약).
+   *
+   * zoomRange가 null이면 **이 기기·브라우저는 확대를 지원하지 않는다** — 그때는 확대 UI를 아예
+   * 감춘다. CSS transform으로 preview만 키우는 흉내는 내지 않는다: 그건 화면만 커지고 녹화 파일은
+   * 그대로라, 찍고 나서 ②에 가면 안 키운 영상이 나와 어긋난다. (확대해서 자르는 일은 ②의
+   * crop.scale이 이미 담당한다)
+   *
+   * min은 기기마다 1이 아닐 수 있고(100 같은 값을 쓰는 기기도 있다) 배율 표시는 min 기준으로 낸다.
+   */
+  const [zoom, setZoomValue] = useState(1)
+  const [zoomRange, setZoomRange] = useState(null)
+  const zoomRangeRef = useRef(null)
+  zoomRangeRef.current = zoomRange
 
   const recordMime = pickRecordMime()
 
@@ -87,10 +103,38 @@ export default function useCameraRecorder({ maxSec, onDone }) {
     setStatus('starting')
     setError('')
 
+    /*
+     * 해상도는 **높이만** 힌트로 준다.
+     *
+     * 예전에는 1080×1920(9:16)을 달라고 했는데, 폰 센서는 보통 4:3이라 브라우저가 9:16을 맞추려고
+     * 좌우를 잘라낸다 — 화각이 4분의 1쯤 날아가 "확대된 채 고정된" 화면이 됐다. 가로를 비워 두면
+     * 기기가 자기 기본 모드를 그대로 주고, 그게 기본 카메라 앱과 같은 화각이다.
+     * 9:16으로 맞추는 일은 ② 크롭 화면이 하므로 여기서 미리 자를 이유가 없다.
+     *
+     * facingMode에 exact를 쓰지 않는다 — 후면 카메라가 없는 기기에서 exact는 실패로 끝난다
+     */
     const constraints = {
-      // exact를 쓰지 않는다 — 후면 카메라가 없는 기기에서 exact는 실패로 끝난다
-      video: { facingMode: facing, width: { ideal: 1080 }, height: { ideal: 1920 } },
+      video: { facingMode: facing, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
       audio: true,
+    }
+
+    /*
+     * 확대 범위를 읽고 **가장 넓은 화각(min)으로 되돌린다**. 기기가 직전에 쓰던 배율을 기억해
+     * 켜자마자 확대돼 있는 경우가 있어서, 켤 때마다 명시적으로 최소 배율을 넣는다.
+     * getCapabilities 자체가 없는 브라우저(사파리)도, 있어도 zoom 항목이 없는 기기도 있다 → null.
+     */
+    const setupZoom = (stream) => {
+      const track = stream.getVideoTracks()[0]
+      const caps = track?.getCapabilities?.() ?? {}
+      if (!caps.zoom || !(caps.zoom.max > caps.zoom.min)) {
+        setZoomRange(null)
+        setZoomValue(1)
+        return
+      }
+      const range = { min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step || 0.1 }
+      setZoomRange(range)
+      setZoomValue(range.min)
+      track.applyConstraints({ advanced: [{ zoom: range.min }] }).catch(() => {})
     }
 
     const attach = (stream, withoutAudio) => {
@@ -100,6 +144,7 @@ export default function useCameraRecorder({ maxSec, onDone }) {
       }
       streamRef.current = stream
       if (videoRef.current) videoRef.current.srcObject = stream
+      setupZoom(stream)
       setMuted(withoutAudio)
       setStatus('ready')
     }
@@ -214,12 +259,29 @@ export default function useCameraRecorder({ maxSec, onDone }) {
     setFacing((prev) => (prev === 'user' ? 'environment' : 'user'))
   }, [recording])
 
+  /**
+   * 확대 배율을 바꾼다. 범위 밖 값은 잘라 넣으므로 핀치 계산이 튀어도 안전하다.
+   * 녹화 중에도 막지 않는다 — 스트림을 새로 켜는 flip과 달리 트랙 제약만 바꾸는 것이라
+   * MediaRecorder가 물고 있는 트랙이 그대로 유지된다.
+   */
+  const setZoom = useCallback((next) => {
+    const range = zoomRangeRef.current
+    const track = streamRef.current?.getVideoTracks?.()[0]
+    if (!range || !track) return
+    const value = Math.min(range.max, Math.max(range.min, next))
+    setZoomValue(value)
+    track.applyConstraints({ advanced: [{ zoom: value }] }).catch(() => {})
+  }, [])
+
   return {
     videoRef,
     status,
     error,
     facing,
     flip,
+    zoom,
+    zoomRange,   // null이면 이 기기는 확대를 못 한다 → 화면에서 확대 UI를 감춘다
+    setZoom,
     recording,
     elapsed,
     muted,
