@@ -11,6 +11,7 @@ import { subscribeRoom } from './chatSocket'
 import { linkify } from './linkify'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
+import '../common/modernist.css' // Modernist 공용 토큰·클래스 (chat.css보다 먼저)
 import './chat.css'
 
 // 방 내 role 표시명 (MEMBER는 배지 없음)
@@ -500,15 +501,16 @@ export default function ChatRoomPage() {
   // 실시간 연결을 접은 상태 — 원인 안내 (미참여면 입장 버튼 제공)
   if (fatalError) {
     return (
-      <main className="chat-page">
-        <header className="chat-header">
+      <main className="mn chat-page">
+        <header className="mn-top">
           <h1>{roomName}</h1>
           {/* 잔여 읽음 보고를 끝낸 뒤 이동 — 배지 잔존 방지 (백로그 85번, onBackToList 주석) */}
-          <Link to="/chat" onClick={onBackToList}>← 방 목록으로</Link>
+          <Link to="/chat" className="mn-link" onClick={onBackToList}>← 방 목록으로</Link>
         </header>
+        <div className="mn-rule" />
         <p className="submit-error">{fatalError.message}</p>
         {fatalError.code === 'CHAT_NOT_PARTICIPANT' && (
-          <button type="button" onClick={onJoin}>
+          <button type="button" className="mn-primary chat-join" onClick={onJoin}>
             이 방에 입장하기
           </button>
         )}
@@ -517,12 +519,13 @@ export default function ChatRoomPage() {
   }
 
   return (
-    <main className="chat-page">
-      <header className="chat-header">
+    <main className="mn chat-page">
+      <header className="mn-top">
         <h1>{roomName}</h1>
         {/* 잔여 읽음 보고를 끝낸 뒤 이동 — 배지 잔존 방지 (백로그 85번, onBackToList 주석) */}
-        <Link to="/chat" onClick={onBackToList}>← 방 목록으로</Link>
+        <Link to="/chat" className="mn-link" onClick={onBackToList}>← 방 목록으로</Link>
       </header>
+      <div className="mn-rule" />
 
       {/* 방 프로필 (3차) — 직접 URL 진입(room 없음)이면 표시하지 않는다 */}
       {room && (
@@ -579,7 +582,7 @@ export default function ChatRoomPage() {
             placeholder="소개 (선택, 200자 이내)" maxLength={200}
           />
           <div className="room-edit-actions">
-            <button type="submit" disabled={savingRoom}>{savingRoom ? '저장 중…' : '저장'}</button>
+            <button type="submit" className="mn-primary" disabled={savingRoom}>{savingRoom ? '저장 중…' : '저장'}</button>
             <button type="button" disabled={savingRoom} onClick={() => setEditOpen(false)}>취소</button>
           </div>
         </form>
@@ -627,7 +630,7 @@ export default function ChatRoomPage() {
             {pinned.imageUrl ? '사진' : linkify(pinned.content)}
           </span>
           {canPin && (
-            <button type="button" onClick={onUnpin}>해제</button>
+            <button type="button" className="mn-link" onClick={onUnpin}>해제</button>
           )}
         </div>
       )}
@@ -690,7 +693,8 @@ export default function ChatRoomPage() {
           placeholder="메시지를 입력하세요 (1000자 이내)" maxLength={1000}
           disabled={sending || sendingImage}
         />
-        <button type="submit" disabled={sending || sendingImage}>
+        {/* 입력 바(2px 사각형) 안의 텍스트 버튼 — 홈 .home-ask-row의 "질문" 버튼과 같은 자리·같은 스킨 */}
+        <button type="submit" className="mn-link" disabled={sending || sendingImage}>
           전송
         </button>
       </form>

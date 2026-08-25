@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { deletePet, getPet, uploadPetImage } from './petApi'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
+import '../common/modernist.css'
 import './pet.css'
 
 // 반려동물 상세 — 수정 진입점·삭제·프로필 사진 업로드를 담당한다 (docs/api-spec.md 2절)
@@ -54,7 +55,8 @@ export default function PetDetailPage() {
     setDeleting(true)
     try {
       await deletePet(petId)
-      navigate('/', { replace: true }) // 목록이 다시 마운트되며 갱신된다
+      // /pets 목록 폐지(2026-08-25) — 삭제 후에는 마이페이지 펫 탭으로
+      navigate('/mypage/pets', { replace: true }) // 탭이 다시 마운트되며 갱신된다
     } catch (err) {
       setActionError(err.message)
       setDeleting(false)
@@ -64,11 +66,12 @@ export default function PetDetailPage() {
   // 없는 id·타인 소유·삭제됨이 모두 404로 오므로 한 문구로 안내한다 (서버가 구분하지 않는다)
   if (loadError) {
     return (
-      <main className="pet-page">
-        <header className="pet-header">
-          <h1>반려동물</h1>
-          <Link to="/">← 목록으로</Link>
-        </header>
+      <main className="mn pet-page">
+        <div className="mn-top">
+          <div className="mn-brand">반려동물</div>
+          <Link className="mn-link" to="/mypage/pets">← 펫 목록으로</Link>
+        </div>
+        <div className="mn-rule" />
         <p className="submit-error">
           {loadError.code === 'PET_NOT_FOUND'
             ? '찾을 수 없는 반려동물입니다. 삭제되었거나 접근 권한이 없습니다.'
@@ -80,52 +83,64 @@ export default function PetDetailPage() {
 
   if (!pet) {
     return (
-      <main className="pet-page">
-        <p>불러오는 중…</p>
+      <main className="mn pet-page">
+        <p className="pet-empty">불러오는 중…</p>
       </main>
     )
   }
 
   return (
-    <main className="pet-page">
-      <header className="pet-header">
-        <h1>{pet.name}</h1>
-        <Link to="/">← 목록으로</Link>
-      </header>
-
-      <div className="pet-photo">
-        {pet.profileImageUrl ? (
-          <img src={pet.profileImageUrl} alt={`${pet.name} 사진`} />
-        ) : (
-          <div className="pet-photo-placeholder" aria-hidden="true">🐶</div>
-        )}
-        {/* label이 file input을 연다. 키보드 접근은 input을 pet.css에서 visually-hidden으로만
-            숨기기 때문에 성립한다 — display:none으로 바꾸면 Tab으로 도달할 수 없게 된다 (백로그 84번) */}
-        <label className="pet-photo-upload">
-          {uploading ? '업로드 중…' : pet.profileImageUrl ? '사진 변경' : '사진 등록'}
-          <input
-            type="file" accept={IMAGE_ACCEPT}
-            onChange={onImageChange} disabled={uploading}
-          />
-        </label>
+    <main className="mn pet-page">
+      <div className="mn-top">
+        <div className="mn-brand">반려동물</div>
+        <Link className="mn-link" to="/mypage/pets">← 펫 목록으로</Link>
       </div>
+      <div className="mn-rule" />
 
-      <dl className="pet-detail">
-        <dt>이름</dt>
-        <dd>{pet.name}</dd>
-        <dt>품종</dt>
-        <dd>{pet.breed ?? <span className="muted">미입력</span>}</dd>
-        <dt>생년월일</dt>
-        <dd>{pet.birthDate ?? <span className="muted">미입력</span>}</dd>
-      </dl>
+      <div className="pet-body">
+        <div className="pet-photo">
+          {pet.profileImageUrl ? (
+            <img className="mn-photo" src={pet.profileImageUrl} alt={`${pet.name} 사진`} />
+          ) : (
+            <div className="pet-photo-placeholder mn-photo" aria-hidden="true" />
+          )}
+          {/* label이 file input을 연다. 키보드 접근은 input을 pet.css에서 visually-hidden으로만
+              숨기기 때문에 성립한다 — display:none으로 바꾸면 Tab으로 도달할 수 없게 된다 (백로그 84번) */}
+          <label className="pet-photo-upload">
+            {uploading ? '업로드 중…' : pet.profileImageUrl ? '사진 변경' : '사진 등록'}
+            <input
+              type="file" accept={IMAGE_ACCEPT}
+              onChange={onImageChange} disabled={uploading}
+            />
+          </label>
+        </div>
 
-      {actionError && <p className="submit-error">{actionError}</p>}
+        <h1 className="pet-detail-name">{pet.name}</h1>
 
-      <div className="pet-actions">
-        <Link className="pet-add" to={`/pets/${petId}/edit`}>수정</Link>
-        <button type="button" className="danger" onClick={onDelete} disabled={deleting}>
-          {deleting ? '삭제 중…' : '삭제'}
-        </button>
+        {/* dt/dd 쌍을 div로 묶는다 — 헤어라인 행(라벨 좌 / 값 우) 격자용, dl 안 div는 표준 허용 */}
+        <dl className="pet-detail">
+          <div>
+            <dt>이름</dt>
+            <dd>{pet.name}</dd>
+          </div>
+          <div>
+            <dt>품종</dt>
+            <dd>{pet.breed ?? <span className="muted">미입력</span>}</dd>
+          </div>
+          <div>
+            <dt>생년월일</dt>
+            <dd>{pet.birthDate ?? <span className="muted">미입력</span>}</dd>
+          </div>
+        </dl>
+
+        {actionError && <p className="submit-error">{actionError}</p>}
+
+        <div className="pet-actions">
+          <Link className="mn-primary block" to={`/pets/${petId}/edit`}>수정</Link>
+          <button type="button" className="mn-secondary danger" onClick={onDelete} disabled={deleting}>
+            {deleting ? '삭제 중…' : '삭제'}
+          </button>
+        </div>
       </div>
     </main>
   )

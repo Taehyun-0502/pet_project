@@ -7,6 +7,7 @@ import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { signup, uploadMyImage } from './memberApi'
 import { PASSWORD_RULE_LABEL, passwordRuleError } from './passwordRules'
+import '../common/modernist.css'
 import './member.css'
 
 // 서버(SignupRequest)와 같은 규칙으로 1차 검증 — 최종 차단은 서버가 한다
@@ -125,7 +126,12 @@ export default function SignupPage() {
   if (user && !signedUp) return <Navigate to="/" replace />
 
   return (
-    <main className="auth-page">
+    <main className="mn">
+      <div className="mn-top">
+        <div className="mn-brand">댕댕댕</div>
+      </div>
+      <div className="mn-rule" />
+      <div className="auth-page">
       <h1>회원가입</h1>
       <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
         {/* 사진은 선택 — 등록하지 않으면 기본 이미지(👤)가 표시되고, 나중에 마이페이지에서 올릴 수 있다 */}
@@ -155,13 +161,14 @@ export default function SignupPage() {
         />
         <Field form={form} name="name" label="이름" type="text" autoComplete="name" />
         {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" disabled={form.submitting || preparing}>
+        <button type="submit" className="mn-primary block" disabled={form.submitting || preparing}>
           {form.submitting ? '가입 중…' : '가입하기'}
         </button>
       </form>
       <p className="auth-switch">
         <Link to="/login">이미 계정이 있으신가요? 로그인</Link>
       </p>
+      </div>
     </main>
   )
 }

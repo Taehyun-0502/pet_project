@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getMyRooms, getRooms, joinRoom, pinRoom, unpinRoom } from './chatApi'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
+import '../common/modernist.css' // Modernist 공용 토큰·클래스 (chat.css보다 먼저 — 같은 특이도 덮어쓰기 순서)
 import './chat.css'
 
 /**
@@ -21,7 +22,7 @@ function RoomRow({ room, onEnter, entering, actions }) {
     <li>
       <button
         type="button"
-        className="room-row"
+        className="mn-row room-row"
         onClick={() => onEnter(room)}
         disabled={entering}
       >
@@ -42,9 +43,9 @@ function RoomRow({ room, onEnter, entering, actions }) {
               </span>
             )}
           </span>
-          {room.description && <span className="room-desc">{room.description}</span>}
+          {room.description && <span className="room-desc sub">{room.description}</span>}
         </span>
-        <span className="count">
+        <span className="count meta">
           {room.maxMembers
             ? `${room.participantCount}/${room.maxMembers}명`
             : `${room.participantCount}명 참여 중`}
@@ -137,14 +138,15 @@ export default function ChatRoomListPage() {
   }
 
   return (
-    <main className="chat-page">
-      <header className="chat-header">
+    <main className="mn chat-page">
+      <header className="mn-top">
         <h1>오픈채팅</h1>
-        <Link to="/">← 홈으로</Link>
+        <Link to="/" className="mn-link">← 홈으로</Link>
       </header>
+      <div className="mn-rule" />
 
       {/* 생성은 별도 페이지 — 목록은 찾기·입장에 집중한다 (pet 목록의 "+ 등록" 링크와 같은 패턴) */}
-      <Link to="/chat/new" className="chat-new-link">+ 방 만들기</Link>
+      <Link to="/chat/new" className="mn-link chat-new-link">+ 방 만들기</Link>
 
       {/* 내 방 (F7) — 아래 검색·필터는 "전체" 목록에만 적용된다. 참여 중인 방을 찾으려고
           매번 검색하지 않아도 되게 하는 것이 이 섹션의 목적이라, 필터에 딸려 사라지면 안 된다 */}
@@ -185,9 +187,11 @@ export default function ChatRoomListPage() {
           placeholder="방 이름·소개 검색" aria-label="방 검색"
         />
         <div className="chat-filter-row">
+          {/* 선택 상태는 .mn-chip 계약대로 aria-pressed로 표현한다 (스타일도 여기에 걸린다) */}
           <button
             type="button"
-            className={`chat-chip${categoryFilter === '' ? ' active' : ''}`}
+            className="mn-chip"
+            aria-pressed={categoryFilter === ''}
             onClick={() => setCategoryFilter('')}
           >
             전체
@@ -196,7 +200,8 @@ export default function ChatRoomListPage() {
             <button
               key={c.value}
               type="button"
-              className={`chat-chip${categoryFilter === c.value ? ' active' : ''}`}
+              className="mn-chip"
+              aria-pressed={categoryFilter === c.value}
               onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
             >
               {c.label}

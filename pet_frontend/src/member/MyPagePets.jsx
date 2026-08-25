@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deletePet, getMyPets } from '../pet/petApi'
-import '../pet/pet.css'
+// pet.css를 빌려 쓰지 않는다 (2026-08-25 Modernist 전환) — pet 화면은 다른 작업자와 동시 작업
+// 중이라, 이 탭의 행·액션 스타일은 member.css에 자체 정의했다 (.mypage-pet-* 계열)
+import './member.css'
 
 // 수정 화면이 저장 후 돌아올 곳 — navigate state로 넘긴다 (PetEditPage가 받는다).
 // 상수로 둔 이유: 이 값이 이 파일의 경로와 어긋나면 "저장했더니 엉뚱한 데로 간다"가 된다
@@ -10,8 +12,8 @@ const RETURN_TO = '/mypage/pets'
 /**
  * 마이페이지 — 펫 정보 탭 (docs/plan-2026-08-13.md F5).
  *
- * 홈(PetListPage)이 "보기 중심"이라면 이 화면은 **관리 중심**이다. 항목을 누르면 그 자리에서
- * 펼쳐지며 수정·삭제가 나온다.
+ * /pets 목록 라우트 폐지(2026-08-25)로 이 탭이 **유일한 전체 목록** 화면이다.
+ * 항목을 누르면 그 자리에서 펼쳐지며 상세·수정·삭제가 나온다 (상세 진입은 홈 프로필에도 있다).
  *
  * 설계 판단 두 가지:
  * - **수정은 기존 `/pets/:petId/edit`을 재사용한다.** 여기에 폼을 또 만들면 검증 규칙(petForm.js)과
@@ -55,10 +57,10 @@ export default function MyPagePets() {
   return (
     <section>
       <h2>펫 정보</h2>
-      <nav className="pet-nav">
-        <Link className="pet-add" to="/pets/new">+ 반려동물 등록</Link>
+      <nav className="mypage-pets-nav">
+        <Link className="mn-link" to="/pets/new">+ 반려동물 등록</Link>
       </nav>
-      <p className="muted-note">항목을 누르면 수정·삭제할 수 있습니다.</p>
+      <p className="muted-note">항목을 누르면 상세·수정·삭제할 수 있습니다.</p>
 
       {error && <p className="submit-error" role="alert">{error}</p>}
       {pets === null && !error && <p className="muted-note">불러오는 중…</p>}
@@ -66,7 +68,7 @@ export default function MyPagePets() {
         <p className="muted-note">등록된 반려동물이 없습니다. 위 버튼으로 등록해 보세요.</p>
       )}
       {pets && pets.length > 0 && (
-        <ul className="pet-list">
+        <ul className="mypage-pet-list">
           {pets.map((pet) => {
             const open = openId === pet.id
             return (
@@ -75,31 +77,39 @@ export default function MyPagePets() {
                     홈 목록이 <Link>인 것과 대비되는데, 여기서는 이동이 아니라 펼침이라 버튼이 맞다 */}
                 <button
                   type="button"
-                  className="pet-row"
+                  className="mn-row"
                   aria-expanded={open}
                   onClick={() => setOpenId(open ? null : pet.id)}
                 >
                   {pet.profileImageUrl ? (
-                    <img className="pet-thumb" src={pet.profileImageUrl} alt="" />
+                    <img className="mypage-pet-thumb" src={pet.profileImageUrl} alt="" />
                   ) : (
-                    <span className="pet-thumb pet-thumb-empty" aria-hidden="true">🐶</span>
+                    <span className="mypage-pet-thumb mn-photo" aria-hidden="true" />
                   )}
-                  <strong>{pet.name}</strong>
-                  <span className="muted">{pet.breed ?? '품종 미입력'}</span>
-                  <span className="muted">{pet.birthDate ?? '생년월일 미입력'}</span>
+                  <span>
+                    <b>{pet.name}</b>
+                    <span className="sub">
+                      {[pet.breed ?? '품종 미입력', pet.birthDate ?? '생년월일 미입력'].join(' · ')}
+                    </span>
+                  </span>
                 </button>
                 {open && (
-                  <div className="pet-actions">
+                  <div className="mypage-pet-actions">
+                    {/* 상세 진입 — /pets 목록 행에서 흡수 (2026-08-25) */}
+                    <Link className="mn-link" to={`/pets/${pet.id}`}>
+                      상세
+                    </Link>
                     <Link
-                      className="pet-add"
+                      className="mn-link"
                       to={`/pets/${pet.id}/edit`}
                       state={{ from: RETURN_TO }}
                     >
                       수정
                     </Link>
+                    {/* 삭제는 위험 액션 — 딥 레드 텍스트 (레드 채움 금지 규칙) */}
                     <button
                       type="button"
-                      className="danger"
+                      className="danger-link"
                       onClick={() => onDelete(pet)}
                       disabled={deletingId === pet.id}
                     >

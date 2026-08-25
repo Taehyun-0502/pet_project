@@ -5,6 +5,7 @@ import Loading from '../common/Loading'
 import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { startKakaoLogin } from './kakaoOAuth'
+import '../common/modernist.css'
 import './member.css'
 
 function validate(values) {
@@ -42,36 +43,42 @@ export default function LoginPage() {
   if (user) return <Navigate to={from} replace />
 
   return (
-    <main className="auth-page">
-      <h1>로그인</h1>
-      {signupEmail && (
-        <p className="notice">가입이 완료되었습니다. 로그인해 주세요.</p>
-      )}
-      <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
-        <Field form={form} name="email" label="이메일" type="email" autoComplete="email" />
-        <Field
-          form={form} name="password" label="비밀번호"
-          type="password" autoComplete="current-password"
-        />
-        {/* role="alert"이라 로그인 실패가 스크린리더에도 읽힌다 (백로그 52번) */}
-        {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" disabled={form.submitting}>
-          {form.submitting ? '로그인 중…' : '로그인'}
-        </button>
-        {/* 인가 페이지로 이동하므로 submit이 아니라 일반 버튼 — 폼 검증을 타면 안 된다.
-            실패 사유(키 미설정·난수 불가)를 문자열로 돌려주므로 화면에 띄운다 (백로그 58·103번) */}
-        <button
-          type="button"
-          className="kakao-login"
-          onClick={() => setKakaoError(startKakaoLogin() ?? '')}
-        >
-          카카오로 시작하기
-        </button>
-        {kakaoError && <p className="submit-error" role="alert">{kakaoError}</p>}
-      </form>
-      <p className="auth-switch">
-        <Link to="/signup">계정이 없으신가요? 회원가입</Link>
-      </p>
+    <main className="mn">
+      <div className="mn-top">
+        <div className="mn-brand">댕댕댕</div>
+      </div>
+      <div className="mn-rule" />
+      <div className="auth-page">
+        <h1>로그인</h1>
+        {signupEmail && (
+          <p className="notice">가입이 완료되었습니다. 로그인해 주세요.</p>
+        )}
+        <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
+          <Field form={form} name="email" label="이메일" type="email" autoComplete="email" />
+          <Field
+            form={form} name="password" label="비밀번호"
+            type="password" autoComplete="current-password"
+          />
+          {/* role="alert"이라 로그인 실패가 스크린리더에도 읽힌다 (백로그 52번) */}
+          {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
+          <button type="submit" className="mn-primary block" disabled={form.submitting}>
+            {form.submitting ? '로그인 중…' : '로그인'}
+          </button>
+          {/* 인가 페이지로 이동하므로 submit이 아니라 일반 버튼 — 폼 검증을 타면 안 된다.
+              실패 사유(키 미설정·난수 불가)를 문자열로 돌려주므로 화면에 띄운다 (백로그 58·103번) */}
+          <button
+            type="button"
+            className="kakao-login"
+            onClick={() => setKakaoError(startKakaoLogin() ?? '')}
+          >
+            카카오로 시작하기
+          </button>
+          {kakaoError && <p className="submit-error" role="alert">{kakaoError}</p>}
+        </form>
+        <p className="auth-switch">
+          <Link to="/signup">계정이 없으신가요? 회원가입</Link>
+        </p>
+      </div>
     </main>
   )
 }

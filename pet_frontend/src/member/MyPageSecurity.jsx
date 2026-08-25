@@ -133,7 +133,7 @@ export default function MyPageSecurity() {
               비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.
             </p>
           )}
-          <button type="submit" disabled={form.submitting}>
+          <button type="submit" className="mn-primary block" disabled={form.submitting}>
             {form.submitting ? '변경 중…' : '비밀번호 변경'}
           </button>
         </form>

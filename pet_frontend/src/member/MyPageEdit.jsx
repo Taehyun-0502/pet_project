@@ -91,7 +91,7 @@ export default function MyPageEdit() {
           <p className="submit-error" role="alert">{nameForm.submitError}</p>
         )}
         {nameNotice && <p className="notice" role="status">{nameNotice}</p>}
-        <button type="submit" disabled={nameForm.submitting}>
+        <button type="submit" className="mn-primary block" disabled={nameForm.submitting}>
           {nameForm.submitting ? '저장 중…' : '이름 저장'}
         </button>
       </form>

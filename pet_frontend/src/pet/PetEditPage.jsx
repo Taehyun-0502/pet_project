@@ -5,6 +5,7 @@ import { useForm } from '../common/useForm'
 import { getPet, updatePet } from './petApi'
 import { today, toPetRequest, validatePetForm } from './petForm'
 import '../common/forms.css'
+import '../common/modernist.css'
 import './pet.css'
 
 /**
@@ -52,28 +53,28 @@ export default function PetEditPage() {
 
   if (loadError) {
     return (
-      <main className="auth-page">
+      <main className="mn auth-page">
         <h1>반려동물 수정</h1>
         <p className="submit-error" role="alert">
           {loadError.code === 'PET_NOT_FOUND'
             ? '찾을 수 없는 반려동물입니다. 삭제되었거나 접근 권한이 없습니다.'
             : loadError.message}
         </p>
-        <p className="auth-switch"><Link to="/">← 목록으로</Link></p>
+        <p className="auth-switch"><Link to="/mypage/pets">← 펫 목록으로</Link></p>
       </main>
     )
   }
 
   if (!loaded) {
     return (
-      <main className="auth-page">
-        <p>불러오는 중…</p>
+      <main className="mn auth-page">
+        <p className="muted-note">불러오는 중…</p>
       </main>
     )
   }
 
   return (
-    <main className="auth-page">
+    <main className="mn auth-page">
       <h1>반려동물 수정</h1>
       <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
         <Field form={form} name="name" label="이름 (필수)" type="text" />
@@ -81,7 +82,7 @@ export default function PetEditPage() {
         <Field form={form} name="birthDate" label="생년월일 (선택)" type="date" max={today()} />
         <p className="muted-note">비워 두면 그 항목은 지워집니다.</p>
         {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" disabled={form.submitting}>
+        <button type="submit" className="mn-primary block" disabled={form.submitting}>
           {form.submitting ? '저장 중…' : '저장하기'}
         </button>
       </form>

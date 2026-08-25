@@ -15,10 +15,10 @@ import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import WelcomePage from './member/WelcomePage'
 import NotFoundPage from './NotFoundPage'
+import HomePage from './home/HomePage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetDetailPage from './pet/PetDetailPage'
 import PetEditPage from './pet/PetEditPage'
-import PetListPage from './pet/PetListPage'
 
 // 타 슬라이스의 무거운 화면(지도·숏츠·진단 — 합계 수천 줄)은 지연 로드해 첫 진입 번들에서 분리한다.
 // 해당 파일은 건드리지 않고 여기서 로드 방식만 바꾼다 (슬라이스 경계 유지, 2026-08-11)
@@ -55,7 +55,10 @@ function App() {
 
         {/* 보호 경로 — 이 블록 안에 추가하면 자동으로 로그인이 요구된다 */}
         <Route element={<RequireLogin />}>
-          <Route path="/" element={<PetListPage />} />
+          {/* 홈 — 기능 타일·AI 질문·대표 반려동물 (디자인 핸드오프 2026-08-25).
+              /pets 목록 라우트는 폐지 (2026-08-25) — 목록은 마이페이지 펫 탭(/mypage/pets)이 담당,
+              상세 진입은 홈 프로필과 펫 탭에서 */}
+          <Route path="/" element={<HomePage />} />
           <Route path="/pets/new" element={<PetCreatePage />} />
           <Route path="/pets/:petId" element={<PetDetailPage />} />
           <Route path="/pets/:petId/edit" element={<PetEditPage />} />

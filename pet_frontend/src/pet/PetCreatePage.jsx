@@ -6,6 +6,7 @@ import { useForm } from '../common/useForm'
 import { registerPet, uploadPetImage } from './petApi'
 import { today, toPetRequest, validatePetForm } from './petForm'
 import '../common/forms.css'
+import '../common/modernist.css'
 import './pet.css'
 
 export default function PetCreatePage() {
@@ -42,7 +43,8 @@ export default function PetCreatePage() {
           return
         }
       }
-      navigate('/', { replace: true }) // 목록이 다시 마운트되며 새 데이터를 불러온다
+      // /pets 목록 폐지(2026-08-25) 후 목록 역할은 마이페이지 펫 탭이 맡는다
+      navigate('/mypage/pets', { replace: true }) // 탭이 다시 마운트되며 새 데이터를 불러온다
     },
   })
 
@@ -67,15 +69,15 @@ export default function PetCreatePage() {
   }
 
   return (
-    <main className="auth-page">
+    <main className="mn auth-page">
       <h1>반려동물 등록</h1>
       <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
-        {/* 사진은 선택 — 등록하지 않으면 목록·상세에 기본 이미지(🐶)가 표시된다 */}
+        {/* 사진은 선택 — 등록하지 않으면 목록·상세에 기본 패턴(.mn-photo)이 표시된다 */}
         <div className="pet-photo">
           {photoPreview ? (
-            <img src={photoPreview} alt="선택한 사진 미리보기" />
+            <img className="mn-photo" src={photoPreview} alt="선택한 사진 미리보기" />
           ) : (
-            <div className="pet-photo-placeholder" aria-hidden="true">🐶</div>
+            <div className="pet-photo-placeholder mn-photo" aria-hidden="true" />
           )}
           <label className="pet-photo-upload">
             {preparing ? '불러오는 중…' : photo ? '사진 변경' : '사진 등록 (선택)'}
@@ -90,12 +92,12 @@ export default function PetCreatePage() {
         <Field form={form} name="breed" label="품종 (선택)" type="text" placeholder="예: 푸들" />
         <Field form={form} name="birthDate" label="생년월일 (선택)" type="date" max={today()} />
         {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" disabled={form.submitting || preparing}>
+        <button type="submit" className="mn-primary block" disabled={form.submitting || preparing}>
           {form.submitting ? '등록 중…' : '등록하기'}
         </button>
       </form>
       <p className="auth-switch">
-        <Link to="/">← 목록으로</Link>
+        <Link to="/mypage/pets">← 펫 목록으로</Link>
       </p>
     </main>
   )

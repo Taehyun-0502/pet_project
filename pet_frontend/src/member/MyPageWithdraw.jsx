@@ -82,6 +82,7 @@ export default function MyPageWithdraw() {
           </button>
           <button
             type="button"
+            className="mn-secondary"
             disabled={withdrawing}
             onClick={() => { setWithdrawOpen(false); setWithdrawConfirm(''); setWithdrawError('') }}
           >

@@ -1,0 +1,76 @@
+/* 홈 화면 전용 스타일. 토큰·공용 클래스(룰·칩·버튼·행·시트·타일)는 common/modernist.css로
+   승격했다(2026-08-25) — 여기에는 홈에만 있는 레이아웃(AI 질문·프로필·통계)만 남긴다.
+   색·선은 반드시 --mn-* 토큰만 쓴다. */
+
+/* AI 질문 입력 */
+.home-ask { padding: 16px 18px; }
+.home-ask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid var(--mn-text);
+  padding: 10px 11px;
+}
+.home-ask-badge {
+  background: var(--mn-accent);
+  color: var(--mn-bg);
+  padding: 4px 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+.home-ask-row input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 13.5px;
+  color: inherit;
+}
+.home-ask-row input:focus { outline: none; }
+.home-ask-answer {
+  border: 1px solid var(--mn-line-strong);
+  border-top: 0;
+  padding: 11px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(32, 30, 29, 0.7);
+}
+.home-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+
+/* 헤더 우측 묶음 — 앱 설치·회원명·로그아웃 (/pets에서 이관, 2026-08-25) */
+.home-top-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+/* 반려동물 프로필 */
+.home-pet { padding: 16px 18px 18px; }
+
+/* 이름·정보 블록의 상세 진입 링크 — .mn a의 레드·800을 본문 모양으로 되돌린다 */
+.home-pet-link {
+  display: block;
+  min-width: 0;
+  color: inherit;
+  font-weight: 400;
+  text-decoration: none;
+}
+.home-pet-link:hover .home-pet-name,
+.home-pet-link:focus-visible .home-pet-name { text-decoration: underline; }
+.home-pet-chips { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+.home-pet-photo { width: 100%; aspect-ratio: 16 / 9; }
+.home-pet-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 12px;
+  gap: 12px;
+}
+.home-pet-name { font-size: 24px; font-weight: 800; line-height: 1.05; }
+.home-pet-meta { margin-top: 4px; font-size: 12px; color: var(--mn-muted); }
+
+/* 통계 격자(.home-stats)는 제거 (2026-08-25) — 나이는 프로필 메타로 충분, 산책·검진은 집계 API 미확정 */
+
+/* 숏츠 행 — 공용 .mn-row에 세로 썸네일이 붙는 홈 전용 변형 */
+.home .mn-row.short { grid-template-columns: 64px 1fr; gap: 12px; padding: 11px 18px; }
+.home .mn-row.short img,
+.home .mn-row.short .thumb { width: 64px; aspect-ratio: 9 / 13; }

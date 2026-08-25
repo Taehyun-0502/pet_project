@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import '../common/forms.css'
+import '../common/modernist.css'
 import './member.css'
 
 /**
@@ -26,21 +27,27 @@ export default function MyPage() {
   const infoActive = !OTHER_TAB_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 
   return (
-    <main className="auth-page">
-      <h1>마이페이지</h1>
-      <nav className="mypage-tabs">
-        {/* NavLink의 자동 active 대신 직접 계산한다 (위 주석).
-            className을 **함수로** 주는 것이 핵심이다 — 문자열로 주면 NavLink가 자기 판단의
-            'active'를 뒤에 덧붙이는데, `end`가 없는 "/mypage"는 하위 경로 전부에 매칭돼
-            /mypage/pets에서도 이 탭이 함께 켜진다(실측으로 확인). 함수는 반환값이 그대로 쓰인다 */}
-        <NavLink to="/mypage" className={() => (infoActive ? 'active' : '')}>내 정보</NavLink>
-        <NavLink to="/mypage/pets">펫 정보</NavLink>
-        <NavLink to="/mypage/posts">내 게시물</NavLink>
-      </nav>
-      <Outlet />
-      <p className="auth-switch">
-        <Link to="/">← 홈으로</Link>
-      </p>
+    <main className="mn">
+      <div className="mn-top">
+        <div className="mn-brand">댕댕댕</div>
+      </div>
+      <div className="mn-rule" />
+      <div className="auth-page">
+        <h1>마이페이지</h1>
+        <nav className="mypage-tabs">
+          {/* NavLink의 자동 active 대신 직접 계산한다 (위 주석).
+              className을 **함수로** 주는 것이 핵심이다 — 문자열로 주면 NavLink가 자기 판단의
+              'active'를 뒤에 덧붙이는데, `end`가 없는 "/mypage"는 하위 경로 전부에 매칭돼
+              /mypage/pets에서도 이 탭이 함께 켜진다(실측으로 확인). 함수는 반환값이 그대로 쓰인다 */}
+          <NavLink to="/mypage" className={() => (infoActive ? 'active' : '')}>내 정보</NavLink>
+          <NavLink to="/mypage/pets">펫 정보</NavLink>
+          <NavLink to="/mypage/posts">내 게시물</NavLink>
+        </nav>
+        <Outlet />
+        <p className="auth-switch">
+          <Link to="/">← 홈으로</Link>
+        </p>
+      </div>
     </main>
   )
 }

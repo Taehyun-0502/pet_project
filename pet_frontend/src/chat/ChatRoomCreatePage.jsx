@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { createRoom } from './chatApi'
 import { ROOM_CATEGORIES } from './roomCategories'
 import '../common/forms.css'
+import '../common/modernist.css' // Modernist 공용 토큰·클래스 (chat.css보다 먼저)
 import './chat.css'
 
 /**
@@ -59,11 +60,12 @@ export default function ChatRoomCreatePage() {
   }
 
   return (
-    <main className="chat-page">
-      <header className="chat-header">
+    <main className="mn chat-page">
+      <header className="mn-top">
         <h1>새 채팅방</h1>
-        <Link to="/chat">← 방 목록으로</Link>
+        <Link to="/chat" className="mn-link">← 방 목록으로</Link>
       </header>
+      <div className="mn-rule" />
 
       <form className="chat-create" onSubmit={onCreate}>
         <input
@@ -86,7 +88,7 @@ export default function ChatRoomCreatePage() {
           placeholder="소개 (선택, 200자 이내)" maxLength={200}
         />
         {error && <p className="submit-error">{error}</p>}
-        <button type="submit" disabled={creating}>
+        <button type="submit" className="mn-primary block" disabled={creating}>
           {creating ? '만드는 중…' : '방 만들기'}
         </button>
       </form>
