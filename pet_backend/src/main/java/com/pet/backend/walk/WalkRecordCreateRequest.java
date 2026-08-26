@@ -10,11 +10,13 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * 산책 기록 저장 요청. petId는 JWT 연동 전이라 선택(null 허용) — 인증 붙으면 토큰에서 꺼내는
- * 방식으로 교체 예정(WalkRecord 클래스 주석 참고).
+ * 산책 기록 저장 요청. petId는 JWT 인증 연동 완료(QA H-1)로 필수가 됐다 — 프론트는 이미
+ * 항상 petId를 보내고 있었다. 소유권(인증된 memberId의 반려동물인지) 검증은
+ * {@link WalkRecordService#create}가 pet 도메인 public API(PetService)로 수행한다.
  */
 public record WalkRecordCreateRequest(
 
+        @NotNull(message = "petId는 필수입니다.")
         Long petId,
 
         @NotNull(message = "startedAt은 필수입니다.")

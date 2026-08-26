@@ -1,3 +1,7 @@
+# ⚠️ 미사용 — 실배포는 nginx 계통(setup-server.sh + .github/workflows/deploy.yml)이 가동 중
+#    (2026-08-26 QA M-3 실측 확정). 이 파일을 EC2에 적용하지 말 것 — 가동 중인 nginx와
+#    80/443 포트를 다툰다. 계통 단일화(이 파일 삭제 여부)는 팀 합의 안건.
+#
 # Pet Care — dddang.duckdns.org 리버스 프록시 (2026-08-24, 루트 CLAUDE.md "HTTPS 배포" 참고)
 #
 # 단일 오리진 구성: 프론트 정적 파일 + /api·/ws만 백엔드(8080)로 전달.
