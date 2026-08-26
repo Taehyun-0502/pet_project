@@ -3,6 +3,7 @@ package com.pet.backend.shorts;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -162,6 +163,62 @@ public interface ShortsRepository extends JpaRepository<Shorts, Long> {
               and m.deletedAt is null
             """)
     List<ShortsResponse> findAllByIds(@Param("ids") Collection<Long> ids);
+
+    /**
+     * 회원별 릴스 목록 — <b>최신순</b> (docs/api-spec.md 8절, F8·F9).
+     *
+     * <p>피드와 달리 랭킹이 없어 2단으로 나누지 않는다. 정렬 기준이 컬럼 그대로라 네이티브 SQL이
+     * 필요 없고, JPQL이면 {@code select new ...}로 DTO까지 한 번에 뽑을 수 있다.
+     *
+     * <p>탈퇴 회원은 조인으로 거르지 않는다 — 서비스가 목록을 조회하기 <b>전에</b> 회원 존재를
+     * 확인해 404를 던지기 때문이다. 여기서 또 거르면 "탈퇴 회원 = 빈 목록 200"이 되어
+     * 그 404가 무의미해진다.
+     *
+     * @param cursorId null이면 첫 페이지. 네이티브 쿼리와 달리 JPQL은 {@code s.id < :cursorId}에서
+     *                 파라미터 타입을 추론하므로 null을 넘겨도 안전하다
+     *                 (네이티브 쪽 사정은 {@link #findPersonalizedRankedIds} 호출부 주석 참고)
+     * @param pageable 개수만 쓴다. 서비스가 size+1을 넘겨 다음 페이지 유무를 판단한다
+     */
+    @Query("""
+            select new com.pet.backend.shorts.ShortsSummaryResponse(
+                s.id, s.memberId, s.thumbnailUrl, s.videoUrl, s.caption,
+                s.durationSec, s.viewCount, s.likeCount, s.commentCount, s.createdAt)
+            from Shorts s
+            where s.memberId = :memberId
+              and s.deletedAt is null
+              and (:cursorId is null or s.id < :cursorId)
+            order by s.id desc
+            """)
+    List<ShortsSummaryResponse> findMemberShortsLatest(@Param("memberId") Long memberId,
+                                                       @Param("cursorId") Long cursorId,
+                                                       Pageable pageable);
+
+    /**
+     * 회원별 릴스 목록 — <b>인기순</b>({@code like_count desc, id desc}).
+     *
+     * <p>정렬 기준을 피드의 품질점수로 하지 않은 이유는 {@link ShortsListSort} 주석 참고.
+     *
+     * <p>커서 조건이 세 갈래인 것은 <b>튜플 비교를 JPQL이 지원하지 않기 때문</b>이다.
+     * SQL이라면 {@code (like_count, id) < (:cl, :ci)} 한 줄이지만 JPQL에는 그 문법이 없어
+     * "좋아요가 더 적거나, 같으면서 id가 더 작은" 두 경우로 풀어 쓴다. 동점 처리를 빼면
+     * 좋아요 수가 같은 구간에서 항목이 중복되거나 통째로 건너뛰어진다.
+     */
+    @Query("""
+            select new com.pet.backend.shorts.ShortsSummaryResponse(
+                s.id, s.memberId, s.thumbnailUrl, s.videoUrl, s.caption,
+                s.durationSec, s.viewCount, s.likeCount, s.commentCount, s.createdAt)
+            from Shorts s
+            where s.memberId = :memberId
+              and s.deletedAt is null
+              and (:cursorId is null
+                   or s.likeCount < :cursorLikeCount
+                   or (s.likeCount = :cursorLikeCount and s.id < :cursorId))
+            order by s.likeCount desc, s.id desc
+            """)
+    List<ShortsSummaryResponse> findMemberShortsPopular(@Param("memberId") Long memberId,
+                                                        @Param("cursorLikeCount") Integer cursorLikeCount,
+                                                        @Param("cursorId") Long cursorId,
+                                                        Pageable pageable);
 
     Optional<Shorts> findByIdAndDeletedAtIsNull(Long id);
 

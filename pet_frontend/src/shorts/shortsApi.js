@@ -66,6 +66,37 @@ export function getShortsFeed({ limit, excludeIds } = {}) {
 }
 
 /**
+ * 회원별 릴스 목록 (docs/api-spec.md 8절 — 마이페이지 "내 게시물" F8, 유저 페이지 F9).
+ *
+ * **피드와 달리 인증이 필요하다.** 서버에서 이 경로만 permitAll 밖이다(v1 결정 —
+ * 공개 회원 프로필과 같은 정책이라 비로그인 공개로 바꾼다면 둘을 함께 전환한다).
+ *
+ * 내 목록과 남의 목록이 같은 API다 — 마이페이지는 자기 id를 넣는다. 삭제 버튼을 띄울지는
+ * 화면이 응답의 memberId와 자기 id를 비교해 판단한다(피드가 쓰는 규칙과 같다).
+ *
+ * 성공 시 { items, hasNext, nextCursor }
+ *   items: [{ id, memberId, thumbnailUrl, videoUrl, caption, durationSec,
+ *             viewCount, likeCount, commentCount, createdAt }]
+ *   thumbnailUrl은 null일 수 있다 — 커버를 굽지 못한 영상이며 화면이 videoUrl의 첫 프레임을 쓴다
+ *
+ * 피드처럼 excludeIds를 쓰지 않고 **커서**를 쓴다. 두 정렬 모두 순서가 안정적이라 커서가
+ * 성립하기 때문이다. nextCursor는 **해석하지 말고 그대로 되돌려준다** — 정렬마다 구성이 다르고
+ * (최신순은 id, 인기순은 좋아요+id) 서버가 언제든 형식을 바꿀 수 있는 불투명 문자열이다.
+ *
+ * @param options.sort 'latest'(기본, 최신순) 또는 'popular'(인기순 = 좋아요순)
+ * @param options.cursor 직전 응답의 nextCursor. 생략하면 첫 페이지
+ */
+export function getMemberShorts(memberId, { sort, cursor, size } = {}) {
+  const params = new URLSearchParams()
+  if (sort) params.set('sort', sort)
+  if (cursor) params.set('cursor', cursor)
+  if (size != null) params.set('size', size)
+
+  const query = params.toString()
+  return request(`/api/shorts/members/${memberId}${query ? `?${query}` : ''}`)
+}
+
+/**
  * 영상 한 건 조회. 공유 링크(`/shorts?v=123`)로 들어온 경우에 쓴다.
  * 피드와 같이 공개 조회라 비로그인도 볼 수 있고, 그 경우 likedByMe는 false다.
  * 삭제됐거나 없는 영상이면 404 SHORTS_NOT_FOUND.

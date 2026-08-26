@@ -22,6 +22,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +34,13 @@ public class ShortsService {
 
     private static final int DEFAULT_LIMIT = 10;
     private static final int MAX_LIMIT = 30;
+
+    /*
+     * 회원별 목록(api-spec.md 8절)의 페이지 크기. 피드보다 큰 이유는 화면이 다르다 —
+     * 피드는 한 번에 한 편을 세로로 넘기지만 목록은 썸네일 그리드라 한 화면에 여러 줄이 들어간다.
+     */
+    private static final int DEFAULT_LIST_SIZE = 20;
+    private static final int MAX_LIST_SIZE = 50;
 
     // id는 bigserial이라 항상 양수 — 어떤 영상과도 겹치지 않는 자리표시 값
     private static final long NO_EXCLUSION = -1L;
@@ -95,6 +104,77 @@ public class ShortsService {
             throw new BusinessException(ShortsErrorCode.NOT_FOUND);
         }
         return fillLikedByMe(found, viewerId).get(0);
+    }
+
+    /**
+     * 회원별 릴스 목록 (docs/api-spec.md 8절 — 마이페이지 "내 게시물" F8, 유저 페이지 F9).
+     *
+     * <p><b>내 목록과 남의 목록이 같은 조회다.</b> 보는 사람이 누구인지 따지지 않는다 —
+     * 삭제 버튼을 띄울지는 화면이 응답의 {@code memberId}와 자기 id를 비교해 판단하고,
+     * 실제 삭제는 {@link #delete}가 소유자를 다시 확인한다. 분기를 서버에 두면 같은 목록을
+     * 만드는 경로가 두 벌이 된다.
+     *
+     * <p>피드({@link #getFeed})와 <b>페이지네이션 방식이 다르다.</b> 저쪽은 점수 순서가 id 순서와
+     * 무관해 {@code excludeIds}를 쓰지만, 이 목록의 두 정렬은 순서가 안정적이라 커서가 성립한다.
+     *
+     * @param rawMemberId 경로에서 온 값. 숫자가 아니면 404로 흡수한다({@link #toMemberId})
+     * @param rawSort     {@code latest}(기본) 또는 {@code popular}. 그 밖의 값은 400
+     * @param rawCursor   직전 응답의 {@code nextCursor}. 없으면 첫 페이지
+     * @param size        1~50, 기본 20. 범위를 벗어나면 잘라서 처리한다(피드의 limit과 같은 규칙)
+     * @throws BusinessException 없는 회원·탈퇴 회원이면 404. <b>빈 목록 200이 아니다</b> —
+     *                           유저 페이지가 "영상이 없는 사람"과 "없는 사람"을 구분해야 한다
+     */
+    @Transactional(readOnly = true)
+    public ShortsListResponse getMemberShorts(String rawMemberId, String rawSort,
+                                              String rawCursor, Integer size) {
+        Long memberId = toMemberId(rawMemberId);
+        if (memberRepository.findByIdAndDeletedAtIsNull(memberId).isEmpty()) {
+            throw new BusinessException(MemberErrorCode.NOT_FOUND);
+        }
+
+        ShortsListSort sort = ShortsListSort.from(rawSort);
+        ShortsListCursor cursor = ShortsListCursor.parse(sort, rawCursor);
+        int pageSize = normalizeListSize(size);
+        // size + 1건을 읽어 다음 페이지 유무를 판단한다 (getFeed와 같은 방식 — 딱 size개만
+        // 가져오면 마지막 페이지인지 알 수 없어 빈 페이지를 한 번 더 요청하게 된다)
+        Pageable page = PageRequest.of(0, pageSize + 1);
+
+        List<ShortsSummaryResponse> found = (sort == ShortsListSort.LATEST)
+                ? shortsRepository.findMemberShortsLatest(memberId, cursorId(cursor), page)
+                : shortsRepository.findMemberShortsPopular(memberId,
+                        (cursor == null) ? null : cursor.likeCount(), cursorId(cursor), page);
+
+        boolean hasNext = found.size() > pageSize;
+        List<ShortsSummaryResponse> items = hasNext ? found.subList(0, pageSize) : found;
+        String nextCursor = hasNext
+                ? ShortsListCursor.format(sort, items.get(items.size() - 1))
+                : null;
+        return new ShortsListResponse(items, hasNext, nextCursor);
+    }
+
+    private Long cursorId(ShortsListCursor cursor) {
+        return (cursor == null) ? null : cursor.id();
+    }
+
+    /**
+     * 경로의 회원 id를 숫자로 바꾼다. 숫자가 아니면 500이 아니라 <b>404</b>로 흡수한다 —
+     * 없는 id·탈퇴 회원과 응답을 통일해 존재 여부가 새어나가지 않게 한다
+     * (MemberService.getPublicProfile 선례, docs/conventions.md 5절).
+     */
+    private Long toMemberId(String rawMemberId) {
+        try {
+            return Long.valueOf(rawMemberId);
+        } catch (NumberFormatException e) {
+            throw new BusinessException(MemberErrorCode.NOT_FOUND);
+        }
+    }
+
+    // 잘못된 size(0, 음수, 과도한 값)로 DB를 긁는 것을 막는다 (normalizeLimit과 같은 규칙)
+    private int normalizeListSize(Integer size) {
+        if (size == null || size < 1) {
+            return DEFAULT_LIST_SIZE;
+        }
+        return Math.min(size, MAX_LIST_SIZE);
     }
 
     /**

@@ -56,6 +56,29 @@ public class ShortsController {
     }
 
     /**
+     * 회원별 릴스 목록 (docs/api-spec.md 8절 — 마이페이지 "내 게시물" F8, 유저 페이지 F9).
+     *
+     * <p><b>이 경로만 인증이 필요하다.</b> 위의 피드·단건 조회는 공개지만 여기는 아니다 —
+     * SecurityConfig의 {@code GET /api/shorts/*} permitAll은 <b>한 세그먼트만</b> 매칭해서
+     * {@code /api/shorts/members/5}에는 닿지 않는다. 그래서 규칙을 따로 추가하지 않았고,
+     * <b>추가하면 안 된다</b>(추가하는 순간 공개된다). 공개 회원 프로필(1절 7차)과 같은 v1 결정이며
+     * 비로그인 공개로 바꾼다면 두 API를 함께 전환한다.
+     *
+     * <p>memberId를 String으로 받는 이유는 Service의 {@code toMemberId} 주석 참조 (형식 오류 → 404 흡수).
+     *
+     * @param sort   {@code latest}(기본) 또는 {@code popular}
+     * @param cursor 직전 응답의 {@code nextCursor}를 그대로. 생략하면 첫 페이지
+     */
+    @GetMapping("/api/shorts/members/{memberId}")
+    public ApiResponse<ShortsListResponse> getMemberShorts(
+            @PathVariable String memberId,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size) {
+        return ApiResponse.ok(shortsService.getMemberShorts(memberId, sort, cursor, size));
+    }
+
+    /**
      * 영상 삭제. 올린 사람만 지울 수 있고, 남의 영상이면 404다(403이 아닌 이유는
      * {@link ShortsService#delete} 주석 참고). 소프트 삭제라 좋아요·댓글은 그대로 남는다.
      */

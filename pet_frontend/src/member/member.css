@@ -324,6 +324,129 @@
   padding: 2px 0 10px;
 }
 
+/* ── 내 게시물 탭 — 릴스 썸네일 그리드 (docs/plan-2026-08-13.md F8) ── */
+
+.mypage .mypage-posts-nav {
+  margin: 8px 0 2px;
+}
+
+/* 정렬 토글 — 공용 .w-chip을 나란히. 선택 상태는 warm.css의 [aria-pressed='true']가 그린다 */
+.mypage .mypage-posts-sorts {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+/*
+ * 3열 고정이다. 처음엔 minmax(96px, 1fr) 자동 채움이었는데, 마이페이지 본문 폭이 326px이라
+ * 2열(143px)로 떨어졌다 — 9:16 타일이 255px까지 커져 20건이 약 3000px(4.6화면)가 됐다.
+ * 3열이면 타일이 100×178이 되어 같은 20건이 절반 높이에 들어간다. 릴스 그리드는 어차피
+ * "훑어보고 고르는" 화면이라 타일 하나의 크기보다 한 화면에 몇 개가 보이는지가 중요하다.
+ */
+.mypage .mypage-post-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+/* 좋아요 수·삭제 버튼을 타일 위에 얹기 위한 기준점 */
+.mypage .mypage-post-grid > li {
+  position: relative;
+}
+
+/* 썸네일 칸 — 릴스는 9:16이라 세로로 길다 */
+.mypage .mypage-post-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--lg-line);
+  background: var(--lg-bg-bottom);
+}
+
+.mypage .mypage-post-thumb img,
+.mypage .mypage-post-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 재생 시간 — 썸네일 위 우하단. 반투명 검정 위 흰 글자라 어떤 영상 위에서도 읽힌다 */
+.mypage .mypage-post-duration {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/*
+ * 좋아요 수 — 타일 좌하단. 타일 아래 별도 줄이었던 것을 위로 올렸다(2026-08-26):
+ * 줄 하나가 행마다 32px씩 붙어 스크롤을 늘리는데, 그 자리에 있던 정보는 짧은 숫자 두 개뿐이었다.
+ *
+ * 댓글 수는 뺐다 — 100px 타일에 두 숫자를 넣으면 줄이 넘치고, 정렬 기준(인기순 = 좋아요순)이
+ * 좋아요라 그 숫자가 남아 있어야 왜 이 순서인지 보인다. 댓글 수는 영상을 열면 나온다.
+ */
+.mypage .mypage-post-stat {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+/*
+ * 삭제 — 타일 우상단. <Link> 안에 넣을 수 없어(a 안의 button은 잘못된 중첩) 형제로 두고 겹친다.
+ * 위험 액션이라 --lg-error 텍스트로 두는 규칙이 있지만, 영상 위에서는 어떤 색 글자도 읽힌다는
+ * 보장이 없어 반투명 검정 알약 위에 얹었다(재생 시간 배지와 같은 문법).
+ */
+.mypage .mypage-post-delete {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mypage .mypage-post-delete:hover {
+  background: var(--lg-error);
+}
+
+.mypage .mypage-post-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mypage .mypage-posts-more {
+  margin-top: 14px;
+}
+
 /* ── 온보딩(가입 환영)·카카오 콜백 — .warm .auth-page 골격 위에 브랜드 헤더만 얹는다 ── */
 
 .warm .auth-page > .w-top {
