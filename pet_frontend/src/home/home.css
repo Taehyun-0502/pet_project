@@ -209,20 +209,38 @@
 }
 .home-lrow-meta { flex-shrink: 0; font-size: 11.5px; color: var(--lg-muted); }
 .home-lrow-chev { flex-shrink: 0; font-size: 16px; color: var(--lg-muted); line-height: 1; }
-.home-lrow-thumb {
-  width: 64px;
-  height: 44px;
-  flex-shrink: 0;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid var(--lg-line);
+/* 숏츠 — 썸네일 3칸 (2026-08-26. 제목·좋아요를 뺀 그리드라 구 .home-lrow-thumb 규칙은 삭제).
+   세로 영상이라 9:16으로 두고, 글자가 없으니 카드 헤드 아래 여백만 준다 */
+.home-shorts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
 }
-.home-lrow-thumb-empty {
+.home-shorts-item {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border: 1px solid var(--lg-line);
+  border-radius: 14px;
+  background: #f8edde;
+  padding: 0;
+  cursor: pointer;
+}
+.home-shorts-item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.home-shorts-item:hover { border-color: var(--lg-accent); }
+.home-shorts-empty {
   display: grid;
   place-items: center;
-  background: #f8edde;
+  width: 100%;
+  height: 100%;
   color: var(--lg-muted);
-  font-size: 14px;
+  font-size: 16px;
 }
 
 /* 건강검진 시트·하단 앱바는 appShell.css로 이관 (2026-08-26) — 여러 화면이 공유하는

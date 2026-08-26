@@ -192,37 +192,35 @@ export default function HomePage() {
           AdBanner가 스스로 null을 반환해 자리도 차지하지 않는다 (부가 요소 원칙) */}
       <AdBanner />
 
-      {/* 숏츠 3 — ?v= 공유 링크 형식으로 그 영상부터 재생 (shortsApi.getShort 참고) */}
-      <section className="home-card home-list">
+      {/* 숏츠 3 — 썸네일만 3칸으로 (2026-08-26 사용자 결정, 제목·좋아요 줄 제거).
+          누르면 ?v= 공유 링크 형식으로 그 영상부터 재생한다 (shortsApi.getShort 참고).
+          글자가 없으므로 캡션을 aria-label로 남겨 스크린리더가 무엇인지 알 수 있게 한다 */}
+      <section className="home-card home-shorts">
         <div className="home-card-head">
           <h2><span aria-hidden="true">🎬</span> 숏츠</h2>
           <button type="button" className="home-link" onClick={() => navigate('/shorts')}>
             전체 보기
           </button>
         </div>
-        {shorts.slice(0, 3).map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            className="home-lrow short"
-            onClick={() => navigate(`/shorts?v=${v.id}`)}
-          >
-            {v.thumbnailUrl ? (
-              <img className="home-lrow-thumb" src={v.thumbnailUrl} alt="" />
-            ) : (
-              <span className="home-lrow-thumb home-lrow-thumb-empty" aria-hidden="true">▶</span>
-            )}
-            <span className="home-lrow-main">
-              <b>{v.caption || '제목 없음'}</b>
-              <span className="sub">
-                {[v.memberName, v.likeCount != null ? `좋아요 ${v.likeCount}` : null]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
-            </span>
-            <span className="home-lrow-chev" aria-hidden="true">›</span>
-          </button>
-        ))}
+        {shorts.length > 0 && (
+          <div className="home-shorts-grid">
+            {shorts.slice(0, 3).map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                className="home-shorts-item"
+                aria-label={v.caption || '숏츠 재생'}
+                onClick={() => navigate(`/shorts?v=${v.id}`)}
+              >
+                {v.thumbnailUrl ? (
+                  <img src={v.thumbnailUrl} alt="" loading="lazy" />
+                ) : (
+                  <span className="home-shorts-empty" aria-hidden="true">▶</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
         {shorts.length === 0 && <p className="home-muted">아직 새 영상이 없습니다.</p>}
       </section>
     </main>
