@@ -1,0 +1,129 @@
+/* 앱 셸 — 하단 앱바 + 건강검진 시트 (2026-08-26, 홈 전용에서 공통으로 승격).
+   이 두 요소는 화면(.warm/.home) **바깥**에 그려지므로 웜톤 토큰을 상속받지 못한다.
+   그래서 팔레트를 여기서 직접 정의한다 — 값은 common/warm.css와 동일하게 유지할 것. */
+.appbar,
+.app-sheet-backdrop {
+  --lg-card: #fffdfa;
+  --lg-text: #4b4037;
+  --lg-muted: #9a8d80;
+  --lg-line: #f0e3d2;
+  --lg-accent: #ef7d66;
+  --lg-accent-deep: #e2664e;
+}
+
+/* 앱바가 있는 화면은 마지막 콘텐츠가 바에 가리지 않도록 아래를 비운다.
+   각 화면 CSS를 고치는 대신 여기서 한 번에 준다 — 앱바가 붙는 화면만 골라 적용된다 */
+#root:has(.appbar) > main {
+  padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+}
+
+/* 하단 앱바 — #root 컬럼에 맞춰 화면 하단 고정 */
+.appbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 360px; /* 폰에서는 아래 미디어쿼리로 해제 (index.css #root와 같은 분기) */
+  z-index: 50;
+  display: flex;
+  background: var(--lg-card);
+  border-top: 1px solid var(--lg-line);
+  padding: 8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 20px -18px rgba(90, 60, 30, 0.5);
+  box-sizing: border-box;
+}
+.appbar button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  padding: 3px 0;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--lg-muted);
+  cursor: pointer;
+}
+.appbar button span { font-size: 18px; line-height: 1; }
+.appbar button:hover { color: var(--lg-accent); }
+.appbar button.active { color: var(--lg-accent); }
+
+/* 건강검진 바텀시트 — 앱바보다 위(z-index)에 깔린다 */
+.app-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(75, 64, 55, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  color: var(--lg-text);
+  text-align: left;
+}
+.app-sheet {
+  width: 100%;
+  max-width: 360px;
+  box-sizing: border-box;
+  background: var(--lg-card);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 18px calc(26px + env(safe-area-inset-bottom, 0px));
+}
+.app-sheet * { box-sizing: border-box; }
+.app-sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
+.app-sheet-title { font-size: 17px; font-weight: 800; }
+.app-sheet-lede { margin: 8px 0 14px; font-size: 12.5px; color: var(--lg-muted); }
+.app-sheet-item { border-top: 1px solid var(--lg-line); padding: 14px 0; }
+.app-sheet-item:last-child { padding-bottom: 0; }
+.app-sheet-item b { display: block; font-size: 14.5px; font-weight: 800; }
+.app-sheet-item p { margin: 6px 0 10px; font-size: 12px; line-height: 1.45; color: var(--lg-muted); }
+
+.app-link {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lg-accent);
+  cursor: pointer;
+}
+.app-cta {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: var(--lg-accent);
+  color: #fff;
+  padding: 13px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.app-cta:hover { background: var(--lg-accent-deep); }
+.app-ghost {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  background: var(--lg-card);
+  padding: 13px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lg-text);
+  cursor: pointer;
+}
+.app-ghost:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
+
+/* 폰에서는 #root가 화면 폭을 다 쓰므로(index.css 480px 분기) 고정 요소도 폭 제한을 푼다 */
+@media (max-width: 480px) {
+  .appbar,
+  .app-sheet {
+    max-width: none;
+  }
+}

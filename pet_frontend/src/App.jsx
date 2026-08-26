@@ -15,6 +15,8 @@ import RequireLogin from './member/RequireLogin'
 import SignupPage from './member/SignupPage'
 import WelcomePage from './member/WelcomePage'
 import NotFoundPage from './NotFoundPage'
+import AppShell from './AppShell'
+import HomeLayout from './home/HomeLayout'
 import HomePage from './home/HomePage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetDetailPage from './pet/PetDetailPage'
@@ -55,26 +57,36 @@ function App() {
 
         {/* 보호 경로 — 이 블록 안에 추가하면 자동으로 로그인이 요구된다 */}
         <Route element={<RequireLogin />}>
-          {/* 홈 — 기능 타일·AI 질문·대표 반려동물 (디자인 핸드오프 2026-08-25).
+          {/* 앱 셸 — 하단 앱바 + 건강검진 시트를 공유한다 (2026-08-26). 이 안에 넣으면
+              화면이 바뀌어도 앱바가 남는다. 채팅방(자체 하단 입력 바)·숏츠(풀스크린)·
+              진단·펫 폼은 밖에 둔다 — 하단 UI가 겹치거나 한 가지 일에 집중하는 화면이라 */}
+          <Route element={<AppShell />}>
+            {/* 홈 레이아웃 — 헤더·기능 스트립은 고정하고 아래만 갈아 끼운다.
+                지도·산책이 별도 페이지가 아니라 홈의 하위 뷰가 된다 (URL은 그대로 유지) */}
+            <Route element={<HomeLayout />}>
+              <Route path="/" element={<HomePage />} />
+              {/* 주의: /map·/aisearch·/walk 라우트 계열은 병합에서 유실이 반복돼 왔다
+                  (QA F-4) — App.jsx 병합 해결 시 diff로 존재를 반드시 확인할 것 */}
+              <Route path="/map" element={<MapPage />} />
+              <Route path="/walk" element={<WalkPage />} />
+            </Route>
+            <Route path="/chat" element={<ChatRoomListPage />} />
+            <Route path="/mypage" element={<MyPage />}>
+              <Route index element={<MyPageProfile />} />
+              <Route path="edit" element={<MyPageEdit />} />
+              <Route path="security" element={<MyPageSecurity />} />
+              <Route path="pets" element={<MyPagePets />} />
+              <Route path="posts" element={<MyPagePosts />} />
+              {/* 구 URL 보존 — 탈퇴가 보안 화면 안으로 들어갔다. 남아 있는 링크·북마크가 깨지지 않게 */}
+              <Route path="withdraw" element={<Navigate to="/mypage/security" replace />} />
+            </Route>
+          </Route>
+          {/* 아래는 앱바 없는 화면들 — 한 가지 일에 집중하거나 자체 하단 UI가 있다.
               /pets 목록 라우트는 폐지 (2026-08-25) — 목록은 마이페이지 펫 탭(/mypage/pets)이 담당,
               상세 진입은 홈 프로필과 펫 탭에서 */}
-          <Route path="/" element={<HomePage />} />
           <Route path="/pets/new" element={<PetCreatePage />} />
           <Route path="/pets/:petId" element={<PetDetailPage />} />
           <Route path="/pets/:petId/edit" element={<PetEditPage />} />
-          {/* 마이페이지 — 탭이 곧 URL인 중첩 라우트 (MyPage.jsx가 탭 네비 + Outlet 레이아웃).
-              탭은 내 정보·펫 정보·내 게시물 3개이고, edit·security는 "내 정보"에서 버튼으로
-              들어가는 하위 화면이라 탭 네비에 없다 (2026-08-13 개편) */}
-          <Route path="/mypage" element={<MyPage />}>
-            <Route index element={<MyPageProfile />} />
-            <Route path="edit" element={<MyPageEdit />} />
-            <Route path="security" element={<MyPageSecurity />} />
-            <Route path="pets" element={<MyPagePets />} />
-            <Route path="posts" element={<MyPagePosts />} />
-            {/* 구 URL 보존 — 탈퇴가 보안 화면 안으로 들어갔다. 남아 있는 링크·북마크가 깨지지 않게 */}
-            <Route path="withdraw" element={<Navigate to="/mypage/security" replace />} />
-          </Route>
-          <Route path="/chat" element={<ChatRoomListPage />} />
           <Route path="/chat/new" element={<ChatRoomCreatePage />} />
           <Route path="/chat/rooms/:roomId" element={<ChatRoomPage />} />
           {/* 숏츠 만들기 — 4페이지 풀스크린 플로우 (숏츠_제작_플로우_구조_가이드.md).
@@ -82,19 +94,11 @@ function App() {
               전 단계 완성될 때까지 되돌아갈 곳으로 남겨둔다 — 지우는 것은 그 뒤다 */}
           <Route path="/shorts/create" element={<ShortsCreateFlow />} />
           <Route path="/shorts/new" element={<ShortsUploadPage />} />
-          {/* 지도 + AI 장소 추천 (루트 CLAUDE.md 지도 Phase). 주의: 이 라우트 계열은 병합 시
-              유실이 반복돼 왔다 — /map 두 차례(035375f, 0c5ea7e), /aisearch 한 차례
-              (2026-08-11 App.jsx 재작성 계열 병합에서 라우트+import 유실 → 08-12 재복원).
-              App.jsx 병합 해결 시 diff로 /map·/aisearch·/walk 존재를 반드시 확인할 것 (QA F-4) */}
-          <Route path="/map" element={<MapPage />} />
           {/* AI 검색 전용 페이지 (루트 CLAUDE.md 검색 통합 Phase, 2026-08-12 확정) —
-              ?q= 없으면 검색 홈, 있으면 자동 실행. 위 유실 경고가 그대로 적용된다 */}
+              ?q= 없으면 검색 홈, 있으면 자동 실행. /map·/walk와 같은 유실 주의 계열이다
+              (2026-08-11 병합에서 라우트+import 유실 → 08-12 재복원, QA F-4).
+              지도·산책은 위 홈 레이아웃 안으로 옮겼다 (2026-08-26) */}
           <Route path="/aisearch" element={<AiSearchPage />} />
-          {/* 산책 — 아스팔트 온도 안내 + GPS 산책 트래킹 (루트 CLAUDE.md 산책 Phase,
-              2026-08-12 기획 확정). /map과 같은 "지도류" 라우트 계열이라 위 경고가
-              그대로 적용된다 — 이 계열은 병합 시 유실이 반복돼 왔다(QA F-4).
-              병합 해결 시 diff로 /walk 존재를 반드시 확인할 것. */}
-          <Route path="/walk" element={<WalkPage />} />
           {/* 가입 직후 온보딩 — 진입은 SignupPage가 넘긴 state로만 허용 (WelcomePage 내부 처리) */}
           <Route path="/welcome" element={<WelcomePage />} />
         </Route>

@@ -17,7 +17,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 16px 16px 96px; /* 하단 = 고정 앱바 높이 + 숨 (마지막 카드가 가리지 않게) */
+  padding: 16px; /* 하단 앱바용 여백은 appShell.css가 준다 (#root:has(.appbar) > main) */
   background: linear-gradient(180deg, var(--lg-bg-top), var(--lg-bg-bottom));
   color: var(--lg-text);
   text-align: left; /* #root의 text-align: center 되돌림 */
@@ -103,8 +103,8 @@
 .home-muted { margin: 8px 2px; font-size: 12.5px; color: var(--lg-muted); }
 .home .submit-error { font-size: 13px; color: var(--lg-error); }
 
-/* 기능 메뉴 — GNB식 가로 스와이프 칩 스트립. 하단 앱바(.home-tabbar, 파일 맨 아래)에 없는
-   항목만 둔다 (2026-08-26). 좌우 풀블리드(-16px 마진)로 화면 가장자리 밑으로 스크롤되고,
+/* 기능 메뉴 — GNB식 가로 스와이프 칩 스트립. 하단 앱바(appShell.css)에 없는 항목만 둔다:
+   홈·지도·산책은 아래 영역만 갈아 끼우는 뷰라 여기서 고른다 (2026-08-26). 좌우 풀블리드(-16px 마진)로 화면 가장자리 밑으로 스크롤되고,
    내부 패딩 16px이 첫 칩을 본문 정렬선에 맞춘다. 스크롤바는 숨김 */
 .home-tiles {
   display: flex;
@@ -136,6 +136,12 @@
 }
 .home-tile:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
 .home-tile:active { background: #fdf2e6; }
+/* 지금 보고 있는 뷰(홈·지도·산책) — 코럴 반전 */
+.home-tile[aria-pressed='true'] {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: #fff;
+}
 
 /* AI 질문 — 한 줄 필 (2026-08-26 압축: 추천 칩·안내 줄 제거, 카드 → 슬림 바) */
 .home-ask {
@@ -291,75 +297,30 @@
   font-size: 14px;
 }
 
-/* 건강검진 바텀시트 — 웜톤 라운드 */
-.home-sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(75, 64, 55, 0.5);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-.home-sheet {
-  width: 100%;
-  max-width: 360px; /* index.css #root 컬럼 폭과 일치 유지 */
-  background: var(--lg-card);
-  border-radius: 24px 24px 0 0;
-  padding: 20px 18px 26px;
-  text-align: left;
-}
-.home-sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
-.home-sheet-title { font-size: 17px; font-weight: 800; }
-.home-sheet-lede { margin: 8px 0 14px; font-size: 12.5px; color: var(--lg-muted); }
-.home-sheet-item {
-  border-top: 1px solid var(--lg-line);
-  padding: 14px 0;
-}
-.home-sheet-item:last-child { padding-bottom: 0; }
-.home-sheet-item b { display: block; font-size: 14.5px; font-weight: 800; }
-.home-sheet-item p { margin: 6px 0 10px; font-size: 12px; line-height: 1.45; color: var(--lg-muted); }
+/* 건강검진 시트·하단 앱바는 appShell.css로 이관 (2026-08-26) — 여러 화면이 공유하는
+   셸 요소라 홈 전용 CSS에 둘 수 없다 */
 
-/* 하단 앱바 — 홈·오픈채팅·건강검진·마이페이지 (2026-08-26, 상단 기능 메뉴 대체).
-   #root 컬럼(360px)에 맞춰 화면 하단에 고정한다 — 본문 하단 여백(.home padding-bottom)이
-   이 높이를 비워 두므로 마지막 카드가 가리지 않는다 */
-.home-tabbar {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 360px;
-  z-index: 50;
-  display: flex;
-  background: var(--lg-card);
-  border-top: 1px solid var(--lg-line);
-  padding: 8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -8px 20px -18px rgba(90, 60, 30, 0.5);
-}
-.home-tabbar button {
+/* ── 갈아 끼우는 뷰 영역 (HomeLayout의 <Outlet> 자리) ─────────────────
+   홈 본문은 카드들이 세로로 흐르고, 지도·산책은 남은 높이를 꽉 채워야 한다 */
+.home-view {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  border: 0;
-  background: none;
-  padding: 3px 0;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: var(--lg-muted);
-  cursor: pointer;
+  gap: 14px;
 }
-.home-tabbar button span { font-size: 18px; line-height: 1; }
-.home-tabbar button:hover { color: var(--lg-accent); }
-.home-tabbar button.active { color: var(--lg-accent); }
 
-/* 폰에서는 #root가 화면 폭을 다 쓰므로(index.css 480px 분기) 고정 오버레이도 폭 제한을 푼다 —
-   안 그러면 앱바·시트만 360px로 남아 좌우가 어긋나 보인다 */
-@media (max-width: 480px) {
-  .home-tabbar,
-  .home-sheet {
-    max-width: none;
-  }
+/* 지도·산책은 타 슬라이스 화면이라 파일을 고치지 않고 여기서 홈 안에 맞춘다.
+   .map-page는 원래 height:100vh(단독 페이지 전제)라 그대로 두면 헤더·앱바만큼 넘친다 —
+   높이를 셸이 남긴 공간에 맡기고(flex), 좌우 패딩은 홈이 이미 줬으므로 뺀다 */
+.home-view .map-page {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+}
+
+/* 산책은 세로로 흐르는 화면이라 높이를 강제하지 않는다 (자체 지도 높이 62vh 유지) */
+.home-view .walk-page {
+  padding: 0;
 }
