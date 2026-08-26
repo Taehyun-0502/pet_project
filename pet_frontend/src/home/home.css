@@ -300,6 +300,17 @@
 /* 건강검진 시트·하단 앱바는 appShell.css로 이관 (2026-08-26) — 여러 화면이 공유하는
    셸 요소라 홈 전용 CSS에 둘 수 없다 */
 
+/* 광고 배너 (ad/AdBanner — 타 슬라이스 파일이라 미수정, 홈 안에서의 모양만 덮어쓴다).
+   AdBanner.css의 회색 8px 테두리·margin-top:20px를 웜톤 카드 문법으로 맞춘다 —
+   여백은 .home-view의 gap이 이미 주므로 margin은 지운다. 이미지 비율(1:1)은 광고
+   소재 규격이라 건드리지 않는다 */
+.home .ad-banner {
+  margin-top: 0;
+  border: 1px solid var(--lg-line);
+  border-radius: 20px;
+  box-shadow: 0 10px 24px -20px rgba(90, 60, 30, 0.35);
+}
+
 /* ── 갈아 끼우는 뷰 영역 (HomeLayout의 <Outlet> 자리) ─────────────────
    홈 본문은 카드들이 세로로 흐르고, 지도·산책은 남은 높이를 꽉 채워야 한다 */
 .home-view {

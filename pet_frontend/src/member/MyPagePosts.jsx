@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext'
 import './member.css'
 
 /**
- * 마이페이지 — 내 게시물(릴스) 탭 (docs/plan-2026-08-13.md F8, api-spec.md 8절).
+ * 마이페이지 — 내 게시물(숏츠) 탭 (docs/plan-2026-08-13.md F8, api-spec.md 8절).
  *
  * 2026-08-26에 자리표시자를 걷어내고 구현했다. 필요한 조회 API가 shorts 슬라이스라 협의를
  * 기다리던 카드였는데, 협의가 끝나 목록 조회(`GET /api/shorts/members/{memberId}`)까지
@@ -81,7 +81,7 @@ export default function MyPagePosts() {
   }
 
   const onDelete = async (short) => {
-    if (!window.confirm('이 릴스를 삭제할까요? 피드에서도 사라집니다.')) return
+    if (!window.confirm('이 숏츠를 삭제할까요? 피드에서도 사라집니다.')) return
     setError('')
     setDeletingId(short.id)
     try {
@@ -99,7 +99,7 @@ export default function MyPagePosts() {
     <section>
       <h2>내 게시물</h2>
       <nav className="mypage-posts-nav">
-        <Link className="w-link" to="/shorts/create">+ 릴스 만들기</Link>
+        <Link className="w-link" to="/shorts/create">+ 숏츠 만들기</Link>
       </nav>
 
       <div className="mypage-posts-sorts" role="group" aria-label="정렬">
@@ -121,7 +121,7 @@ export default function MyPagePosts() {
       {error && <p className="submit-error" role="alert">{error}</p>}
       {items === null && !error && <p className="muted-note">불러오는 중…</p>}
       {items && items.length === 0 && (
-        <p className="muted-note">아직 올린 릴스가 없습니다. 위 버튼으로 만들어 보세요.</p>
+        <p className="muted-note">아직 올린 숏츠가 없습니다. 위 버튼으로 만들어 보세요.</p>
       )}
 
       {items && items.length > 0 && (
@@ -131,7 +131,7 @@ export default function MyPagePosts() {
               {/* 재생은 피드가 담당한다 — 공유 링크와 같은 주소로 보낸다 */}
               <Link className="mypage-post-thumb" to={`/shorts?v=${short.id}`}>
                 {short.thumbnailUrl ? (
-                  <img src={short.thumbnailUrl} alt={short.caption ?? '릴스 미리보기'} />
+                  <img src={short.thumbnailUrl} alt={short.caption ?? '숏츠 미리보기'} />
                 ) : (
                   /* 커버를 굽지 못한 영상 — 첫 프레임으로 대신한다.
                      #t=0.1을 붙이는 이유: preload=metadata만으로는 첫 프레임을 그리지 않는
@@ -141,7 +141,7 @@ export default function MyPagePosts() {
                     preload="metadata"
                     muted
                     playsInline
-                    aria-label={short.caption ?? '릴스 미리보기'}
+                    aria-label={short.caption ?? '숏츠 미리보기'}
                   />
                 )}
                 <span className="mypage-post-duration">{formatDuration(short.durationSec)}</span>
@@ -153,7 +153,7 @@ export default function MyPagePosts() {
               <button
                 type="button"
                 className="mypage-post-delete"
-                aria-label={`${short.caption ?? '이 릴스'} 삭제`}
+                aria-label={`${short.caption ?? '이 숏츠'} 삭제`}
                 onClick={() => onDelete(short)}
                 disabled={deletingId === short.id}
               >

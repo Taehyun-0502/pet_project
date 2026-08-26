@@ -6,6 +6,9 @@ import { getMyRooms } from '../chat/chatApi'
 import { categoryLabel } from '../chat/roomCategories'
 // 타 슬라이스(shorts) 파일이지만 API 호출만 빌려 쓴다 — 파일 수정 없음 (슬라이스 경계 유지)
 import { getShortsFeed } from '../shorts/shortsApi'
+// 광고 배너도 타 슬라이스(ad) 컴포넌트다 — 꽂아 쓰기만 하고 파일은 고치지 않는다.
+// 홈 안에서의 모양(테두리·라운드·여백)만 home.css에서 덮어쓴다
+import AdBanner from '../ad/AdBanner'
 import './home.css'
 
 // 홈 본문 — AI 질문 · 내 반려동물 프로필 · 오픈채팅 3 · 숏츠 3.
@@ -189,6 +192,10 @@ export default function HomePage() {
           <p className="home-muted">참여 중인 방이 없습니다. 지역·품종 방을 둘러보세요.</p>
         )}
       </section>
+
+      {/* 광고 — 오픈채팅과 숏츠 사이 (2026-08-26). 계약 광고가 없거나 조회에 실패하면
+          AdBanner가 스스로 null을 반환해 자리도 차지하지 않는다 (부가 요소 원칙) */}
+      <AdBanner />
 
       {/* 숏츠 3 — ?v= 공유 링크 형식으로 그 영상부터 재생 (shortsApi.getShort 참고) */}
       <section className="home-card home-list">
