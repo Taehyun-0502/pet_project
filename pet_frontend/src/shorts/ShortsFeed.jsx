@@ -1398,17 +1398,13 @@ export default function ShortsFeed() {
         {/* 단일 영상 모드에서만 — 이 화면은 마이페이지 "내 게시물"에서 들어오는데 피드에는
             뒤로 가는 길이 없어서 하단 앱바로 나가야 했다. 그리드로 바로 돌려보낸다.
             navigate(-1)이 아니라 주소를 못박은 이유: 링크를 직접 열었거나 화면 안에서
-            몇 번 오간 뒤에는 -1이 그리드가 아닌 곳으로 갈 수 있다 */}
+            몇 번 오간 뒤에는 -1이 그리드가 아닌 곳으로 갈 수 있다.
+
+            정렬·스크롤 되살리기는 따로 신호를 보내지 않는다 — 그리드가 스스로 저장해 둔 값을
+            보고 판단하므로, 이 버튼으로 오든 **스마트폰 뒤로 가기**로 오든 결과가 같다
+            (MyPagePosts의 RESTORE_KEY 주석) */}
         {singleRef.current && (
-          <Link
-            className="sf-back"
-            to="/mypage/posts"
-            /* 그리드가 정렬·스크롤을 되살릴 신호. 이 표시가 있을 때만 되살린다 —
-               홈에서 마이페이지로 처음 들어온 경우에는 그대로 맨 위에서 시작해야 한다
-               (MyPagePosts의 RESTORE_KEY 주석) */
-            state={{ restoreView: true }}
-            aria-label="내 게시물로 돌아가기"
-          >
+          <Link className="sf-back" to="/mypage/posts" aria-label="내 게시물로 돌아가기">
             ←
           </Link>
         )}

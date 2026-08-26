@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { deleteShorts, getMemberShorts } from '../shorts/shortsApi'
 import { useAuth } from './AuthContext'
 import './member.css'
@@ -39,10 +39,16 @@ const SORTS = [
  * sessionStorage를 쓰는 이유: 이 탭 안에서만 유효하면 된다. 새로고침이나 다음 방문에까지
  * 지난 스크롤을 되살리면 오히려 놀란다.
  *
- * 되살리기는 **돌아온 경우에만** 한다 — 홈에서 마이페이지로 처음 들어온 사람에게 지난번
- * 스크롤을 적용하면 이유를 알 수 없는 자리에서 화면이 시작된다. 그래서 숏츠 화면의 돌아가기
- * 버튼이 `state: { restoreView: true }`를 실어 보내고(ShortsFeed의 .sf-back), 그 표시가
- * 있을 때만 읽는다.
+ * 되살리기는 **한 번만** 한다 — 읽고 나면 지운다.
+ *
+ * 전에는 숏츠 화면의 돌아가기 버튼이 실어 보내는 신호(`state.restoreView`)가 있을 때만
+ * 되살렸다. 그런데 그러면 **스마트폰의 뒤로 가기**로 돌아온 경우가 빠진다 — 히스토리를
+ * 되짚는 이동에는 그 신호가 없기 때문이다(2026-08-26 사용자 지적).
+ *
+ * 그래서 신호를 보지 않고 "저장된 값이 있으면 되살리고 지운다"로 바꿨다. 이 값은 **이 탭에서
+ * 썸네일을 눌러 나갈 때만** 쓰이므로, 있다는 것 자체가 "보고 돌아왔다"는 뜻이다. 한 번 쓰고
+ * 지우니 그 뒤에 이 탭을 다시 열면 평소처럼 맨 위에서 시작한다 — 홈에서 처음 들어온 사람이
+ * 영문 모를 자리에서 시작하는 일도 이것으로 막힌다.
  */
 const RESTORE_KEY = 'mypage-posts-view'
 
@@ -65,6 +71,34 @@ function writeView(view) {
   }
 }
 
+function clearView() {
+  try {
+    sessionStorage.removeItem(RESTORE_KEY)
+  } catch {
+    /* 위와 같다 */
+  }
+}
+
+/**
+ * 실제로 스크롤되는 조상을 찾는다.
+ *
+ * `document.scrollingElement`를 쓰면 안 된다 — 앱바가 있는 화면은 문서가 아니라
+ * **`<main>` 안에서** 스크롤된다(appShell.css의 `#root:has(.appbar) > main`은
+ * `overflow-y: auto`이고 #root는 `overflow: hidden`이다). 문서 기준으로 읽으면 값이 항상
+ * 0이고 쓰기도 무효라, 스크롤 위치가 저장도 복원도 되지 않는다(2026-08-26 실제로 그랬다).
+ *
+ * 특정 선택자(`#root > main`)를 박아두지 않고 올라가며 찾는 이유: 스크롤 주체가 문서에서
+ * main으로 옮겨진 적이 이미 한 번 있다. 구조가 또 바뀌어도 이 함수는 따라간다.
+ */
+function scrollParentOf(el) {
+  for (let node = el?.parentElement; node; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY
+    if (overflowY === 'auto' || overflowY === 'scroll') return node
+  }
+  // 어느 조상도 스크롤하지 않으면 문서가 스크롤된다 (앱바 없는 화면)
+  return document.scrollingElement
+}
+
 // 12 → "0:12", 75 → "1:15". 초 단위 정수만 온다(durationSec)
 function formatDuration(seconds) {
   if (seconds == null) return ''
@@ -76,15 +110,18 @@ export default function MyPagePosts() {
   const { user } = useAuth()
   const memberId = user?.id
 
-  const location = useLocation()
-
   /*
-   * 돌아온 경우에만 채워지는 값. useRef 초기값이라 **첫 렌더에 한 번** 정해지고, 아래
-   * 조회 effect가 쓰고 나면 비운다(정렬을 바꿔 다시 조회할 때 또 되살리면 안 된다).
+   * 되살릴 값. useRef 초기값이라 **첫 렌더에 한 번** 정해지고, 아래 조회 effect가 쓰고 나면
+   * 비운다(정렬을 바꿔 다시 조회할 때 또 되살리면 안 된다).
+   *
+   * 저장소에서 지우는 것은 아래 마운트 effect가 한다 — 렌더 중에 지우면 부수효과가 렌더에
+   * 섞인다(리액트가 렌더를 여러 번 호출할 수 있다).
    */
-  const restoreRef = useRef(location.state?.restoreView ? readView() : null)
+  const restoreRef = useRef(readView())
   // 되돌릴 스크롤 위치. 목록이 실제로 그려진 뒤에 적용해야 해서 따로 들고 있는다
   const pendingScrollRef = useRef(restoreRef.current?.scrollTop ?? null)
+  // 스크롤되는 조상을 찾기 위한 시작점 (아래 <section>에 붙는다)
+  const rootRef = useRef(null)
 
   const [sort, setSort] = useState(restoreRef.current?.sort ?? 'latest')
   const [items, setItems] = useState(null) // null = 아직 불러오는 중
@@ -95,13 +132,12 @@ export default function MyPagePosts() {
   const [deletingId, setDeletingId] = useState(null)
 
   /*
-   * 되살리기 표시를 히스토리에서 지운다 — "한 번만" 적용하기 위한 것이다.
-   * 지우지 않으면 이 화면에서 뒤로/앞으로 오갈 때마다 같은 스크롤로 다시 튄다
-   * (ShortsFeed가 justUploaded를 지우는 것과 같은 처리).
+   * 저장된 값을 지운다 — "한 번만" 되살리기 위한 것이다 (RESTORE_KEY 주석).
+   * 위에서 이미 ref로 읽어 뒀으므로 지워도 이번 복원에는 영향이 없다.
    */
   useEffect(() => {
-    if (location.state?.restoreView) window.history.replaceState({}, '')
-  }, [location.state])
+    clearView()
+  }, [])
 
   // 정렬이 바뀌면 첫 페이지부터 다시 — 커서는 정렬마다 구성이 달라 그대로 쓸 수 없다
   useEffect(() => {
@@ -145,7 +181,7 @@ export default function MyPagePosts() {
     const top = pendingScrollRef.current
     if (top == null || items == null) return
     pendingScrollRef.current = null
-    document.scrollingElement?.scrollTo({ top })
+    scrollParentOf(rootRef.current)?.scrollTo({ top })
   }, [items])
 
   const onLoadMore = async () => {
@@ -180,7 +216,8 @@ export default function MyPagePosts() {
   }
 
   return (
-    <section>
+    /* ref — 스크롤되는 조상을 여기서부터 올라가며 찾는다 (scrollParentOf 주석) */
+    <section ref={rootRef}>
       <h2>내 게시물</h2>
       <nav className="mypage-posts-nav">
         <Link className="w-link" to="/shorts/create">+ 숏츠 만들기</Link>
@@ -225,7 +262,7 @@ export default function MyPagePosts() {
                   writeView({
                     sort,
                     count: items?.length ?? 0,
-                    scrollTop: document.scrollingElement?.scrollTop ?? 0,
+                    scrollTop: scrollParentOf(rootRef.current)?.scrollTop ?? 0,
                   })
                 }
               >

@@ -7,6 +7,18 @@
 /* index.css의 #root는 1126px 고정폭 + 좌우 테두리 + 가운데 정렬 + min-height:100svh.
    숏츠에서는 그 제약을 풀고, 높이를 100dvh로 고정해 바깥 페이지가 따로 스크롤되지 않게 한다 */
 #root:has(.sf-feed) {
+  /*
+   * 숏츠 화면의 컬럼 폭 — 제목 헤더(.sf-top)·버튼 줄(.sf-tools)·피드(.sf-feed)·하단
+   * 앱바(.appbar)가 **모두 이 하나를 쓴다.** 넷 중 하나만 다르면 좌우가 어긋난다
+   * (2026-08-26 사용자 요청: 숏츠 폭을 하단바에 맞춤).
+   *
+   * 값은 index.css #root의 360px 컬럼과 같다. 여기서 토큰으로 두는 이유: #root는 아래에서
+   * max-width를 풀어(배경을 화면 전체에 검게 깔기 위함) 폭 제한을 잃기 때문에, 안쪽 요소들이
+   * 참조할 기준이 따로 필요하다. 앱바 쪽 적용은 appShell.css가 이 값을 읽어서 한다.
+   */
+  --sf-col-w: 360px;
+  --sf-w: min(100vw, var(--sf-col-w));
+
   width: 100%;
   max-width: none;
   border-inline: none;
@@ -15,6 +27,14 @@
   min-height: 0;
   overflow: hidden;
   background: #000;
+}
+
+/* 실제 폰에서는 폭 제한을 푼다 — index.css #root와 **같은 분기(480px)**여야 한다.
+   이 분기가 없으면 390px 폰에서 화면은 전폭인데 내용만 360px로 남아 좌우에 검은 띠가 생긴다 */
+@media (max-width: 480px) {
+  #root:has(.sf-feed) {
+    --sf-col-w: 100vw;
+  }
 }
 
 /* ───────── 화면 제목 + 버튼 줄 (2026-08-26 사용자 요청) ─────────
@@ -30,7 +50,7 @@
   --sf-top-accent: #ef7d66;  /* warm.css --lg-accent */
 
   flex: none;                /* #root가 flex column — 헤더가 눌리지 않게 */
-  /* 폭도 앱바·피드와 같은 컬럼에 맞춘다 (--sf-w는 appShell.css가 컨테이너에 정의).
+  /* 폭도 앱바·피드와 같은 컬럼에 맞춘다 (--sf-w는 위 #root:has(.sf-feed)가 정의).
      이것이 없으면 #root의 flex 아이템이라 전폭으로 늘어나, 크림 띠만 화면 좌우를 가로질러
      아래의 앱바·영상과 폭이 어긋난다 */
   box-sizing: border-box;
