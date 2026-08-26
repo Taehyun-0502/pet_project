@@ -176,6 +176,65 @@
 .sf-actions svg { width: 33px; height: 33px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.4)); }
 .sf-actions button.sf-liked svg { fill: #ff2d55; stroke: #ff2d55; }
 
+/* ───────── 영상 사이에 끼는 광고 카드 (ShortsFeed.jsx의 AdCard) ─────────
+   높이·스냅·overflow는 .sf-card를 그대로 쓰고 여기서는 내용만 얹는다.
+   .sf-scrim / .sf-upload 처럼 영상 카드와 같은 요소는 그 규칙을 함께 쓴다 */
+
+/* 이미지가 9:16을 다 채우지 못하는 만큼의 여백. 검정이 아니라 살짝 밝은 회색인 이유는
+   빈 화면이 아니라 광고 판이라는 것이 보이게 하려는 것이다 */
+.sf-ad { background: #15161a; }
+
+/* 카드 전체가 광고 링크다. z-index 1 — 영상이 놓이는 층과 같다 */
+.sf-ad-link { position: absolute; inset: 0; z-index: 1; display: block; }
+
+/* contain — 넘치는 부분을 자르는 cover가 아니다.
+   광고 이미지는 배너·정사각 비율로 들어오는데(광고배너_구현가이드.md의 .ad-banner는 1:1),
+   그것을 9:16에 cover로 채우면 좌우가 크게 잘려 광고 안의 글자·로고가 함께 날아간다.
+   광고는 이미지 자체가 전달할 내용이므로 다 보이는 쪽이 맞다 */
+.sf-ad-link img { width: 100%; height: 100%; object-fit: contain; }
+
+/* 광고 표시(표시광고법 권장). 오른쪽 위는 만들기·햄버거 버튼 자리라 왼쪽 위에 둔다.
+   top 계산은 .sf-upload와 같게 맞춰 두 요소가 한 줄에 놓이게 한다 */
+.sf-ad-badge {
+  position: absolute;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  left: 12px;
+  z-index: 4;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(0,0,0,.55);
+  font-size: 11px; font-weight: 700; line-height: 1.5; letter-spacing: .04em;
+}
+
+/* 광고 이름·버튼·안내. 위치는 .sf-info와 같은 기준(왼쪽 16, 하단 26 + safe-area)이지만
+   오른쪽은 16까지 쓴다 — 광고 카드에는 좋아요·댓글 열(.sf-actions)이 없다 */
+.sf-ad-info {
+  position: absolute;
+  left: 16px; right: 16px;
+  bottom: calc(26px + env(safe-area-inset-bottom, 0px));
+  z-index: 4;
+  text-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+.sf-ad-title { font-size: 16px; font-weight: 700; line-height: 1.35; }
+
+/* 카드 전체가 이미 링크지만, 누를 수 있다는 것을 보이게 하는 버튼을 함께 둔다.
+   흰 바탕 + 검은 글자 — 광고 이미지가 어떤 색이든 눈에 들어오게.
+   padding으로 높이 약 40px을 만들어 손가락으로 누를 수 있는 크기를 맞춘다 */
+.sf-ad-cta {
+  display: inline-block;
+  margin-top: 12px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font-size: 14px; font-weight: 700; line-height: 1.2;
+  text-decoration: none;
+  text-shadow: none;
+}
+
+/* 영상처럼 저절로 지나가지 않는 화면이라 다음으로 가는 길을 알려준다 */
+.sf-ad-hint { margin: 10px 0 0; font-size: 11px; color: rgba(255,255,255,.75); }
+
 /* 탭으로 정지·재생했을 때 가운데에 잠깐 떴다 사라지는 표시.
    pointer-events:none — 떠 있는 동안 연달아 탭해도 카드가 그대로 받아야 한다.
    z-index 3은 스크림(2) 위, 정보·액션(4) 아래 — 가운데라 겹칠 일은 없지만 순서는 맞춘다.

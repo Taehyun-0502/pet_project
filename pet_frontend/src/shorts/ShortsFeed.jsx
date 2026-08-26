@@ -8,6 +8,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { getAds } from "../ad/adApi";
 import { useAuth } from "../member/AuthContext";
 import CommentSheet from "./CommentSheet";
 import DeleteSheet from "./DeleteSheet";
@@ -55,6 +56,38 @@ const PREFETCH_BEFORE_END = 3;
 // ShortsFeed.css의 .sf-tap-hint 애니메이션 길이(.6s)와 같아야 한다 — 이 값이 더 짧으면
 // 사라지는 중에 DOM에서 빠져 뚝 끊기고, 더 길면 다 사라진 빈 요소가 남는다
 const TAP_HINT_MS = 600;
+
+/* ─────────────────────────────────────────────────────────────
+ * 피드 사이 광고 (광고배너_구현가이드.md 4절 "숏츠 피드 사이 삽입")
+ *
+ * 영상 ADS_EVERY개마다 광고 카드 한 장을 목록에 끼워 넣는다 — 인스타·틱톡과 같은 방식이다.
+ * 하단 고정 배너와 달리 영상을 가리지 않고, 넘기면 지나가므로 몰입을 덜 깬다.
+ *
+ * 끼워 넣기만 하고 **영상 목록(shorts)에는 손대지 않는다.** 광고를 목록 배열에 섞어 넣으면
+ * 카드에 넘기는 index가 영상의 순서와 어긋나 다음 페이지 선반입(handleCardEnter)과
+ * 제외 목록(excludeIds)이 함께 틀어진다. 그래서 그리는 순간에만 사이에 낀다.
+ * ───────────────────────────────────────────────────────────── */
+const ADS_EVERY = 5;
+// 이 위치에 붙은 광고 + 위치를 지정하지 않은 전역 광고가 후보가 된다 (AdvertisementRepository 주석)
+const AD_PLACEMENT = "shorts_feed";
+
+/**
+ * 광고 순서를 한 번 섞어 돌려쓸 목록을 만든다 (Fisher-Yates).
+ *
+ * 자리마다 새로 뽑지 않고 **섞은 순서를 순회**하는 이유가 둘이다 —
+ * ① 같은 광고가 연달아 나오지 않고 등록된 광고가 골고루 노출된다(자리마다 뽑으면
+ *    바로 다음 자리에 같은 광고가 또 걸릴 수 있다),
+ * ② 자리와 광고의 짝이 고정된다. 좋아요 하나만 눌러도 피드가 다시 그려지는데,
+ *    그릴 때마다 뽑으면 지금 보고 있는 광고가 눈앞에서 바뀐다.
+ */
+const shuffled = (list) => {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+};
 
 // 영상이 로드되기 전에 보이는 배경. DB에 없는 순수 표시용 값이라 id로 색만 골라 쓴다
 const FALLBACK_BG = [
@@ -829,6 +862,65 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   );
 }
 
+/* ───────── 영상 사이에 끼는 광고 카드 ───────── */
+function AdCard({ ad }) {
+  /*
+   * 이미지가 깨지면 카드를 통째로 내린다 (AdBanner와 같은 판단).
+   * 영상 사이에 깨진 이미지 한 장이 끼면 광고가 아니라 피드가 고장 난 것처럼 보인다.
+   *
+   * loading="lazy"라 대개 앞 영상을 보는 동안 실패가 나고, 그때 이 카드는 화면에 없으므로
+   * 스크롤이 튀지 않는다.
+   */
+  const [broken, setBroken] = useState(false);
+  if (broken) return null;
+
+  return (
+    /* 높이·스냅·overflow는 .sf-card를 그대로 쓴다 — 영상과 같은 "한 장 = 한 화면"이어야
+       스크롤 스냅이 광고 카드에서만 어긋나지 않는다 */
+    <div className="sf-card sf-ad">
+      {/*
+        카드 전체가 광고 링크다. 실제 앱들의 전면 광고와 같은 동작이고, 아래 '자세히 보기'는
+        그것을 눈에 보이게 하는 표시다 — 넘기는 동작(스와이프)에서는 click이 나지 않으므로
+        스크롤 중에 열릴 걱정은 없다.
+        z-index 1 — 영상이 놓이는 층과 같다 (.sf-card .crop-pan 참고)
+      */}
+      <a
+        className="sf-ad-link"
+        href={ad.linkUrl}
+        target="_blank"
+        // sponsored — 유료 광고 링크임을 알리는 표준 값 (가이드 참고 메모)
+        rel="noopener noreferrer sponsored"
+      >
+        <img
+          src={ad.imageUrl}
+          alt={ad.title}
+          loading="lazy"
+          // 이미지를 끌어 옮기는 기본 동작을 막는다 — 세로로 넘기려던 손짓이 드래그로 먹히면
+          // 카드가 넘어가지 않는다
+          draggable="false"
+          onError={() => setBroken(true)}
+        />
+      </a>
+      {/* 아래 문구가 밝은 광고 이미지 위에서도 읽히게 — 영상 카드와 같은 스크림을 쓴다 */}
+      <div className="sf-scrim" />
+      {/* 광고임을 알리는 표시 (표시광고법 권장) */}
+      <span className="sf-ad-badge">AD</span>
+      {/* 광고 카드에서도 만들기 버튼은 남는다 — 카드마다 하나씩 있어야 "항상 떠 있는" 것처럼
+          보이는데, 여기서만 빠지면 넘길 때 버튼이 사라졌다 나타난다 (UploadButton 주석) */}
+      <UploadButton />
+      <div className="sf-ad-info">
+        <div className="sf-ad-title">{ad.title}</div>
+        <a className="sf-ad-cta" href={ad.linkUrl} target="_blank" rel="noopener noreferrer sponsored">
+          자세히 보기
+        </a>
+        {/* 영상이 아니라 넘어가지 않는 화면이므로 다음으로 가는 길을 알려준다 —
+            없으면 광고에서 피드가 끝난 것처럼 보인다 */}
+        <p className="sf-ad-hint">위로 넘기면 계속 볼 수 있어요</p>
+      </div>
+    </div>
+  );
+}
+
 /* ───────── 피드 전체 ───────── */
 export default function ShortsFeed() {
   const { user } = useAuth();
@@ -838,6 +930,13 @@ export default function ShortsFeed() {
   const [error, setError] = useState("");
   // 서버가 "더 있다"고 알려준 값. 다음 페이지를 받을지 판단한다
   const [hasNext, setHasNext] = useState(false);
+  /*
+   * 사이에 끼울 광고들. 순서를 미리 섞어 두고 광고 자리마다 차례로 꺼내 쓴다 (shuffled 주석).
+   *
+   * 피드를 여는 동안 한 번만 받는다 — 계약 기간은 분 단위로 바뀌지 않으므로 스크롤 중에
+   * 목록이 달라질 일이 없다. 비어 있으면(계약이 없거나 전부 종료) 광고 카드가 아예 끼지 않는다
+   */
+  const [adRotation, setAdRotation] = useState([]);
 
   /*
    * 다음 페이지 요청에 필요한 값들을 ref로도 들고 있는 이유:
@@ -922,6 +1021,14 @@ export default function ShortsFeed() {
       flushEvents(true);
     };
   }, [flushEvents]);
+
+  useEffect(() => {
+    getAds(AD_PLACEMENT)
+      .then((ads) => setAdRotation(shuffled(ads)))
+      // 광고는 부가 요소다. 못 받아도 피드는 그대로 보여준다 (AdBanner와 같은 판단) —
+      // 광고 요청 실패 때문에 영상이 안 나오면 그게 더 큰 문제다
+      .catch(() => setAdRotation([]));
+  }, []);
 
   /*
    * 업로드 화면이 실어 보낸 "방금 올린 영상" (ShortsUploadPage의 navigate state).
@@ -1076,19 +1183,29 @@ export default function ShortsFeed() {
   // sf-feed가 9:16 세로 박스 + 스크롤 컨테이너를 겸한다 (ShortsFeed.css 참고)
   return (
     <div className="sf-feed">
-      {shorts.map((s, index) => (
-        <ShortCard
-          key={s.id}
-          data={s}
-          index={index}
-          muted={muted}
-          onToggleMute={() => setMuted((m) => !m)}
-          onChange={updateShort}
-          onEvent={handleEvent}
-          onEnter={handleCardEnter}
-          onRemove={removeShort}
-        />
-      ))}
+      {shorts.flatMap((s, index) => {
+        const card = (
+          <ShortCard
+            key={s.id}
+            data={s}
+            /* 광고 카드가 사이에 끼어도 이 값은 **영상만 센 자리**여야 한다 —
+               선반입 판정(handleCardEnter)이 shorts 배열의 길이와 비교하기 때문이다 */
+            index={index}
+            muted={muted}
+            onToggleMute={() => setMuted((m) => !m)}
+            onChange={updateShort}
+            onEvent={handleEvent}
+            onEnter={handleCardEnter}
+            onRemove={removeShort}
+          />
+        );
+        // 영상 ADS_EVERY개를 채운 자리마다 광고 한 장. 광고가 없으면 영상만 이어진다
+        if (adRotation.length === 0 || (index + 1) % ADS_EVERY !== 0) return card;
+
+        // 몇 번째 광고 자리인지 (0,1,2…). 섞어둔 순서를 이 번호로 순회한다
+        const slot = (index + 1) / ADS_EVERY - 1;
+        return [card, <AdCard key={`ad-${slot}`} ad={adRotation[slot % adRotation.length]} />];
+      })}
     </div>
   );
 }
