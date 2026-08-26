@@ -273,3 +273,8 @@
 }
 .w-sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
 .w-sheet-title { font-size: 17px; font-weight: 800; }
+
+/* 폰에서는 #root가 화면 폭을 다 쓰므로(index.css 480px 분기) 시트도 폭 제한을 푼다 */
+@media (max-width: 480px) {
+  .w-sheet { max-width: none; }
+}

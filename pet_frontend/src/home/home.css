@@ -354,3 +354,12 @@
 .home-tabbar button span { font-size: 18px; line-height: 1; }
 .home-tabbar button:hover { color: var(--lg-accent); }
 .home-tabbar button.active { color: var(--lg-accent); }
+
+/* 폰에서는 #root가 화면 폭을 다 쓰므로(index.css 480px 분기) 고정 오버레이도 폭 제한을 푼다 —
+   안 그러면 앱바·시트만 360px로 남아 좌우가 어긋나 보인다 */
+@media (max-width: 480px) {
+  .home-tabbar,
+  .home-sheet {
+    max-width: none;
+  }
+}
