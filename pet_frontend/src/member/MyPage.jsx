@@ -1,10 +1,12 @@
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import '../common/forms.css'
-import '../common/modernist.css'
+import '../common/warm.css'
 import './member.css'
 
 /**
  * 마이페이지 레이아웃 — 탭 네비 + 자식 화면(<Outlet>).
+ * 웜톤 템플릿 전환 (2026-08-26) — 구 흑백 스킨 의존을 끊고 warm.css 공용 클래스 +
+ * member.css의 .mypage 스코프만 쓴다. 탭·라우트 구조와 로직은 전환 전과 동일.
  *
  * 탭은 3개(내 정보·펫 정보·내 게시물)이고, **정보 수정·보안은 탭이 아니라 "내 정보"에서
  * 버튼으로 들어가는 하위 화면**이다 (2026-08-13 확정, docs/plan-2026-08-13.md F1).
@@ -27,26 +29,22 @@ export default function MyPage() {
   const infoActive = !OTHER_TAB_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 
   return (
-    <main className="mn">
-      <div className="mn-top">
-        <div className="mn-brand">댕댕댕</div>
-      </div>
-      <div className="mn-rule" />
-      <div className="auth-page">
+    <main className="warm mypage">
+      <header className="w-top">
         <h1>마이페이지</h1>
-        <nav className="mypage-tabs">
-          {/* NavLink의 자동 active 대신 직접 계산한다 (위 주석).
-              className을 **함수로** 주는 것이 핵심이다 — 문자열로 주면 NavLink가 자기 판단의
-              'active'를 뒤에 덧붙이는데, `end`가 없는 "/mypage"는 하위 경로 전부에 매칭돼
-              /mypage/pets에서도 이 탭이 함께 켜진다(실측으로 확인). 함수는 반환값이 그대로 쓰인다 */}
-          <NavLink to="/mypage" className={() => (infoActive ? 'active' : '')}>내 정보</NavLink>
-          <NavLink to="/mypage/pets">펫 정보</NavLink>
-          <NavLink to="/mypage/posts">내 게시물</NavLink>
-        </nav>
+        <Link to="/" className="w-link">← 홈으로</Link>
+      </header>
+      <nav className="mypage-tabs">
+        {/* NavLink의 자동 active 대신 직접 계산한다 (위 주석).
+            className을 **함수로** 주는 것이 핵심이다 — 문자열로 주면 NavLink가 자기 판단의
+            'active'를 뒤에 덧붙이는데, `end`가 없는 "/mypage"는 하위 경로 전부에 매칭돼
+            /mypage/pets에서도 이 탭이 함께 켜진다(실측으로 확인). 함수는 반환값이 그대로 쓰인다 */}
+        <NavLink to="/mypage" className={() => (infoActive ? 'active' : '')}>내 정보</NavLink>
+        <NavLink to="/mypage/pets">펫 정보</NavLink>
+        <NavLink to="/mypage/posts">내 게시물</NavLink>
+      </nav>
+      <div className="w-card">
         <Outlet />
-        <p className="auth-switch">
-          <Link to="/">← 홈으로</Link>
-        </p>
       </div>
     </main>
   )

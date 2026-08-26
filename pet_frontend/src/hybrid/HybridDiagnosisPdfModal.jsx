@@ -1,3 +1,4 @@
+// [타 슬라이스 시각 수정] 2026-08-26 웜톤 통일(사용자 지시) — 로직 무변경, 담당자 확인 필요
 import React from 'react'
 
 /**
@@ -95,7 +96,7 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
         <div style={toolbarStyle} className="pdf-no-print">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '20px' }}>📄</span>
-            <span style={{ fontWeight: '700', fontSize: '16px', color: '#1E293B' }}>
+            <span style={{ fontWeight: '700', fontSize: '16px', color: '#4b4037' }}>
               바이오센서 종합 건강 진단서 미리보기
             </span>
           </div>
@@ -120,8 +121,8 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
                 <p style={subTitleStyle}>HaruBread Pet Hybrid Biomarker Clinical Diagnostic Document</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>문서번호: {docNo}</div>
-                <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>발급일: {todayStr}</div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#9a8d80' }}>문서번호: {docNo}</div>
+                <div style={{ fontSize: '12px', color: '#9a8d80', marginTop: '2px' }}>발급일: {todayStr}</div>
               </div>
             </div>
           </div>
@@ -154,14 +155,14 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
             </div>
 
             {/* 종합 소견 배너 */}
-            <div style={{ ...sectionBoxStyle, backgroundColor: isNormal ? '#F0FDF4' : '#FEF2F2', borderColor: isNormal ? '#BBF7D0' : '#FECACA' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: isNormal ? '#166534' : '#991B1B' }}>
+            <div style={{ ...sectionBoxStyle, backgroundColor: isNormal ? '#eaf6f0' : '#fdeeea', borderColor: isNormal ? '#bfe3d2' : '#f3c4b8' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: isNormal ? '#1f5f43' : '#a03322' }}>
                 AI 종합 판정 결과
               </span>
-              <div style={{ fontSize: '22px', fontWeight: '800', margin: '6px 0', color: isNormal ? '#15803D' : '#DC2626' }}>
+              <div style={{ fontSize: '22px', fontWeight: '800', margin: '6px 0', color: isNormal ? '#2a9d6e' : '#d64530' }}>
                 {isNormal ? '✅ NOR (정상 범주)' : '🚨 ABN (수의사 진료 권장)'}
               </div>
-              <div style={{ fontSize: '13px', color: '#475569' }}>
+              <div style={{ fontSize: '13px', color: '#7a6c5f' }}>
                 분석 신뢰도 <strong>{Number(confidence).toFixed(1)}%</strong>
               </div>
             </div>
@@ -172,27 +173,27 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
             <h3 style={sectionTitleStyle}>🧪 바이오센서 3종 실시간 정밀 수치</h3>
             <div style={sensorGridStyle}>
               {/* CRP */}
-              <div style={{ ...sensorCardStyle, borderColor: isCrpAbnormal ? '#FCA5A5' : '#CBD5E1' }}>
+              <div style={{ ...sensorCardStyle, borderColor: isCrpAbnormal ? '#f3c4b8' : '#e6d3bd' }}>
                 <span style={sensorNameStyle}>CRP (C-반응성 단백질)</span>
-                <div style={{ ...sensorValueStyle, color: isCrpAbnormal ? '#DC2626' : '#0F172A' }}>
+                <div style={{ ...sensorValueStyle, color: isCrpAbnormal ? '#d64530' : '#4b4037' }}>
                   {crpVal} <span style={unitStyle}>mg/L</span>
                 </div>
                 <span style={referenceStyle}>정상 기준: ≤ 2.0 mg/L {isCrpAbnormal && '(주의 수치)'}</span>
               </div>
 
               {/* IgG */}
-              <div style={{ ...sensorCardStyle, borderColor: isIggAbnormal ? '#FCA5A5' : '#CBD5E1' }}>
+              <div style={{ ...sensorCardStyle, borderColor: isIggAbnormal ? '#f3c4b8' : '#e6d3bd' }}>
                 <span style={sensorNameStyle}>IgG (면역 글로불린 G)</span>
-                <div style={{ ...sensorValueStyle, color: isIggAbnormal ? '#DC2626' : '#0F172A' }}>
+                <div style={{ ...sensorValueStyle, color: isIggAbnormal ? '#d64530' : '#4b4037' }}>
                   {iggVal} <span style={unitStyle}>g/L</span>
                 </div>
                 <span style={referenceStyle}>정상 기준: ≤ 3.5 g/L {isIggAbnormal && '(주의 수치)'}</span>
               </div>
 
               {/* IL-6 */}
-              <div style={{ ...sensorCardStyle, borderColor: isIl6Abnormal ? '#FCA5A5' : '#CBD5E1' }}>
+              <div style={{ ...sensorCardStyle, borderColor: isIl6Abnormal ? '#f3c4b8' : '#e6d3bd' }}>
                 <span style={sensorNameStyle}>IL-6 (인터루킨-6)</span>
-                <div style={{ ...sensorValueStyle, color: isIl6Abnormal ? '#DC2626' : '#0F172A' }}>
+                <div style={{ ...sensorValueStyle, color: isIl6Abnormal ? '#d64530' : '#4b4037' }}>
                   {il6Val} <span style={unitStyle}>pg/mL</span>
                 </div>
                 <span style={referenceStyle}>정상 기준: ≤ 2.5 pg/mL {isIl6Abnormal && '(주의 수치)'}</span>
@@ -205,30 +206,30 @@ export function HybridDiagnosisPdfModal({ isOpen, onClose, formData, result }) {
             <h3 style={sectionTitleStyle}>📝 보호자 스마트 문진 기록 & 종합 소견</h3>
             <div style={symptomTextBoxStyle}>
               <strong>상세 증상 및 작성 메모:</strong>
-              <p style={{ margin: '4px 0 0 0', color: '#334155' }}>
+              <p style={{ margin: '4px 0 0 0', color: '#5b4f44' }}>
                 {formData?.text_prompt || '별도 입력된 서술형 증상이 없습니다.'}
               </p>
             </div>
             <div style={detailsBoxStyle}>
               <strong>AI 정밀 분석 소견:</strong>
-              <p style={{ margin: '4px 0 0 0', color: '#1E293B' }}>{details}</p>
+              <p style={{ margin: '4px 0 0 0', color: '#4b4037' }}>{details}</p>
             </div>
           </div>
 
           {/* 수의사 안내 및 QR */}
           <div style={footerDisclaimerStyle}>
             <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '13px', color: '#1E293B', fontWeight: '700' }}>
+              <h4 style={{ margin: 0, fontSize: '13px', color: '#4b4037', fontWeight: '700' }}>
                 🩺 수의사 정밀 진료 안내 (Clinical Notice)
               </h4>
-              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748B', lineHeight: '1.4' }}>
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#9a8d80', lineHeight: '1.4' }}>
                 본 진단서는 바이오센서 수치(CRP, IgG, IL-6) 및 보호자 문진 기반 스크리닝 참고서입니다.
                 염증 수치 상승 또는 응급 증상이 있을 경우 즉시 수의사의 정밀 진료 및 혈액 검사를 진행하세요.
               </p>
             </div>
             <div style={qrBoxStyle}>
               <div style={{ fontSize: '28px' }}>📲</div>
-              <span style={{ fontSize: '9px', color: '#64748B', marginTop: '2px' }}>검증 QR 코드</span>
+              <span style={{ fontSize: '9px', color: '#9a8d80', marginTop: '2px' }}>검증 QR 코드</span>
             </div>
           </div>
         </div>
@@ -244,7 +245,7 @@ const backdropStyle = {
   left: 0,
   right: 0,
   bottom: 0,
-  backgroundColor: 'rgba(15, 23, 42, 0.65)',
+  backgroundColor: 'rgba(75, 64, 55, 0.6)',
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
@@ -253,8 +254,8 @@ const backdropStyle = {
 }
 
 const modalContainerStyle = {
-  backgroundColor: '#FFFFFF',
-  borderRadius: '16px',
+  backgroundColor: '#fffdfa',
+  borderRadius: '20px',
   width: '100%',
   maxWidth: '780px',
   maxHeight: '90vh',
@@ -269,16 +270,16 @@ const toolbarStyle = {
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '16px 24px',
-  borderBottom: '1px solid #E2E8F0',
-  backgroundColor: '#F8FAFC',
+  borderBottom: '1px solid #f0e3d2',
+  backgroundColor: '#fdf6ec',
   position: 'sticky',
   top: 0,
   zIndex: 10,
 }
 
 const printButtonStyle = {
-  backgroundColor: '#4F46E5',
-  color: '#FFFFFF',
+  backgroundColor: '#ef7d66',
+  color: '#fffdfa',
   border: 'none',
   borderRadius: '8px',
   padding: '8px 16px',
@@ -288,8 +289,8 @@ const printButtonStyle = {
 }
 
 const closeButtonStyle = {
-  backgroundColor: '#E2E8F0',
-  color: '#475569',
+  backgroundColor: '#f0e3d2',
+  color: '#7a6c5f',
   border: 'none',
   borderRadius: '8px',
   padding: '8px 14px',
@@ -300,7 +301,7 @@ const closeButtonStyle = {
 
 const documentStyle = {
   padding: '32px',
-  backgroundColor: '#FFFFFF',
+  backgroundColor: '#fffdfa',
   fontFamily: "'Inter', sans-serif",
 }
 
@@ -312,8 +313,8 @@ const hospitalBadgeStyle = {
   fontSize: '10px',
   fontWeight: '800',
   letterSpacing: '1px',
-  color: '#059669',
-  backgroundColor: '#ECFDF5',
+  color: '#ef7d66',
+  backgroundColor: '#fdeee8',
   padding: '3px 8px',
   borderRadius: '4px',
 }
@@ -321,19 +322,19 @@ const hospitalBadgeStyle = {
 const titleStyle = {
   fontSize: '24px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
   margin: '6px 0 2px 0',
 }
 
 const subTitleStyle = {
   fontSize: '12px',
-  color: '#64748B',
+  color: '#9a8d80',
   margin: 0,
 }
 
 const dividerStyle = {
   border: 'none',
-  borderTop: '2px solid #0F172A',
+  borderTop: '2px solid #4b4037',
   margin: '12px 0 20px 0',
 }
 
@@ -344,8 +345,8 @@ const gridTwoColumnStyle = {
 }
 
 const sectionBoxStyle = {
-  backgroundColor: '#FFFFFF',
-  border: '1px solid #E2E8F0',
+  backgroundColor: '#fffdfa',
+  border: '1px solid #f0e3d2',
   borderRadius: '12px',
   padding: '16px',
 }
@@ -353,7 +354,7 @@ const sectionBoxStyle = {
 const sectionTitleStyle = {
   fontSize: '14px',
   fontWeight: '700',
-  color: '#1E293B',
+  color: '#4b4037',
   margin: '0 0 12px 0',
 }
 
@@ -368,16 +369,16 @@ const profileItemStyle = {
   justifyContent: 'space-between',
   fontSize: '13px',
   paddingBottom: '4px',
-  borderBottom: '1px dashed #E2E8F0',
+  borderBottom: '1px dashed #f0e3d2',
 }
 
 const profileLabelStyle = {
-  color: '#64748B',
+  color: '#9a8d80',
 }
 
 const profileValueStyle = {
   fontWeight: '700',
-  color: '#0F172A',
+  color: '#4b4037',
 }
 
 const sensorGridStyle = {
@@ -389,15 +390,15 @@ const sensorGridStyle = {
 const sensorCardStyle = {
   padding: '12px',
   borderRadius: '8px',
-  border: '1px solid #CBD5E1',
-  backgroundColor: '#F8FAFC',
+  border: '1px solid #e6d3bd',
+  backgroundColor: '#fdf6ec',
   textAlign: 'center',
 }
 
 const sensorNameStyle = {
   fontSize: '11px',
   fontWeight: '700',
-  color: '#475569',
+  color: '#7a6c5f',
   display: 'block',
 }
 
@@ -410,37 +411,37 @@ const sensorValueStyle = {
 const unitStyle = {
   fontSize: '11px',
   fontWeight: '500',
-  color: '#64748B',
+  color: '#9a8d80',
 }
 
 const referenceStyle = {
   fontSize: '10px',
-  color: '#64748B',
+  color: '#9a8d80',
 }
 
 const symptomTextBoxStyle = {
   fontSize: '12px',
   padding: '10px',
-  backgroundColor: '#F8FAFC',
+  backgroundColor: '#fdf6ec',
   borderRadius: '8px',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #f0e3d2',
   marginBottom: '10px',
 }
 
 const detailsBoxStyle = {
   fontSize: '12px',
   padding: '10px',
-  backgroundColor: '#EEF2FF',
+  backgroundColor: '#fdeee8',
   borderRadius: '8px',
-  border: '1px solid #C7D2FE',
+  border: '1px solid #f6cdc2',
 }
 
 const footerDisclaimerStyle = {
   marginTop: '24px',
   padding: '12px 16px',
-  backgroundColor: '#F8FAFC',
+  backgroundColor: '#fdf6ec',
   borderRadius: '10px',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #f0e3d2',
   display: 'flex',
   alignItems: 'center',
   gap: '16px',
@@ -449,8 +450,8 @@ const footerDisclaimerStyle = {
 const qrBoxStyle = {
   width: '60px',
   height: '60px',
-  backgroundColor: '#FFFFFF',
-  border: '1px solid #CBD5E1',
+  backgroundColor: '#fffdfa',
+  border: '1px solid #e6d3bd',
   borderRadius: '8px',
   display: 'flex',
   flexDirection: 'column',

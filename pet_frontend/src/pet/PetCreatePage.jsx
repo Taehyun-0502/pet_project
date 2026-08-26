@@ -6,7 +6,7 @@ import { useForm } from '../common/useForm'
 import { registerPet, uploadPetImage } from './petApi'
 import { today, toPetRequest, validatePetForm } from './petForm'
 import '../common/forms.css'
-import '../common/modernist.css'
+import '../common/warm.css' // 웜톤 공용 토큰·클래스 + 라벨 노출형 폼 스킨 (pet.css보다 먼저)
 import './pet.css'
 
 export default function PetCreatePage() {
@@ -69,15 +69,17 @@ export default function PetCreatePage() {
   }
 
   return (
-    <main className="mn auth-page">
+    // .warm .auth-page 폼 스킨은 자손 셀렉터라 main.warm > div.auth-page 구조여야 한다 (pet.css 주석 참조)
+    <main className="warm">
+      <div className="auth-page">
       <h1>반려동물 등록</h1>
       <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
-        {/* 사진은 선택 — 등록하지 않으면 목록·상세에 기본 패턴(.mn-photo)이 표시된다 */}
+        {/* 사진은 선택 — 등록하지 않으면 목록·상세에 크림 배경 placeholder(🐶)가 표시된다 */}
         <div className="pet-photo">
           {photoPreview ? (
-            <img className="mn-photo" src={photoPreview} alt="선택한 사진 미리보기" />
+            <img src={photoPreview} alt="선택한 사진 미리보기" />
           ) : (
-            <div className="pet-photo-placeholder mn-photo" aria-hidden="true" />
+            <div className="pet-photo-placeholder" aria-hidden="true">🐶</div>
           )}
           <label className="pet-photo-upload">
             {preparing ? '불러오는 중…' : photo ? '사진 변경' : '사진 등록 (선택)'}
@@ -92,13 +94,14 @@ export default function PetCreatePage() {
         <Field form={form} name="breed" label="품종 (선택)" type="text" placeholder="예: 푸들" />
         <Field form={form} name="birthDate" label="생년월일 (선택)" type="date" max={today()} />
         {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" className="mn-primary block" disabled={form.submitting || preparing}>
+        <button type="submit" className="w-cta block" disabled={form.submitting || preparing}>
           {form.submitting ? '등록 중…' : '등록하기'}
         </button>
       </form>
       <p className="auth-switch">
         <Link to="/mypage/pets">← 펫 목록으로</Link>
       </p>
+      </div>
     </main>
   )
 }

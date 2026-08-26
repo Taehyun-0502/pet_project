@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { clearToken } from '../common/apiClient'
 import { useAuth } from './AuthContext'
 import { KAKAO_REDIRECT_URI, consumeKakaoState } from './kakaoOAuth'
-import '../common/modernist.css'
+import '../common/warm.css'
 import './member.css'
 
 // 카카오 인가 리다이렉트 수신 화면 (/oauth/kakao, docs/api-spec.md 1절 4차).
@@ -52,14 +52,14 @@ export default function KakaoCallbackPage() {
   }, [loginWithKakao, navigate])
 
   return (
-    <main className="mn">
-      <div className="mn-top">
-        <div className="mn-brand">댕댕댕</div>
-      </div>
-      <div className="mn-rule" />
+    // 웜톤 셸 (2026-08-26 전환) — 로그인 화면과 같은 무드. 안내 문구만 있는 화면이라 카드는 없다
+    <main className="warm">
       <div className="auth-page">
+        <header className="w-top">
+          <span className="w-brand">댕댕댕</span>
+        </header>
         <h1>카카오 로그인</h1>
-        {!error && <p>로그인 처리 중…</p>}
+        {!error && <p className="muted-note">로그인 처리 중…</p>}
         {error && <p className="submit-error">{error}</p>}
         {error && (
           <p className="auth-switch">

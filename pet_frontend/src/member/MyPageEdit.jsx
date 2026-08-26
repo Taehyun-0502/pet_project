@@ -67,7 +67,7 @@ export default function MyPageEdit() {
   return (
     <section className="my-info">
       <p className="mypage-back">
-        <Link to="/mypage">← 내 정보</Link>
+        <Link className="w-link" to="/mypage">← 내 정보</Link>
       </p>
       <h2>정보 수정</h2>
       <div className="profile-photo">
@@ -91,7 +91,7 @@ export default function MyPageEdit() {
           <p className="submit-error" role="alert">{nameForm.submitError}</p>
         )}
         {nameNotice && <p className="notice" role="status">{nameNotice}</p>}
-        <button type="submit" className="mn-primary block" disabled={nameForm.submitting}>
+        <button type="submit" className="w-cta block" disabled={nameForm.submitting}>
           {nameForm.submitting ? '저장 중…' : '이름 저장'}
         </button>
       </form>

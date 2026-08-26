@@ -1,0 +1,275 @@
+/* 웜톤 디자인 공용 토큰·클래스 (2026-08-26 승격 — 사용자 제공 시안 기반).
+   크림 그라데이션 배경 · 라운드 카드 · 코럴(#ef7d66)은 액션에만 · 사진 컬러 유지.
+
+   쓰는 법: 페이지 루트에 `warm` 클래스를 붙인다 — 붙인 화면에만 적용되고 타 슬라이스
+   화면에는 영향이 없다. 도메인 전용 스타일은 각 도메인 css에 두되 색·선은 --lg-* 토큰만 쓴다.
+
+   경위: 로그인·가입(member.css .login)과 홈(home.css .home)이 같은 팔레트를 각자 정의하며
+   시작했고, 세 번째 도메인(chat)부터 여기로 승격했다. member/home 쪽 로컬 복제는 추후
+   이 파일 기준으로 정리한다(값은 동일). 라이트 고정 — Modernist 때와 같은 결정. */
+.warm {
+  --lg-bg-top: #fdf6ec;
+  --lg-bg-bottom: #fae9d7;
+  --lg-card: #fffdfa;
+  --lg-text: #4b4037;
+  --lg-muted: #9a8d80;
+  --lg-line: #f0e3d2;
+  --lg-accent: #ef7d66;
+  --lg-accent-deep: #e2664e;
+  --lg-error: #d64530;
+  --lg-kakao: #fee500;
+
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, var(--lg-bg-top), var(--lg-bg-bottom));
+  color: var(--lg-text);
+  text-align: left; /* #root의 text-align: center 되돌림 */
+}
+.warm *,
+.warm *::before,
+.warm *::after { box-sizing: border-box; }
+.warm button { font: inherit; color: inherit; }
+.warm :focus-visible { outline: 2px solid var(--lg-accent); outline-offset: 2px; }
+.warm a { color: var(--lg-accent); font-weight: 800; }
+
+/* 상단 헤더 — 좌측 제목(코럴 800), 우측 텍스트 액션 */
+.w-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.w-top h1,
+.w-brand {
+  margin: 0;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--lg-accent);
+}
+
+/* 텍스트 액션 (코럴) */
+.w-link {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lg-accent);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.w-link:hover { color: var(--lg-accent-deep); }
+.w-link:disabled { opacity: 0.5; cursor: default; }
+
+/* 카드 */
+.w-card {
+  background: var(--lg-card);
+  border: 1px solid var(--lg-line);
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: 0 10px 24px -20px rgba(90, 60, 30, 0.35);
+}
+.w-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.w-card-head h2 {
+  margin: 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: normal;
+  color: var(--lg-text);
+}
+
+/* 칩 — 알약형, 선택 상태는 aria-pressed 코럴 반전 */
+.w-chip {
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.w-chip:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
+.w-chip[aria-pressed='true'] {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: #fff;
+}
+
+/* 주 액션(코럴 채움) · 보조 액션(테두리) */
+.w-cta {
+  border: 0;
+  border-radius: 12px;
+  background: var(--lg-accent);
+  color: #fff;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 10px 18px -12px rgba(239, 125, 102, 0.65);
+}
+.w-cta:hover { background: var(--lg-accent-deep); }
+.w-cta:disabled { opacity: 0.6; cursor: default; box-shadow: none; }
+.w-cta.block { display: block; width: 100%; padding: 13px; }
+.w-ghost {
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  background: var(--lg-card);
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lg-text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.w-ghost:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
+.w-ghost:disabled { opacity: 0.5; cursor: default; }
+.w-ghost.block { display: block; width: 100%; padding: 13px; }
+/* 위험 보조 액션 — 채움 없이 딥 레드 */
+.w-ghost.danger { border-color: var(--lg-error); color: var(--lg-error); }
+
+/* 리스트 행 — 좌측 제목/보조, 우측 메타 + 셰브런 */
+.w-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 2px;
+  border: 0;
+  border-top: 1px solid var(--lg-line);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.w-card-head + .w-row { border-top: 0; }
+.w-row:hover b { color: var(--lg-accent); }
+.w-row-main { flex: 1; min-width: 0; }
+.w-row-main b { display: block; font-size: 13.5px; font-weight: 800; line-height: 1.25; }
+.w-row-main .sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--lg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.w-row-meta { flex-shrink: 0; font-size: 11.5px; color: var(--lg-muted); }
+.w-row-chev { flex-shrink: 0; font-size: 16px; color: var(--lg-muted); line-height: 1; }
+
+/* 입력 — 라운드 (로그인 폼과 같은 스킨의 간단판) */
+.w-input {
+  width: 100%;
+  border: 1px solid var(--lg-line);
+  border-radius: 14px;
+  background: var(--lg-card);
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--lg-text);
+}
+.w-input::placeholder { color: var(--lg-muted); }
+.w-input:focus { outline: none; border-color: var(--lg-accent); box-shadow: 0 0 0 3px rgba(239, 125, 102, 0.15); }
+.w-input[aria-invalid='true'] { border-color: var(--lg-error); }
+
+/* 안내·오류 */
+.w-muted { margin: 8px 2px; font-size: 12.5px; color: var(--lg-muted); }
+.warm .submit-error { font-size: 13px; color: var(--lg-error); }
+.warm .field-error { font-size: 12px; color: var(--lg-error); }
+.warm .notice { font-size: 13px; }
+
+/* ── 폼 스킨 (관리 화면용 — 라벨 노출) ─────────────────────────────
+   useForm/Field 마크업(공통 forms.css) 위에 얹는다. 로그인(.login)은 라벨을 숨기지만
+   등록·수정·보안 같은 관리 화면은 라벨을 보여준다. forms.css의 .auth-form 계열(특이도
+   0-1-1)을 이기도록 .warm 접두 필수 — 도메인 css에 복제하지 말 것 */
+.warm .auth-page {
+  max-width: none;
+  margin: 0;
+  padding: 0 16px 26px;
+  text-align: left;
+}
+.warm .auth-page h1 {
+  font-family: inherit;
+  color: var(--lg-text);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  margin: 16px 0 14px;
+}
+.warm .field label,
+.warm .auth-form label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-muted);
+}
+.warm .field input,
+.warm .field select,
+.warm .field textarea,
+.warm .auth-form input,
+.warm .auth-form select,
+.warm .auth-form textarea {
+  border: 1px solid var(--lg-line);
+  border-radius: 14px;
+  background: var(--lg-card);
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--lg-text);
+}
+.warm .field input::placeholder,
+.warm .auth-form input::placeholder { color: var(--lg-muted); }
+.warm .field input:focus,
+.warm .field select:focus,
+.warm .field textarea:focus,
+.warm .auth-form input:focus {
+  outline: none;
+  border-color: var(--lg-accent);
+  box-shadow: 0 0 0 3px rgba(239, 125, 102, 0.15);
+}
+.warm .field input[aria-invalid='true'],
+.warm .auth-form input[aria-invalid='true'] { border-color: var(--lg-error); }
+/* forms.css의 .auth-form button(라운드 6px·border 제거)이 .w-cta/.w-ghost를 덮는 것 복원 */
+.warm .auth-form .w-cta { border-radius: 12px; padding: 13px; }
+.warm .auth-form .w-ghost {
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  padding: 13px;
+  background: var(--lg-card);
+}
+.warm .auth-form .w-ghost.danger { border-color: var(--lg-error); }
+.warm .auth-switch { font-size: 12.5px; color: var(--lg-muted); }
+.warm .muted-note { color: var(--lg-muted); }
+
+/* 바텀시트 */
+.w-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(75, 64, 55, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.w-sheet {
+  width: 100%;
+  max-width: 360px; /* index.css #root 컬럼 폭과 일치 유지 */
+  background: var(--lg-card);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 18px 26px;
+  text-align: left;
+}
+.w-sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
+.w-sheet-title { font-size: 17px; font-weight: 800; }

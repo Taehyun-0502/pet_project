@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { deletePet, getMyPets } from '../pet/petApi'
-// pet.css를 빌려 쓰지 않는다 (2026-08-25 Modernist 전환) — pet 화면은 다른 작업자와 동시 작업
-// 중이라, 이 탭의 행·액션 스타일은 member.css에 자체 정의했다 (.mypage-pet-* 계열)
+// pet.css를 빌려 쓰지 않는다 (2026-08-25 스킨 전환 때 결정, 웜톤 전환 후에도 동일) —
+// pet 화면은 다른 작업자와 동시 작업 중이라, 이 탭의 행·액션 스타일은 warm.css 공용 클래스
+// (w-row·w-link)와 member.css 자체 정의(.mypage-pet-* 계열)로 만든다
 import './member.css'
 
 // 수정 화면이 저장 후 돌아올 곳 — navigate state로 넘긴다 (PetEditPage가 받는다).
@@ -58,7 +59,7 @@ export default function MyPagePets() {
     <section>
       <h2>펫 정보</h2>
       <nav className="mypage-pets-nav">
-        <Link className="mn-link" to="/pets/new">+ 반려동물 등록</Link>
+        <Link className="w-link" to="/pets/new">+ 반려동물 등록</Link>
       </nav>
       <p className="muted-note">항목을 누르면 상세·수정·삭제할 수 있습니다.</p>
 
@@ -77,16 +78,16 @@ export default function MyPagePets() {
                     홈 목록이 <Link>인 것과 대비되는데, 여기서는 이동이 아니라 펼침이라 버튼이 맞다 */}
                 <button
                   type="button"
-                  className="mn-row"
+                  className="w-row"
                   aria-expanded={open}
                   onClick={() => setOpenId(open ? null : pet.id)}
                 >
                   {pet.profileImageUrl ? (
                     <img className="mypage-pet-thumb" src={pet.profileImageUrl} alt="" />
                   ) : (
-                    <span className="mypage-pet-thumb mn-photo" aria-hidden="true" />
+                    <span className="mypage-pet-thumb mypage-pet-thumb-empty" aria-hidden="true">🐶</span>
                   )}
-                  <span>
+                  <span className="w-row-main">
                     <b>{pet.name}</b>
                     <span className="sub">
                       {[pet.breed ?? '품종 미입력', pet.birthDate ?? '생년월일 미입력'].join(' · ')}
@@ -96,11 +97,11 @@ export default function MyPagePets() {
                 {open && (
                   <div className="mypage-pet-actions">
                     {/* 상세 진입 — /pets 목록 행에서 흡수 (2026-08-25) */}
-                    <Link className="mn-link" to={`/pets/${pet.id}`}>
+                    <Link className="w-link" to={`/pets/${pet.id}`}>
                       상세
                     </Link>
                     <Link
-                      className="mn-link"
+                      className="w-link"
                       to={`/pets/${pet.id}/edit`}
                       state={{ from: RETURN_TO }}
                     >

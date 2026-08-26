@@ -128,7 +128,6 @@ export default function SignupPage() {
     /* .login = 웜톤 인증 화면 공용 스코프 (로그인에서 출발했지만 가입도 같이 쓴다 — member.css 주석 참고) */
     <main className="login signup">
       <header className="login-brand">
-        <span className="login-brand-logo" aria-hidden="true">🐶</span>
         <span className="login-brand-name">댕댕댕</span>
       </header>
 

@@ -5,7 +5,7 @@ import { useForm } from '../common/useForm'
 import { getPet, updatePet } from './petApi'
 import { today, toPetRequest, validatePetForm } from './petForm'
 import '../common/forms.css'
-import '../common/modernist.css'
+import '../common/warm.css' // 웜톤 공용 토큰·클래스 + 라벨 노출형 폼 스킨 (pet.css보다 먼저)
 import './pet.css'
 
 /**
@@ -51,30 +51,36 @@ export default function PetEditPage() {
     return () => { cancelled = true }
   }, [petId, reset])
 
+  // .warm .auth-page 폼 스킨은 자손 셀렉터라 main.warm > div.auth-page 구조여야 한다 (pet.css 주석 참조)
   if (loadError) {
     return (
-      <main className="mn auth-page">
-        <h1>반려동물 수정</h1>
-        <p className="submit-error" role="alert">
-          {loadError.code === 'PET_NOT_FOUND'
-            ? '찾을 수 없는 반려동물입니다. 삭제되었거나 접근 권한이 없습니다.'
-            : loadError.message}
-        </p>
-        <p className="auth-switch"><Link to="/mypage/pets">← 펫 목록으로</Link></p>
+      <main className="warm">
+        <div className="auth-page">
+          <h1>반려동물 수정</h1>
+          <p className="submit-error" role="alert">
+            {loadError.code === 'PET_NOT_FOUND'
+              ? '찾을 수 없는 반려동물입니다. 삭제되었거나 접근 권한이 없습니다.'
+              : loadError.message}
+          </p>
+          <p className="auth-switch"><Link to="/mypage/pets">← 펫 목록으로</Link></p>
+        </div>
       </main>
     )
   }
 
   if (!loaded) {
     return (
-      <main className="mn auth-page">
-        <p className="muted-note">불러오는 중…</p>
+      <main className="warm">
+        <div className="auth-page">
+          <p className="muted-note">불러오는 중…</p>
+        </div>
       </main>
     )
   }
 
   return (
-    <main className="mn auth-page">
+    <main className="warm">
+      <div className="auth-page">
       <h1>반려동물 수정</h1>
       <form className="auth-form" ref={form.formRef} onSubmit={form.handleSubmit} noValidate>
         <Field form={form} name="name" label="이름 (필수)" type="text" />
@@ -82,7 +88,7 @@ export default function PetEditPage() {
         <Field form={form} name="birthDate" label="생년월일 (선택)" type="date" max={today()} />
         <p className="muted-note">비워 두면 그 항목은 지워집니다.</p>
         {form.submitError && <p className="submit-error" role="alert">{form.submitError}</p>}
-        <button type="submit" className="mn-primary block" disabled={form.submitting}>
+        <button type="submit" className="w-cta block" disabled={form.submitting}>
           {form.submitting ? '저장 중…' : '저장하기'}
         </button>
       </form>
@@ -90,6 +96,7 @@ export default function PetEditPage() {
         {/* 저장하지 않고 나갈 때도 들어온 곳으로 — 문구는 목적지에 맞춰 바꾼다 */}
         <Link to={backTo}>{location.state?.from ? '← 돌아가기' : '← 상세로'}</Link>
       </p>
+      </div>
     </main>
   )
 }

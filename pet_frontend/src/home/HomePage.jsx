@@ -1,27 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../member/AuthContext'
 import { getMyPets } from '../pet/petApi'
 import { getMyRooms } from '../chat/chatApi'
 import { categoryLabel } from '../chat/roomCategories'
 // 타 슬라이스(shorts) 파일이지만 API 호출만 빌려 쓴다 — 파일 수정 없음 (슬라이스 경계 유지)
 import { getShortsFeed } from '../shorts/shortsApi'
 import InstallAppButton from '../components/InstallAppButton'
-import '../common/modernist.css'
 import './home.css'
 
-// 홈 — 기능 타일(화면 안 탭) · AI 질문 · 내 반려동물 프로필 · 오픈채팅 3 · 숏츠 3.
-// 기존 "/" = 반려동물 목록 자리를 대체한 화면. 전체 목록은 마이페이지 펫 탭(/mypage/pets)이
-// 담당하고(구 /pets 목록 라우트는 2026-08-25 폐지), 여기서는 대표 1마리(칩으로 전환)만 보여준다.
+// 홈 — 기능 메뉴(상단 스트립) · AI 질문 · 내 반려동물 프로필 · 오픈채팅 3 · 숏츠 3 · 하단 앱바.
+// 메뉴 배치 (2026-08-26): 하단 앱바 = 홈·오픈채팅·건강검진·마이페이지,
+// 상단 스트립 = 앱바에 없는 나머지(지도·산책·숏츠). 같은 기능을 두 곳에 두지 않는다.
+// 웜톤 템플릿 리디자인 (2026-08-25 사용자 제공 시안) — 로그인·가입과 같은 무드로 전환.
+// Modernist(.mn) 의존을 끊고 home.css의 .home 스코프만 쓴다. 로직은 리디자인 전과 동일.
+//
+// 전체 목록은 마이페이지 펫 탭(/mypage/pets)이 담당하고(구 /pets 목록 라우트는 2026-08-25 폐지),
+// 여기서는 대표 1마리(칩으로 전환)만 보여준다.
 //
 // 실연동 완료 (2026-08-25): 오픈채팅 3개(getMyRooms — 참여 방, 서버가 고정·최근 대화순 정렬),
 // 숏츠 3개(getShortsFeed limit 3 — 품질점수순 공개 피드).
-// 실연동 남은 자리 (TODO 표시):
-//  - 산책 타일의 노면 온도: pages/walk/walkApi getWalkWeather(lat, lng) — 위치 훅 필요
-// UI에 서버 enum(SAFE|CAUTION|DANGER|SEVERE)을 그대로 노출하지 않는다 — 한국어 라벨만.
-const RISK_LABEL = { SAFE: '안전', CAUTION: '주의', DANGER: '위험', SEVERE: '매우 위험' }
-
-const SUGGESTS = ['사료 얼마나 줘야 해?', '근처 야간 병원']
+// 산책 노면 온도는 타일 설명 제거(2026-08-26)로 홈 표시 자리가 없어짐 — 산책 화면(/walk)이 담당.
+// AI 추천 질문 칩도 제거(2026-08-26, 한 줄 압축) — 추천·이력은 /aisearch 검색 홈이 담당.
 
 function ageFromBirth(birthDate) {
   if (!birthDate) return null
@@ -37,39 +36,60 @@ function ageFromBirth(birthDate) {
 }
 
 export default function HomePage() {
-  const { user, logout } = useAuth()
+  // 로그인 정보(useAuth)는 더 이상 이 화면에서 쓰지 않는다 — 회원명·로그아웃을 마이페이지로 옮겼다.
+  // 접근 제어는 RequireLogin 라우트가 이미 하고 있다
   const navigate = useNavigate()
 
   const [pets, setPets] = useState(null) // null = 불러오는 중
   const [petIdx, setPetIdx] = useState(0)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
-  const [asked, setAsked] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [logoutError, setLogoutError] = useState('')
-  const [loggingOut, setLoggingOut] = useState(false)
 
-  // 로그아웃·앱 설치는 /pets(구 임시 홈)에서 이관 (2026-08-25) — 홈이 유일한 자기 세션 로그아웃 자리다.
-  // 서버 폐기까지 끝난 뒤 이동한다 — 먼저 나가면 쿠키가 남은 채 화면만 바뀔 수 있다.
-  // 실패는 삼키지 않고 노출한다 (백로그 44번) — 재시도와 "이 기기에서만"(forceLocal) 중 선택
-  const onLogout = async (forceLocal = false) => {
-    setLoggingOut(true)
-    setLogoutError('')
-    try {
-      await logout({ forceLocal })
-      navigate('/login', { replace: true })
-    } catch {
-      setLogoutError(
-        '로그아웃하지 못했습니다. 서버에 연결할 수 없어 이 브라우저의 로그인 상태가 아직 살아 있습니다.',
-      )
-    } finally {
-      setLoggingOut(false)
+  // 상단 스트립 스와이프 (2026-08-26):
+  //  - 모바일: 터치 스와이프는 스크롤 컨테이너의 네이티브 동작 (별도 코드 불필요)
+  //  - PC 휠: 브라우저는 세로 휠을 가로 스크롤로 안 바꿔주므로 직접 변환.
+  //    React onWheel은 passive라 preventDefault가 안 먹어서 ref + non-passive 리스너로 단다.
+  //  - PC 드래그: 마우스로 잡아 끄는 스와이프. 터치(pointerType !== 'mouse')는 네이티브에
+  //    맡겨야 하므로 마우스만 처리하고, 끌었으면 놓을 때 칩 클릭이 오발되지 않게 캡처에서 삼킨다.
+  const tilesRef = useRef(null)
+  const tilesDrag = useRef({ down: false, moved: false, startX: 0, startLeft: 0 })
+  useEffect(() => {
+    const el = tilesRef.current
+    if (!el) return undefined
+    const onWheel = (e) => {
+      if (el.scrollWidth <= el.clientWidth) return // 다 보이면 세로 스크롤에 양보
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return // 가로 제스처는 브라우저 기본에 맡김
+      el.scrollLeft += e.deltaY
+      e.preventDefault() // 페이지 세로 스크롤과 동시에 움직이는 것 방지
     }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const onTilesPointerDown = (e) => {
+    if (e.pointerType !== 'mouse') return
+    tilesDrag.current = {
+      down: true, moved: false, startX: e.clientX, startLeft: tilesRef.current.scrollLeft,
+    }
+  }
+  const onTilesPointerMove = (e) => {
+    const d = tilesDrag.current
+    if (!d.down) return
+    const dx = e.clientX - d.startX
+    if (Math.abs(dx) > 4) d.moved = true // 4px 이내 흔들림은 클릭으로 취급
+    if (d.moved) tilesRef.current.scrollLeft = d.startLeft - dx
+  }
+  const onTilesPointerEnd = () => { tilesDrag.current.down = false }
+  const onTilesClickCapture = (e) => {
+    if (!tilesDrag.current.moved) return
+    tilesDrag.current.moved = false
+    e.preventDefault()
+    e.stopPropagation() // 드래그로 끝난 제스처가 칩 클릭(내비게이션)으로 이어지지 않게
   }
 
   const [rooms, setRooms] = useState([]) // 참여 중인 방 — 고정 먼저, 최근 대화순 (서버 정렬)
   const [shorts, setShorts] = useState([]) // 피드 상위 3개 (품질점수순)
-  const [walk] = useState(null) // TODO 실연동: 노면 온도 — walkApi.getWalkWeather + 위치 훅
 
   useEffect(() => {
     let cancelled = false
@@ -92,7 +112,6 @@ export default function HomePage() {
   const onAsk = () => {
     const query = q.trim()
     if (!query) return
-    setAsked(true)
     // 답은 검색 화면에서 만든다 — 홈은 질문을 넘기기만 한다
     navigate(`/aisearch?q=${encodeURIComponent(query)}`)
   }
@@ -106,124 +125,56 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mn home">
-      <div className="mn-top">
-        {/* 디자인 원본 표기는 "멍냥로그" — 실제 서비스명(index.html title)에 맞춘다 */}
-        <div className="mn-brand">댕댕댕</div>
+    <main className="home">
+      {/* 헤더는 브랜드 + 앱 설치만 (2026-08-26) — 회원명은 하단 앱바의 마이페이지가,
+          로그아웃은 마이페이지 내 정보가 맡는다 */}
+      <header className="home-top">
+        <span className="home-brand">댕댕댕</span>
         <div className="home-top-actions">
           <InstallAppButton />
-          <button type="button" className="mn-link" onClick={() => navigate('/mypage')}>
-            {`${user?.name ?? ''}님`}
-          </button>
-          <button
-            type="button"
-            className="mn-link"
-            onClick={() => onLogout()}
-            disabled={loggingOut}
-          >
-            로그아웃
-          </button>
         </div>
+      </header>
+
+      {/* 기능 메뉴 스트립 — 하단 앱바에 없는 것만 둔다 (건강검진·오픈채팅·마이는 앱바 몫) */}
+      <div
+        className="home-tiles"
+        ref={tilesRef}
+        onPointerDown={onTilesPointerDown}
+        onPointerMove={onTilesPointerMove}
+        onPointerUp={onTilesPointerEnd}
+        onPointerLeave={onTilesPointerEnd}
+        onClickCapture={onTilesClickCapture}
+      >
+        <button type="button" className="home-tile" onClick={() => navigate('/map')}>지도</button>
+        <button type="button" className="home-tile" onClick={() => navigate('/walk')}>산책</button>
+        <button type="button" className="home-tile" onClick={() => navigate('/shorts')}>숏츠</button>
       </div>
-      <div className="mn-rule" />
 
-      {logoutError && (
-        <p className="submit-error" role="alert" style={{ padding: '10px 18px 0' }}>
-          {logoutError}{' '}
-          <button type="button" onClick={() => onLogout()} disabled={loggingOut}>
-            다시 시도
-          </button>{' '}
-          {/* 서버가 오래 죽어 있을 때의 탈출구 — 서버 세션은 남을 수 있음을 위 문구로 안내한 상태 */}
-          <button type="button" onClick={() => onLogout(true)} disabled={loggingOut}>
-            이 기기에서만 로그아웃
-          </button>
-        </p>
-      )}
-
-      {/* 기능 타일 — 상단 탭 대신 화면 안에서 기능으로 들어간다 */}
-      <div className="mn-tiles">
-        <button type="button" className="mn-tile" onClick={() => navigate('/map')}>
-          <b>지도</b>
-          <span>주변 장소</span>
-        </button>
-        <button type="button" className="mn-tile" onClick={() => navigate('/walk')}>
-          <b>산책</b>
-          <span>
-            {walk
-              ? `노면 ${Math.round(walk.asphaltTemp)}° · ${RISK_LABEL[walk.riskLevel] ?? ''}`
-              : '노면 온도 확인'}
-          </span>
-        </button>
-        <button type="button" className="mn-tile" onClick={() => setSheetOpen(true)}>
-          <b>건강검진</b>
-          <span>AI 2종</span>
-        </button>
-        <button type="button" className="mn-tile" onClick={() => navigate('/shorts')}>
-          <b>숏츠</b>
-          <span>영상 보기</span>
-        </button>
-        <button type="button" className="mn-tile" onClick={() => navigate('/chat')}>
-          <b>오픈채팅</b>
-          <span>{rooms.length > 0 ? `${rooms.length}개 참여 중` : '방 둘러보기'}</span>
-        </button>
-        <button type="button" className="mn-tile" onClick={() => navigate('/mypage')}>
-          <b>마이</b>
-          <span>내 정보</span>
-        </button>
-      </div>
-      <div className="mn-rule" />
-
-      {/* AI 질문 — 홈에서 바로 적고 /aisearch 로 넘긴다 */}
+      {/* AI 질문 — 한 줄 필. 홈에서 바로 적고 /aisearch 로 넘긴다 */}
       <section className="home-ask">
-        <div className="home-ask-row">
-          <span className="home-ask-badge" aria-hidden="true">
-            AI
-          </span>
-          <input
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value)
-              setAsked(false)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onAsk()
-            }}
-            placeholder={pet ? `${pet.name}에 대해 무엇이든 물어보세요` : 'AI에게 무엇이든 물어보세요'}
-            aria-label="AI에게 질문"
-          />
-          <button type="button" className="mn-link" onClick={onAsk}>
-            질문
-          </button>
-        </div>
-        {asked && (
-          <p className="home-ask-answer">검색 화면에서 답을 준비합니다…</p>
-        )}
-        <div className="home-chips">
-          {SUGGESTS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className="mn-chip"
-              onClick={() => {
-                setQ(s)
-                navigate(`/aisearch?q=${encodeURIComponent(s)}`)
-              }}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
+        <span className="home-ask-badge" aria-hidden="true">AI</span>
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onAsk()
+          }}
+          placeholder={pet ? `${pet.name}에 대해 무엇이든 물어보세요` : 'AI에게 무엇이든 물어보세요'}
+          aria-label="AI에게 질문"
+        />
+        <button type="button" className="home-link" onClick={onAsk}>
+          질문
+        </button>
       </section>
-      <div className="mn-hair" />
 
-      {/* 내 반려동물 프로필 */}
-      <section className="home-pet">
+      {/* 내 반려동물 프로필 — 시안의 사진+이름·메타+건강관리 가로 배치 */}
+      <section className="home-card home-pet">
         <div className="home-pet-chips">
           {(pets ?? []).map((p, i) => (
             <button
               key={p.id}
               type="button"
-              className="mn-chip"
+              className="home-chip"
               aria-pressed={i === petIdx}
               onClick={() => setPetIdx(i)}
             >
@@ -231,167 +182,157 @@ export default function HomePage() {
             </button>
           ))}
           <span style={{ flex: 1 }} />
-          <button type="button" className="mn-link" onClick={() => navigate('/pets/new')}>
+          <button type="button" className="home-link" onClick={() => navigate('/pets/new')}>
             + 등록
           </button>
         </div>
 
         {error && <p className="submit-error">{error}</p>}
-        {pets === null && !error && <p className="home-pet-meta">불러오는 중…</p>}
+        {pets === null && !error && <p className="home-muted">불러오는 중…</p>}
 
         {pets && pets.length === 0 && (
-          <>
-            <div className="home-pet-photo mn-photo" aria-hidden="true" />
-            <div className="home-pet-name-row">
-              <div>
-                <div className="home-pet-name">첫 반려동물 등록</div>
-                <p className="home-pet-meta">
-                  등록하면 산책·건강검진 기록이 이 자리에 모입니다.
-                </p>
-              </div>
-              <button type="button" className="mn-primary" onClick={() => navigate('/pets/new')}>
-                등록하기
-              </button>
+          <div className="home-pet-row">
+            <div className="home-pet-photo home-pet-photo-empty" aria-hidden="true">🐶</div>
+            <div className="home-pet-info">
+              <div className="home-pet-name">첫 반려동물 등록</div>
+              <p className="home-pet-meta">등록하면 산책·건강검진 기록이 이 자리에 모입니다.</p>
             </div>
-          </>
+            <button type="button" className="home-cta" onClick={() => navigate('/pets/new')}>
+              등록하기
+            </button>
+          </div>
         )}
 
         {pet && (
-          <>
+          <div className="home-pet-row">
             {pet.profileImageUrl ? (
-              <img className="home-pet-photo mn-photo" src={pet.profileImageUrl} alt="" />
+              <img className="home-pet-photo" src={pet.profileImageUrl} alt="" />
             ) : (
-              <div className="home-pet-photo mn-photo" aria-hidden="true" />
+              <div className="home-pet-photo home-pet-photo-empty" aria-hidden="true">🐶</div>
             )}
-            <div className="home-pet-name-row">
-              {/* 이름·정보 블록이 상세(/pets/:id) 진입 링크 — /pets 목록 행에서 이관 (2026-08-25) */}
-              <Link
-                className="home-pet-link"
-                to={`/pets/${pet.id}`}
-                aria-label={`${pet.name} 상세 정보`}
-              >
-                <div className="home-pet-name">{pet.name}</div>
-                <p className="home-pet-meta">
-                  {[pet.breed ?? '품종 미입력', age !== null ? `${age}살` : null, pet.birthDate]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </p>
-              </Link>
-              <button type="button" className="mn-primary" onClick={() => setSheetOpen(true)}>
-                건강관리
-              </button>
-            </div>
-          </>
+            {/* 이름·정보 블록이 상세(/pets/:id) 진입 링크 — /pets 목록 행에서 이관 (2026-08-25) */}
+            <Link
+              className="home-pet-info"
+              to={`/pets/${pet.id}`}
+              aria-label={`${pet.name} 상세 정보`}
+            >
+              <div className="home-pet-name">{pet.name}</div>
+              <p className="home-pet-meta">
+                {[pet.breed ?? '품종 미입력', age !== null ? `${age}살` : null, pet.birthDate]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            </Link>
+            <button type="button" className="home-cta" onClick={() => setSheetOpen(true)}>
+              건강관리
+            </button>
+          </div>
         )}
       </section>
 
-      {/* 통계 라인(이번 주 산책·최근 검진·나이)은 제거 (2026-08-25 사용자 결정) —
-          앞 둘은 집계 API 미확정 placeholder였고, 나이는 이름 아래 메타로 충분 */}
-      <div className="mn-rule" />
-
-      {/* 오픈채팅 3 */}
-      <div className="mn-sec-head">
-        <h2>오픈채팅</h2>
-        <button type="button" className="mn-link" onClick={() => navigate('/chat')}>
-          전체 보기
-        </button>
-      </div>
-      {/* getMyRooms — 참여 중인 방이라 join 없이 바로 입장. 방 객체를 state로 넘겨야
-          방 화면이 프로필(소개·정원)을 그릴 수 있다 (ChatRoomListPage와 같은 계약) */}
-      {rooms.slice(0, 3).map((r) => (
-        <button
-          key={r.id}
-          type="button"
-          className="mn-row"
-          onClick={() => navigate(`/chat/rooms/${r.id}`, { state: { room: r } })}
-        >
-          <span>
-            <b>{r.name}</b>
-            <span className="sub">{r.description || categoryLabel(r.category)}</span>
-          </span>
-          <span className="meta">
-            {r.unreadCount > 0
-              ? `안 읽음 ${r.unreadCount > 99 ? '99+' : r.unreadCount}`
-              : `${r.participantCount}명`}
-          </span>
-        </button>
-      ))}
-      {rooms.length === 0 && (
-        <p className="home-pet-meta" style={{ padding: '12px 18px' }}>
-          참여 중인 방이 없습니다. 지역·품종 방을 둘러보세요.
-        </p>
-      )}
-      <div className="mn-rule" />
-
-      {/* 숏츠 3 */}
-      <div className="mn-sec-head">
-        <h2>숏츠</h2>
-        <button type="button" className="mn-link" onClick={() => navigate('/shorts')}>
-          전체 보기
-        </button>
-      </div>
-      {/* getShortsFeed 상위 3개 — ?v= 공유 링크 형식으로 그 영상부터 재생 (shortsApi.getShort 참고) */}
-      {shorts.slice(0, 3).map((v) => (
-        <button
-          key={v.id}
-          type="button"
-          className="mn-row short"
-          onClick={() => navigate(`/shorts?v=${v.id}`)}
-        >
-          {v.thumbnailUrl ? <img src={v.thumbnailUrl} alt="" /> : <span className="thumb mn-photo" />}
-          <span>
-            <b>{v.caption || '제목 없음'}</b>
-            <span className="sub">
-              {[v.memberName, v.likeCount != null ? `좋아요 ${v.likeCount}` : null]
-                .filter(Boolean)
-                .join(' · ')}
+      {/* 오픈채팅 3 — getMyRooms. 참여 중인 방이라 join 없이 바로 입장하고,
+          방 객체를 state로 넘겨야 방 화면이 프로필(소개·정원)을 그릴 수 있다 (ChatRoomListPage와 같은 계약) */}
+      <section className="home-card home-list">
+        <div className="home-card-head">
+          <h2><span aria-hidden="true">💬</span> 오픈채팅</h2>
+          <button type="button" className="home-link" onClick={() => navigate('/chat')}>
+            전체 보기
+          </button>
+        </div>
+        {rooms.slice(0, 3).map((r) => (
+          <button
+            key={r.id}
+            type="button"
+            className="home-lrow"
+            onClick={() => navigate(`/chat/rooms/${r.id}`, { state: { room: r } })}
+          >
+            <span className="home-lrow-main">
+              <b>{r.name}</b>
+              <span className="sub">{r.description || categoryLabel(r.category)}</span>
             </span>
-          </span>
-        </button>
-      ))}
-      {shorts.length === 0 && (
-        <p className="home-pet-meta" style={{ padding: '12px 18px 24px' }}>
-          아직 새 영상이 없습니다.
-        </p>
-      )}
+            <span className="home-lrow-meta">
+              {r.unreadCount > 0
+                ? `안 읽음 ${r.unreadCount > 99 ? '99+' : r.unreadCount}`
+                : `${r.participantCount}명`}
+            </span>
+            <span className="home-lrow-chev" aria-hidden="true">›</span>
+          </button>
+        ))}
+        {rooms.length === 0 && (
+          <p className="home-muted">참여 중인 방이 없습니다. 지역·품종 방을 둘러보세요.</p>
+        )}
+      </section>
 
-      {/* 건강검진 바텀시트 — 구 목록 화면(PetListPage, 폐지됨)의 모달을 시트로 옮긴 것.
-          넘기는 state(petName, breed, birthDate)는 진단 화면들과의 계약이라 유지 */}
+      {/* 숏츠 3 — ?v= 공유 링크 형식으로 그 영상부터 재생 (shortsApi.getShort 참고) */}
+      <section className="home-card home-list">
+        <div className="home-card-head">
+          <h2><span aria-hidden="true">🎬</span> 숏츠</h2>
+          <button type="button" className="home-link" onClick={() => navigate('/shorts')}>
+            전체 보기
+          </button>
+        </div>
+        {shorts.slice(0, 3).map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            className="home-lrow short"
+            onClick={() => navigate(`/shorts?v=${v.id}`)}
+          >
+            {v.thumbnailUrl ? (
+              <img className="home-lrow-thumb" src={v.thumbnailUrl} alt="" />
+            ) : (
+              <span className="home-lrow-thumb home-lrow-thumb-empty" aria-hidden="true">▶</span>
+            )}
+            <span className="home-lrow-main">
+              <b>{v.caption || '제목 없음'}</b>
+              <span className="sub">
+                {[v.memberName, v.likeCount != null ? `좋아요 ${v.likeCount}` : null]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </span>
+            <span className="home-lrow-chev" aria-hidden="true">›</span>
+          </button>
+        ))}
+        {shorts.length === 0 && <p className="home-muted">아직 새 영상이 없습니다.</p>}
+      </section>
+
+      {/* 건강검진 바텀시트 — 넘기는 state(petName, breed, birthDate)는 진단 화면들과의 계약이라 유지 */}
       {sheetOpen && (
         <div
-          className="mn-sheet-backdrop"
+          className="home-sheet-backdrop"
           role="dialog"
           aria-modal="true"
           aria-label="AI 건강검진"
           onClick={() => setSheetOpen(false)}
         >
-          <div className="mn-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="mn-sheet-head">
-              <div className="mn-sheet-title">AI 건강검진</div>
-              <button type="button" className="mn-link" onClick={() => setSheetOpen(false)}>
+          <div className="home-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="home-sheet-head">
+              <div className="home-sheet-title">AI 건강검진</div>
+              <button type="button" className="home-link" onClick={() => setSheetOpen(false)}>
                 닫기
               </button>
             </div>
-            <p className="mn-sheet-lede">
+            <p className="home-sheet-lede">
               {pet ? `${pet.name}의 정보가 자동으로 채워집니다.` : '반려동물을 먼저 등록하면 정보가 자동으로 채워집니다.'}
             </p>
-            <div className="mn-sheet-item">
+            <div className="home-sheet-item">
               <b>피부 질환 AI 스크리닝</b>
               <p>환부 사진을 찍어 영역을 지정하면 12종 피부 질환을 분석합니다.</p>
               <button
                 type="button"
-                className="mn-primary block"
+                className="home-cta block"
                 onClick={() => goHealth('/skin/diagnosis')}
               >
                 사진으로 시작
               </button>
             </div>
-            <div className="mn-sheet-item">
+            <div className="home-sheet-item">
               <b>바이오센서 스마트 문진</b>
               <p>센서 3종 수치와 증상 메모를 종합해 수의사 제출용 소견서를 만듭니다.</p>
               <button
                 type="button"
-                className="mn-secondary"
+                className="home-ghost"
                 onClick={() => goHealth('/hybrid/diagnosis')}
               >
                 수치 입력으로 시작
@@ -400,6 +341,25 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* 하단 앱바 (2026-08-26 사용자 결정) — 상단 기능 메뉴를 대체한다.
+          홈 화면 전용이다: 건강검진이 라우트가 아니라 이 화면의 바텀시트라 여기서만 성립하고,
+          지도·숏츠·채팅방은 자체 하단 UI(바텀시트·입력 바)가 있어 공통 앱바와 충돌한다.
+          전 화면 공통으로 올리려면 App.jsx 레이아웃과 각 화면 하단 여백을 함께 손봐야 한다 */}
+      <nav className="home-tabbar" aria-label="주요 메뉴">
+        <button type="button" className="active" aria-current="page">
+          <span aria-hidden="true">🏠</span>홈
+        </button>
+        <button type="button" onClick={() => navigate('/chat')}>
+          <span aria-hidden="true">💬</span>오픈채팅
+        </button>
+        <button type="button" onClick={() => setSheetOpen(true)}>
+          <span aria-hidden="true">🩺</span>건강검진
+        </button>
+        <button type="button" onClick={() => navigate('/mypage')}>
+          <span aria-hidden="true">👤</span>마이페이지
+        </button>
+      </nav>
     </main>
   )
 }

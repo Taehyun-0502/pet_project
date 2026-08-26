@@ -1,3 +1,4 @@
+// [타 슬라이스 시각 수정] 2026-08-26 웜톤 통일(사용자 지시) — 로직 무변경, 담당자 확인 필요
 import React from 'react'
 
 /**
@@ -106,7 +107,7 @@ export function SkinDiagnosisPdfModal({
         <div style={toolbarStyle} className="pdf-no-print">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '20px' }}>📄</span>
-            <span style={{ fontWeight: '700', fontSize: '16px', color: '#1E293B' }}>
+            <span style={{ fontWeight: '700', fontSize: '16px', color: '#4b4037' }}>
               피부 질환 AI 진단 소견서 미리보기
             </span>
           </div>
@@ -131,8 +132,8 @@ export function SkinDiagnosisPdfModal({
                 <p style={subTitleStyle}>HaruBread Pet Medical AI Healthcare Diagnostic Document</p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>문서번호: {docNo}</div>
-                <div style={{ fontSize: '12px', color: '#94A3B8', marginTop: '2px' }}>발급일: {todayStr}</div>
+                <div style={{ fontSize: '12px', fontWeight: '600', color: '#9a8d80' }}>문서번호: {docNo}</div>
+                <div style={{ fontSize: '12px', color: '#9a8d80', marginTop: '2px' }}>발급일: {todayStr}</div>
               </div>
             </div>
           </div>
@@ -143,21 +144,21 @@ export function SkinDiagnosisPdfModal({
           <div style={{ ...sectionBoxStyle, marginBottom: '12px' }}>
             <h3 style={sectionTitleStyle}>🐕 반려동물 신체 프로필</h3>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', textAlign: 'center' }}>
-              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>강아지 이름</span>
-                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.petName || '초코'}</strong>
+              <div style={{ padding: '8px', backgroundColor: '#fdf6ec', borderRadius: '6px', border: '1px solid #f0e3d2' }}>
+                <span style={{ fontSize: '11px', color: '#9a8d80', display: 'block', fontWeight: '600' }}>강아지 이름</span>
+                <strong style={{ fontSize: '13px', color: '#4b4037', marginTop: '2px', display: 'block' }}>{formData?.petName || '초코'}</strong>
               </div>
-              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>종류 (품종)</span>
-                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.breed || '포메라니안'}</strong>
+              <div style={{ padding: '8px', backgroundColor: '#fdf6ec', borderRadius: '6px', border: '1px solid #f0e3d2' }}>
+                <span style={{ fontSize: '11px', color: '#9a8d80', display: 'block', fontWeight: '600' }}>종류 (품종)</span>
+                <strong style={{ fontSize: '13px', color: '#4b4037', marginTop: '2px', display: 'block' }}>{formData?.breed || '포메라니안'}</strong>
               </div>
-              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>나이</span>
-                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.age || '3'}세</strong>
+              <div style={{ padding: '8px', backgroundColor: '#fdf6ec', borderRadius: '6px', border: '1px solid #f0e3d2' }}>
+                <span style={{ fontSize: '11px', color: '#9a8d80', display: 'block', fontWeight: '600' }}>나이</span>
+                <strong style={{ fontSize: '13px', color: '#4b4037', marginTop: '2px', display: 'block' }}>{formData?.age || '3'}세</strong>
               </div>
-              <div style={{ padding: '8px', backgroundColor: '#F8FAFC', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
-                <span style={{ fontSize: '11px', color: '#64748B', display: 'block', fontWeight: '600' }}>체중</span>
-                <strong style={{ fontSize: '13px', color: '#0F172A', marginTop: '2px', display: 'block' }}>{formData?.weight || '4.5'}kg</strong>
+              <div style={{ padding: '8px', backgroundColor: '#fdf6ec', borderRadius: '6px', border: '1px solid #f0e3d2' }}>
+                <span style={{ fontSize: '11px', color: '#9a8d80', display: 'block', fontWeight: '600' }}>체중</span>
+                <strong style={{ fontSize: '13px', color: '#4b4037', marginTop: '2px', display: 'block' }}>{formData?.weight || '4.5'}kg</strong>
               </div>
             </div>
           </div>
@@ -179,22 +180,22 @@ export function SkinDiagnosisPdfModal({
             {/* 우측: 1차 이진 스크리닝 소견 */}
             <div style={sectionBoxStyle}>
               <h3 style={sectionTitleStyle}>⚡ 1차 스크리닝 진단 소견</h3>
-              <div style={{ ...screeningBadgeCardStyle, backgroundColor: isBinaryNormal ? '#F0FDF4' : '#FEF2F2', borderColor: isBinaryNormal ? '#BBF7D0' : '#FECACA' }}>
-                <span style={{ fontSize: '13px', fontWeight: '700', color: isBinaryNormal ? '#166534' : '#991B1B' }}>
+              <div style={{ ...screeningBadgeCardStyle, backgroundColor: isBinaryNormal ? '#eaf6f0' : '#fdeeea', borderColor: isBinaryNormal ? '#bfe3d2' : '#f3c4b8' }}>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: isBinaryNormal ? '#1f5f43' : '#a03322' }}>
                   스크리닝 판정
                 </span>
-                <div style={{ fontSize: '24px', fontWeight: '800', margin: '4px 0', color: isBinaryNormal ? '#15803D' : '#DC2626' }}>
+                <div style={{ fontSize: '24px', fontWeight: '800', margin: '4px 0', color: isBinaryNormal ? '#2a9d6e' : '#d64530' }}>
                   {isBinaryNormal ? '✅ 정상' : '🚨 피부 질환 가능성'}
                 </div>
-                <div style={{ fontSize: '13px', color: '#475569' }}>
+                <div style={{ fontSize: '13px', color: '#7a6c5f' }}>
                   신뢰도 <strong>{Number(binaryConfidence).toFixed(1)}%</strong>
                 </div>
               </div>
 
               {topMulti && (
-                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>최고 의심 세부 질환</span>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', marginTop: '2px' }}>
+                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: '#fdf6ec', borderRadius: '8px', border: '1px solid #f0e3d2' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#7a6c5f' }}>최고 의심 세부 질환</span>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#4b4037', marginTop: '2px' }}>
                     {topMulti.class_name || topMulti.className} ({Number(topMulti.confidence ?? topMulti.probability ?? 0).toFixed(1)}%)
                   </div>
                 </div>
@@ -229,7 +230,7 @@ export function SkinDiagnosisPdfModal({
                               style={{
                                 ...barFillStyle,
                                 width: `${Math.min(conf, 100)}%`,
-                                backgroundColor: idx === 0 ? '#4F46E5' : '#94A3B8',
+                                backgroundColor: idx === 0 ? '#ef7d66' : '#9a8d80',
                               }}
                             />
                           </div>
@@ -246,17 +247,17 @@ export function SkinDiagnosisPdfModal({
           {/* 수의사 안내 및 서명/QR 영역 */}
           <div style={footerDisclaimerStyle}>
             <div style={{ flex: 1 }}>
-              <h4 style={{ margin: 0, fontSize: '13px', color: '#1E293B', fontWeight: '700' }}>
+              <h4 style={{ margin: 0, fontSize: '13px', color: '#4b4037', fontWeight: '700' }}>
                 🩺 수의사 진료 참고 안내 (Disclaimer)
               </h4>
-              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#64748B', lineHeight: '1.4' }}>
+              <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: '#9a8d80', lineHeight: '1.4' }}>
                 본 소견서는 인공지능(EfficientNet) 딥러닝 비전 알고리즘을 통한 사전 스크리닝 참고용 자료입니다.
                 확정 진단 및 약물 처방은 반드시 동물병원 담당 수의사의 정밀 진료를 받으시기 바랍니다.
               </p>
             </div>
             <div style={qrBoxStyle}>
               <div style={{ fontSize: '28px' }}>📲</div>
-              <span style={{ fontSize: '9px', color: '#64748B', marginTop: '2px' }}>검증 QR 코드</span>
+              <span style={{ fontSize: '9px', color: '#9a8d80', marginTop: '2px' }}>검증 QR 코드</span>
             </div>
           </div>
         </div>
@@ -272,7 +273,7 @@ const backdropStyle = {
   left: 0,
   right: 0,
   bottom: 0,
-  backgroundColor: 'rgba(15, 23, 42, 0.65)',
+  backgroundColor: 'rgba(75, 64, 55, 0.6)',
   display: 'flex',
   justifyContent: 'center',
   alignItems: 'center',
@@ -281,8 +282,8 @@ const backdropStyle = {
 }
 
 const modalContainerStyle = {
-  backgroundColor: '#FFFFFF',
-  borderRadius: '16px',
+  backgroundColor: '#fffdfa',
+  borderRadius: '20px',
   width: '100%',
   maxWidth: '780px',
   maxHeight: '90vh',
@@ -297,16 +298,16 @@ const toolbarStyle = {
   justifyContent: 'space-between',
   alignItems: 'center',
   padding: '16px 24px',
-  borderBottom: '1px solid #E2E8F0',
-  backgroundColor: '#F8FAFC',
+  borderBottom: '1px solid #f0e3d2',
+  backgroundColor: '#fdf6ec',
   position: 'sticky',
   top: 0,
   zIndex: 10,
 }
 
 const printButtonStyle = {
-  backgroundColor: '#4F46E5',
-  color: '#FFFFFF',
+  backgroundColor: '#ef7d66',
+  color: '#fffdfa',
   border: 'none',
   borderRadius: '8px',
   padding: '8px 16px',
@@ -316,8 +317,8 @@ const printButtonStyle = {
 }
 
 const closeButtonStyle = {
-  backgroundColor: '#E2E8F0',
-  color: '#475569',
+  backgroundColor: '#f0e3d2',
+  color: '#7a6c5f',
   border: 'none',
   borderRadius: '8px',
   padding: '8px 14px',
@@ -328,7 +329,7 @@ const closeButtonStyle = {
 
 const documentStyle = {
   padding: '32px',
-  backgroundColor: '#FFFFFF',
+  backgroundColor: '#fffdfa',
   fontFamily: "'Inter', sans-serif",
 }
 
@@ -340,8 +341,8 @@ const hospitalBadgeStyle = {
   fontSize: '10px',
   fontWeight: '800',
   letterSpacing: '1px',
-  color: '#4F46E5',
-  backgroundColor: '#EEF2FF',
+  color: '#ef7d66',
+  backgroundColor: '#fdeee8',
   padding: '3px 8px',
   borderRadius: '4px',
 }
@@ -349,19 +350,19 @@ const hospitalBadgeStyle = {
 const titleStyle = {
   fontSize: '24px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
   margin: '6px 0 2px 0',
 }
 
 const subTitleStyle = {
   fontSize: '12px',
-  color: '#64748B',
+  color: '#9a8d80',
   margin: 0,
 }
 
 const dividerStyle = {
   border: 'none',
-  borderTop: '2px solid #0F172A',
+  borderTop: '2px solid #4b4037',
   margin: '12px 0 20px 0',
 }
 
@@ -372,8 +373,8 @@ const gridTwoColumnStyle = {
 }
 
 const sectionBoxStyle = {
-  backgroundColor: '#FFFFFF',
-  border: '1px solid #E2E8F0',
+  backgroundColor: '#fffdfa',
+  border: '1px solid #f0e3d2',
   borderRadius: '12px',
   padding: '16px',
 }
@@ -381,7 +382,7 @@ const sectionBoxStyle = {
 const sectionTitleStyle = {
   fontSize: '14px',
   fontWeight: '700',
-  color: '#1E293B',
+  color: '#4b4037',
   margin: '0 0 12px 0',
 }
 
@@ -389,7 +390,7 @@ const imageContainerStyle = {
   width: '100%',
   height: '160px',
   borderRadius: '8px',
-  backgroundColor: '#F1F5F9',
+  backgroundColor: '#f0e3d2',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -404,13 +405,13 @@ const cropImageStyle = {
 
 const noImageTextStyle = {
   fontSize: '12px',
-  color: '#94A3B8',
+  color: '#9a8d80',
 }
 
 const screeningBadgeCardStyle = {
   padding: '16px',
   borderRadius: '10px',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #f0e3d2',
   textAlign: 'center',
 }
 
@@ -421,31 +422,31 @@ const tableStyle = {
 }
 
 const tableHeaderRowStyle = {
-  backgroundColor: '#F8FAFC',
-  borderBottom: '1px solid #CBD5E1',
+  backgroundColor: '#fdf6ec',
+  borderBottom: '1px solid #e6d3bd',
 }
 
 const thStyle = {
   padding: '8px 10px',
   textAlign: 'left',
   fontWeight: '700',
-  color: '#475569',
+  color: '#7a6c5f',
 }
 
 const tableRowStyle = {
-  borderBottom: '1px solid #E2E8F0',
+  borderBottom: '1px solid #f0e3d2',
 }
 
 const tdRankStyle = {
   padding: '8px 10px',
   fontWeight: '700',
-  color: '#64748B',
+  color: '#9a8d80',
 }
 
 const tdNameStyle = {
   padding: '8px 10px',
   fontWeight: '700',
-  color: '#0F172A',
+  color: '#4b4037',
 }
 
 const tdStyle = {
@@ -456,13 +457,13 @@ const tdPercentStyle = {
   padding: '8px 10px',
   textAlign: 'right',
   fontWeight: '700',
-  color: '#4F46E5',
+  color: '#ef7d66',
 }
 
 const barTrackStyle = {
   width: '100%',
   height: '8px',
-  backgroundColor: '#E2E8F0',
+  backgroundColor: '#f0e3d2',
   borderRadius: '4px',
   overflow: 'hidden',
 }
@@ -475,9 +476,9 @@ const barFillStyle = {
 const footerDisclaimerStyle = {
   marginTop: '24px',
   padding: '12px 16px',
-  backgroundColor: '#F8FAFC',
+  backgroundColor: '#fdf6ec',
   borderRadius: '10px',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #f0e3d2',
   display: 'flex',
   alignItems: 'center',
   gap: '16px',
@@ -486,8 +487,8 @@ const footerDisclaimerStyle = {
 const qrBoxStyle = {
   width: '60px',
   height: '60px',
-  backgroundColor: '#FFFFFF',
-  border: '1px solid #CBD5E1',
+  backgroundColor: '#fffdfa',
+  border: '1px solid #e6d3bd',
   borderRadius: '8px',
   display: 'flex',
   flexDirection: 'column',

@@ -1,3 +1,4 @@
+// [타 슬라이스 시각 수정] 2026-08-26 웜톤 통일(사용자 지시) — 로직 무변경, 담당자 확인 필요
 import React from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
@@ -39,7 +40,7 @@ export default function DiagnosisTabNav() {
 
 const navContainerStyle = {
   display: 'flex',
-  backgroundColor: '#F1F5F9',
+  backgroundColor: '#f5e8d5',
   borderRadius: '14px',
   padding: '4px',
   marginBottom: '16px',
@@ -60,18 +61,18 @@ const tabButtonStyle = {
 }
 
 const activeSkinTabStyle = {
-  backgroundColor: '#4F46E5',
+  backgroundColor: '#ef7d66',
   color: '#FFFFFF',
-  boxShadow: '0 2px 6px rgba(79, 70, 229, 0.3)',
+  boxShadow: '0 2px 6px rgba(239, 125, 102, 0.35)',
 }
 
 const activeHybridTabStyle = {
-  backgroundColor: '#059669',
+  backgroundColor: '#e2664e',
   color: '#FFFFFF',
-  boxShadow: '0 2px 6px rgba(5, 150, 105, 0.3)',
+  boxShadow: '0 2px 6px rgba(226, 102, 78, 0.35)',
 }
 
 const inactiveTabStyle = {
   backgroundColor: 'transparent',
-  color: '#64748B',
+  color: '#9a8d80',
 }

@@ -1,76 +1,356 @@
-/* 홈 화면 전용 스타일. 토큰·공용 클래스(룰·칩·버튼·행·시트·타일)는 common/modernist.css로
-   승격했다(2026-08-25) — 여기에는 홈에만 있는 레이아웃(AI 질문·프로필·통계)만 남긴다.
-   색·선은 반드시 --mn-* 토큰만 쓴다. */
+/* 홈 화면 — 웜톤 템플릿 리디자인 (2026-08-25 사용자 제공 시안).
+   로그인·가입(member.css의 .login 스코프)과 같은 팔레트를 .home 스코프에 둔다.
+   ※ 같은 --lg-* 값이 두 곳(member.css·여기)에 복제된 상태 — 웜톤 화면이 하나 더 늘면
+   common/warm.css 로 승격할 것 (Modernist 때 modernist.css 승격과 같은 수순). */
+.home {
+  --lg-bg-top: #fdf6ec;
+  --lg-bg-bottom: #fae9d7;
+  --lg-card: #fffdfa;
+  --lg-text: #4b4037;
+  --lg-muted: #9a8d80;
+  --lg-line: #f0e3d2;
+  --lg-accent: #ef7d66;
+  --lg-accent-deep: #e2664e;
+  --lg-error: #d64530;
 
-/* AI 질문 입력 */
-.home-ask { padding: 16px 18px; }
-.home-ask-row {
+  flex: 1;
   display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 16px 96px; /* 하단 = 고정 앱바 높이 + 숨 (마지막 카드가 가리지 않게) */
+  background: linear-gradient(180deg, var(--lg-bg-top), var(--lg-bg-bottom));
+  color: var(--lg-text);
+  text-align: left; /* #root의 text-align: center 되돌림 */
+}
+.home *,
+.home *::before,
+.home *::after { box-sizing: border-box; }
+.home button { font: inherit; color: inherit; }
+
+/* 헤더 — 브랜드 + (앱 설치 · 회원명 · 로그아웃) */
+.home-top {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
-  border: 2px solid var(--mn-text);
-  padding: 10px 11px;
+  min-width: 0;
 }
-.home-ask-badge {
-  background: var(--mn-accent);
-  color: var(--mn-bg);
-  padding: 4px 6px;
-  font-size: 10px;
+.home-brand {
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  color: var(--lg-accent);
+  letter-spacing: -0.3px;
 }
-.home-ask-row input {
+.home-top-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* 앱 설치 버튼(components/InstallAppButton — 타 슬라이스 파일이라 미수정)을 홈 무드에 맞춘다.
+   컴포넌트가 인라인 스타일(남색/연보라)이라 !important로 덮는다 (2026-08-26 사용자 요청:
+   배경과 편차 큰 색 대신 낮은 대비의 버튼 형식). 준비 상태(원클릭 앱 설치)도 같은 모양 —
+   상태 구분은 라벨 문구가 한다 */
+.home .home-top-actions > button[title] {
+  background: var(--lg-card) !important;
+  color: var(--lg-muted) !important;
+  border: 1px solid var(--lg-line) !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+/* 컴포넌트의 아이콘·라벨 span을 숨기고 짧은 라벨로 교체 (2026-08-26 사용자 요청 —
+   원문 "앱으로 만들기/원클릭 앱 설치"는 title 툴팁에 남아 있다) */
+.home .home-top-actions > button[title] > span { display: none; }
+.home .home-top-actions > button[title]::after { content: '앱 설치'; }
+
+/* 텍스트 액션 (코럴) */
+.home-link {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lg-accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.home-link:hover { color: var(--lg-accent-deep); }
+.home-link:disabled { opacity: 0.5; cursor: default; }
+
+/* 로그아웃 UI는 마이페이지 내 정보로 이관 (2026-08-26) — member.css .mypage-logout* 참조 */
+
+/* 공통 카드 */
+.home-card {
+  background: var(--lg-card);
+  border: 1px solid var(--lg-line);
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: 0 10px 24px -20px rgba(90, 60, 30, 0.35);
+}
+.home-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.home-card-head h2 {
+  margin: 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: normal;
+  color: var(--lg-text);
+}
+.home-muted { margin: 8px 2px; font-size: 12.5px; color: var(--lg-muted); }
+.home .submit-error { font-size: 13px; color: var(--lg-error); }
+
+/* 기능 메뉴 — GNB식 가로 스와이프 칩 스트립. 하단 앱바(.home-tabbar, 파일 맨 아래)에 없는
+   항목만 둔다 (2026-08-26). 좌우 풀블리드(-16px 마진)로 화면 가장자리 밑으로 스크롤되고,
+   내부 패딩 16px이 첫 칩을 본문 정렬선에 맞춘다. 스크롤바는 숨김 */
+.home-tiles {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 2px 16px;
+  scrollbar-width: none; /* Firefox */
+  /* 스와이프 감: 놓으면 가까운 칩 시작점에 부드럽게 정렬(proximity — mandatory로 하면
+     드래그와 싸운다). 드래그 중 텍스트 선택 방지 + 잡는 커서 */
+  scroll-snap-type: x proximity;
+  user-select: none;
+  cursor: grab;
+}
+.home-tiles:active { cursor: grabbing; }
+.home-tiles::-webkit-scrollbar { display: none; } /* Chrome·Safari */
+.home-tiles .home-tile { scroll-snap-align: start; }
+.home-tile {
+  flex: 0 0 auto;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px -10px rgba(90, 60, 30, 0.3);
+}
+.home-tile:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
+.home-tile:active { background: #fdf2e6; }
+
+/* AI 질문 — 한 줄 필 (2026-08-26 압축: 추천 칩·안내 줄 제거, 카드 → 슬림 바) */
+.home-ask {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--lg-card);
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  padding: 7px 8px 7px 7px;
+  box-shadow: 0 6px 14px -14px rgba(90, 60, 30, 0.3);
+}
+.home-ask:focus-within { border-color: var(--lg-accent); }
+.home-ask-badge {
+  flex-shrink: 0;
+  background: var(--lg-accent);
+  color: #fff;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.home-ask input {
   flex: 1;
   min-width: 0;
   border: 0;
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   color: inherit;
 }
-.home-ask-row input:focus { outline: none; }
-.home-ask-answer {
-  border: 1px solid var(--mn-line-strong);
-  border-top: 0;
-  padding: 11px 12px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: rgba(32, 30, 29, 0.7);
+.home-ask input::placeholder { color: var(--lg-muted); }
+.home-ask input:focus { outline: none; }
+.home-ask .home-link { padding-right: 6px; }
+.home-chip {
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: none;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-text);
+  cursor: pointer;
+  white-space: nowrap;
 }
-.home-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-
-/* 헤더 우측 묶음 — 앱 설치·회원명·로그아웃 (/pets에서 이관, 2026-08-25) */
-.home-top-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
-
-/* 반려동물 프로필 */
-.home-pet { padding: 16px 18px 18px; }
-
-/* 이름·정보 블록의 상세 진입 링크 — .mn a의 레드·800을 본문 모양으로 되돌린다 */
-.home-pet-link {
-  display: block;
-  min-width: 0;
-  color: inherit;
-  font-weight: 400;
-  text-decoration: none;
+.home-chip:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
+.home-chip[aria-pressed='true'] {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: #fff;
 }
-.home-pet-link:hover .home-pet-name,
-.home-pet-link:focus-visible .home-pet-name { text-decoration: underline; }
-.home-pet-chips { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
-.home-pet-photo { width: 100%; aspect-ratio: 16 / 9; }
-.home-pet-name-row {
+
+/* 반려동물 프로필 카드 */
+.home-pet-chips {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-top: 12px;
-  gap: 12px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
-.home-pet-name { font-size: 24px; font-weight: 800; line-height: 1.05; }
-.home-pet-meta { margin-top: 4px; font-size: 12px; color: var(--mn-muted); }
+.home-pet-row { display: flex; align-items: center; gap: 14px; }
+.home-pet-photo {
+  width: 88px;
+  height: 88px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid var(--lg-line);
+}
+.home-pet-photo-empty {
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  background: #f8edde;
+}
+.home-pet-info { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+.home-pet-info:hover .home-pet-name { text-decoration: underline; }
+.home-pet-name { font-size: 22px; font-weight: 800; line-height: 1.15; }
+.home-pet-meta { margin: 5px 0 0; font-size: 12px; color: var(--lg-muted); }
 
-/* 통계 격자(.home-stats)는 제거 (2026-08-25) — 나이는 프로필 메타로 충분, 산책·검진은 집계 API 미확정 */
+/* 주 액션 버튼 (건강관리·등록하기) — 코럴 라운드 */
+.home-cta {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--lg-accent);
+  color: #fff;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 18px -12px rgba(239, 125, 102, 0.65);
+}
+.home-cta:hover { background: var(--lg-accent-deep); }
+.home-cta.block { display: block; width: 100%; padding: 13px; }
+.home-ghost {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  background: none;
+  padding: 13px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--lg-text);
+  cursor: pointer;
+}
+.home-ghost:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
 
-/* 숏츠 행 — 공용 .mn-row에 세로 썸네일이 붙는 홈 전용 변형 */
-.home .mn-row.short { grid-template-columns: 64px 1fr; gap: 12px; padding: 11px 18px; }
-.home .mn-row.short img,
-.home .mn-row.short .thumb { width: 64px; aspect-ratio: 9 / 13; }
+/* 리스트 카드 행 (오픈채팅·숏츠) */
+.home-lrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 2px;
+  border: 0;
+  border-top: 1px solid var(--lg-line);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.home-card-head + .home-lrow { border-top: 0; }
+.home-lrow:hover b { color: var(--lg-accent); }
+.home-lrow-main { flex: 1; min-width: 0; }
+.home-lrow-main b { display: block; font-size: 13.5px; font-weight: 800; line-height: 1.25; }
+.home-lrow-main .sub {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--lg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-lrow-meta { flex-shrink: 0; font-size: 11.5px; color: var(--lg-muted); }
+.home-lrow-chev { flex-shrink: 0; font-size: 16px; color: var(--lg-muted); line-height: 1; }
+.home-lrow-thumb {
+  width: 64px;
+  height: 44px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--lg-line);
+}
+.home-lrow-thumb-empty {
+  display: grid;
+  place-items: center;
+  background: #f8edde;
+  color: var(--lg-muted);
+  font-size: 14px;
+}
+
+/* 건강검진 바텀시트 — 웜톤 라운드 */
+.home-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(75, 64, 55, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.home-sheet {
+  width: 100%;
+  max-width: 360px; /* index.css #root 컬럼 폭과 일치 유지 */
+  background: var(--lg-card);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 18px 26px;
+  text-align: left;
+}
+.home-sheet-head { display: flex; justify-content: space-between; align-items: baseline; }
+.home-sheet-title { font-size: 17px; font-weight: 800; }
+.home-sheet-lede { margin: 8px 0 14px; font-size: 12.5px; color: var(--lg-muted); }
+.home-sheet-item {
+  border-top: 1px solid var(--lg-line);
+  padding: 14px 0;
+}
+.home-sheet-item:last-child { padding-bottom: 0; }
+.home-sheet-item b { display: block; font-size: 14.5px; font-weight: 800; }
+.home-sheet-item p { margin: 6px 0 10px; font-size: 12px; line-height: 1.45; color: var(--lg-muted); }
+
+/* 하단 앱바 — 홈·오픈채팅·건강검진·마이페이지 (2026-08-26, 상단 기능 메뉴 대체).
+   #root 컬럼(360px)에 맞춰 화면 하단에 고정한다 — 본문 하단 여백(.home padding-bottom)이
+   이 높이를 비워 두므로 마지막 카드가 가리지 않는다 */
+.home-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 360px;
+  z-index: 50;
+  display: flex;
+  background: var(--lg-card);
+  border-top: 1px solid var(--lg-line);
+  padding: 8px 6px calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 20px -18px rgba(90, 60, 30, 0.5);
+}
+.home-tabbar button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  padding: 3px 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--lg-muted);
+  cursor: pointer;
+}
+.home-tabbar button span { font-size: 18px; line-height: 1; }
+.home-tabbar button:hover { color: var(--lg-accent); }
+.home-tabbar button.active { color: var(--lg-accent); }

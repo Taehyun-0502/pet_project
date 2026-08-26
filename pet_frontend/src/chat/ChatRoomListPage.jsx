@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { getMyRooms, getRooms, joinRoom, pinRoom, unpinRoom } from './chatApi'
 import { ROOM_CATEGORIES, categoryLabel } from './roomCategories'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
-import '../common/modernist.css' // Modernist 공용 토큰·클래스 (chat.css보다 먼저 — 같은 특이도 덮어쓰기 순서)
+import '../common/warm.css' // 웜톤 공용 토큰·클래스 (chat.css보다 먼저 — 같은 특이도 덮어쓰기 순서)
 import './chat.css'
 
 /**
@@ -22,16 +22,15 @@ function RoomRow({ room, onEnter, entering, actions }) {
     <li>
       <button
         type="button"
-        className="mn-row room-row"
+        className="w-row room-row"
         onClick={() => onEnter(room)}
         disabled={entering}
       >
-        <span className="room-info">
-          {/* 카테고리·이름·배지를 한 줄로 묶는다 (백로그 101번) — inline 흐름에 두면 이름이 길 때
+        <span className="w-row-main">
+          {/* 이름·배지를 한 줄로 묶는다 (백로그 101번) — inline 흐름에 두면 이름이 길 때
               배지가 다음 줄로 밀려 "이름 옆"이 아니게 된다(폭 286px에서 실측). 이름이 대신 잘린다 */}
           <span className="room-name-line">
-            <span className="room-category">{categoryLabel(room.category)}</span>
-            <strong>{room.name}</strong>
+            <b>{room.name}</b>
             {/* unreadCount: 미참여 방은 null(배지 없음), 표시는 99+ 상한 (docs/api-spec.md 7절).
                 aria-label로 텍스트 대안을 준다 — 없으면 스크린리더가 숫자만 읽는다 (백로그 101번) */}
             {room.unreadCount > 0 && (
@@ -43,13 +42,15 @@ function RoomRow({ room, onEnter, entering, actions }) {
               </span>
             )}
           </span>
-          {room.description && <span className="room-desc sub">{room.description}</span>}
+          {/* 보조줄 — 소개가 있으면 소개, 없으면 카테고리 (홈 오픈채팅 카드와 같은 규칙) */}
+          <span className="sub">{room.description || categoryLabel(room.category)}</span>
         </span>
-        <span className="count meta">
+        <span className="w-row-meta">
           {room.maxMembers
             ? `${room.participantCount}/${room.maxMembers}명`
             : `${room.participantCount}명 참여 중`}
         </span>
+        <span className="w-row-chev" aria-hidden="true">›</span>
       </button>
       {actions}
     </li>
@@ -138,21 +139,19 @@ export default function ChatRoomListPage() {
   }
 
   return (
-    <main className="mn chat-page">
-      <header className="mn-top">
+    <main className="warm chat-page">
+      <header className="w-top">
         <h1>오픈채팅</h1>
-        <Link to="/" className="mn-link">← 홈으로</Link>
+        <Link to="/" className="w-link">← 홈으로</Link>
       </header>
-      <div className="mn-rule" />
-
-      {/* 생성은 별도 페이지 — 목록은 찾기·입장에 집중한다 (pet 목록의 "+ 등록" 링크와 같은 패턴) */}
-      <Link to="/chat/new" className="mn-link chat-new-link">+ 방 만들기</Link>
 
       {/* 내 방 (F7) — 아래 검색·필터는 "전체" 목록에만 적용된다. 참여 중인 방을 찾으려고
           매번 검색하지 않아도 되게 하는 것이 이 섹션의 목적이라, 필터에 딸려 사라지면 안 된다 */}
       {myRooms && myRooms.length > 0 && (
-        <section className="chat-my-rooms">
-          <h2>내 방</h2>
+        <section className="w-card chat-my-rooms">
+          <div className="w-card-head">
+            <h2>내 방</h2>
+          </div>
           <ul className="chat-room-list">
             {myRooms.map((room) => (
               <RoomRow
@@ -179,18 +178,17 @@ export default function ChatRoomListPage() {
         </section>
       )}
 
-      {myRooms && myRooms.length > 0 && <h2 className="chat-section-title">전체</h2>}
-
       <div className="chat-filter">
         <input
+          className="w-input"
           type="search" value={keyword} onChange={(e) => setKeyword(e.target.value)}
           placeholder="방 이름·소개 검색" aria-label="방 검색"
         />
         <div className="chat-filter-row">
-          {/* 선택 상태는 .mn-chip 계약대로 aria-pressed로 표현한다 (스타일도 여기에 걸린다) */}
+          {/* 선택 상태는 .w-chip 계약대로 aria-pressed로 표현한다 (스타일도 여기에 걸린다) */}
           <button
             type="button"
-            className="mn-chip"
+            className="w-chip"
             aria-pressed={categoryFilter === ''}
             onClick={() => setCategoryFilter('')}
           >
@@ -200,7 +198,7 @@ export default function ChatRoomListPage() {
             <button
               key={c.value}
               type="button"
-              className="mn-chip"
+              className="w-chip"
               aria-pressed={categoryFilter === c.value}
               onClick={() => setCategoryFilter(categoryFilter === c.value ? '' : c.value)}
             >
@@ -218,19 +216,29 @@ export default function ChatRoomListPage() {
       </div>
 
       {error && <p className="submit-error">{error}</p>}
-      {rooms === null && !error && <p>불러오는 중…</p>}
-      {rooms && rooms.length === 0 && (
-        <p>{filterActive ? '검색 결과가 없습니다.' : '아직 방이 없습니다. 첫 방을 만들어 보세요.'}</p>
-      )}
-      {rooms && rooms.length > 0 && (
-        <ul className="chat-room-list">
-          {rooms.map((room) => (
-            <RoomRow
-              key={room.id} room={room} onEnter={onEnter} entering={enteringId === room.id}
-            />
-          ))}
-        </ul>
-      )}
+
+      {/* 전체 목록 카드 — 생성 진입은 카드 헤더의 링크가 맡는다 (홈 카드의 "전체 보기"와 같은 자리) */}
+      <section className="w-card chat-all-rooms">
+        <div className="w-card-head">
+          <h2>전체</h2>
+          <Link to="/chat/new" className="w-link">+ 방 만들기</Link>
+        </div>
+        {rooms === null && !error && <p className="w-muted">불러오는 중…</p>}
+        {rooms && rooms.length === 0 && (
+          <p className="w-muted">
+            {filterActive ? '검색 결과가 없습니다.' : '아직 방이 없습니다. 첫 방을 만들어 보세요.'}
+          </p>
+        )}
+        {rooms && rooms.length > 0 && (
+          <ul className="chat-room-list">
+            {rooms.map((room) => (
+              <RoomRow
+                key={room.id} room={room} onEnter={onEnter} entering={enteringId === room.id}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
     </main>
   )
 }

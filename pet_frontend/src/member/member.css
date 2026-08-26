@@ -1,203 +1,188 @@
-/* 회원 도메인 전용 스타일 — Modernist 스킨 적용 (2026-08-25).
-   토큰(--mn-*)·공용 클래스(룰·칩·버튼·행)는 common/modernist.css가 출처다. 여기에는
-   member 화면에만 있는 레이아웃(탭·프로필 사진·기기 목록·위험 영역·펫 관리 행)만 남긴다.
-   전 규칙을 .mn 아래에 스코프한다 — member.css를 브리지로 import하는 타 슬라이스 화면
-   (shorts 업로드)에는 아무 영향이 없다. 색·선은 반드시 --mn-* 토큰만 쓴다(카카오 브랜드 색 예외). */
+/* 회원 도메인 전용 스타일 — 마이페이지·온보딩 웜톤 템플릿 전환 (2026-08-26, 구 흑백 스킨에서 전환).
+   토큰(--lg-*)·공용 클래스(w-top·w-link·w-card·w-cta·w-ghost·w-row 등)는 common/warm.css
+   (수정 금지)가 출처이고, 여기에는 member 화면 전용 레이아웃·스킨만 둔다. 색·선은 반드시
+   --lg-* 토큰만 쓴다. 하단 `.login` 스코프(로그인·가입)는 같은 팔레트의 선행 구현이라
+   그대로 유지한다 — 새 웜톤 규칙은 .mypage / .warm 스코프에만 추가한다. */
 
 /* 하위 호환 브리지 — 이 파일만 import하던 화면(특히 shorts/ShortsUploadPage — 타 슬라이스)이
    깨지지 않게 유지한다 (2026-08-11, 백로그 54번). 새 화면은 common/forms.css를 직접 import할 것 */
 @import '../common/forms.css';
 
-/* 폼 페이지 하단 여백 — modernist의 `.mn .auth-page`(padding: 0 18px)와 순서 무관하게 이기도록
-   타입 셀렉터로 특이도를 한 단계 올린다 */
-main.mn .auth-page {
-  padding-bottom: 32px;
+/* ── 마이페이지 공통 (main.warm.mypage) ─────────────────────────
+   배경·팔레트·폼 스킨은 .warm(warm.css)이 맡고, 여기서는 홈·chat과 같은
+   좌우 16px 컬럼과 요소 간격만 정한다 */
+.mypage {
+  gap: 12px;
+  padding: 16px 16px 28px;
 }
 
-/* 카카오 로그인 — 카카오 디자인 가이드의 컨테이너 색상(#FEE500) + 검정 라벨.
-   브랜드 가이드 고정값이라 --mn-* 토큰 예외. 라운딩만 0으로 맞춘다 */
-.mn .auth-form .kakao-login {
-  background-color: #fee500;
-  color: rgba(0, 0, 0, 0.85);
-  border: 0;
-  border-radius: 0;
-  padding: 11px 13px;
-  font-size: 13.5px;
-  font-weight: 800;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mn .auth-form .kakao-login:hover {
-  filter: brightness(0.96);
-}
-
-/* 가입 직후 온보딩 — 선택지 두 개(mn-primary block / mn-secondary)를 세로로 쌓는다 */
-.mn .onboarding-actions {
+/* 탭 네비 — 알약 칩 3개. 활성 = 코럴 채움 + 흰 글자.
+   .active는 NavLink가 자동으로 붙이거나("펫 정보"·"내 게시물") MyPage.jsx가 직접 계산해
+   붙인다("내 정보" — 함수형 className 함정은 MyPage.jsx 주석 참조).
+   `.mypage` 접두는 `.warm a`(코럴 링크 0-1-1)를 특이도로 이기기 위한 것 — 빼면 탭 글자가 코럴이 된다 */
+.mypage .mypage-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 24px;
+  gap: 6px;
 }
 
-/* 폼 안(.auth-form)에서 쓰는 mn-secondary — forms.css의 `.auth-form button`(border: none)이
-   특이도로 이겨 테두리가 사라지므로 여기서 되살린다 */
-.mn .auth-form .mn-secondary {
-  border: 1px solid var(--mn-line-strong);
-  background: none;
-  padding: 11px 13px;
-  font-size: 13.5px;
-}
-
-/* 링크에 mn-link를 얹을 때 — 앵커 기본 밑줄을 걷어 버튼형 mn-link와 모양을 맞춘다.
-   (공용 승격 후보 — 다른 도메인도 <Link className="mn-link">를 쓰기 시작하면 modernist.css로) */
-.mn a.mn-link {
+.mypage .mypage-tabs a {
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-text);
   text-decoration: none;
+  white-space: nowrap;
 }
 
-/* ── 마이페이지 ─────────────────────────────────────────── */
-
-/* 탭 네비 — 밑줄 2px 방식(라운딩 없는 사각 탭). 활성 = 검정 2px 밑줄, 비활성 = 뮤트 */
-.mn .mypage-tabs {
-  display: flex;
-  gap: 18px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--mn-line);
+.mypage .mypage-tabs a:hover {
+  border-color: var(--lg-accent);
+  color: var(--lg-accent);
 }
 
-.mn .mypage-tabs a {
-  padding: 9px 0 7px;
-  font-size: 12.5px;
+.mypage .mypage-tabs a.active {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: #fff;
+}
+
+/* ── 카드(w-card) 안 자식 화면(Outlet) 공통 ───────────────── */
+
+/* 섹션 제목 — 카드 헤더(.w-card-head h2)와 같은 급 */
+.mypage .w-card h2 {
+  margin: 0 0 4px;
+  font-family: inherit;
+  font-size: 15px;
   font-weight: 800;
-  color: var(--mn-muted);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
+  letter-spacing: normal;
 }
 
-.mn .mypage-tabs a:hover {
-  color: var(--mn-text);
+/* 하위 화면(보안)의 섹션 사이는 1px 라인으로 끊는다 */
+.mypage .w-card section + section {
+  border-top: 1px solid var(--lg-line);
+  margin-top: 20px;
+  padding-top: 14px;
 }
 
-/* NavLink가 현재 탭에 붙이는 클래스 ("내 정보"는 MyPage.jsx가 직접 계산) */
-.mn .mypage-tabs a.active {
-  color: var(--mn-text);
-  border-bottom-color: var(--mn-text);
-}
-
-/* 내 정보에서 하위 화면(정보 수정·보안)으로 들어가는 진입 버튼 — 테두리 사각.
-   링크지만 레드를 쓰지 않는 이유: 화면당 레드는 최상위 액션 하나만 */
-.mn .mypage-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.mn .mypage-actions a {
-  flex: 1;
-  border: 1px solid var(--mn-line-strong);
-  padding: 10px 12px;
-  font-size: 12.5px;
-  font-weight: 800;
-  color: inherit;
-  text-decoration: none;
-}
-
-.mn .mypage-actions a:hover {
-  background: rgba(32, 30, 29, 0.07);
-}
-
-/* 탭 네비에 없는 하위 화면의 복귀 링크 — 없으면 뒤로가기 말고 나갈 방법이 없다 */
-.mn .mypage-back {
-  margin: 2px 0 14px;
+/* 탭 네비에 없는 하위 화면(정보 수정·보안)의 복귀 링크 — 없으면 뒤로가기 말고 나갈 방법이 없다 */
+.mypage .mypage-back {
+  margin: 0 0 12px;
   font-size: 12px;
 }
 
-/* 하위 화면(보안)의 섹션 사이는 2px 룰로 끊는다 — 첫 섹션 위는 탭 밑줄이 이미 있다 */
-.mn .auth-page section {
-  margin-bottom: 26px;
+/* 내 정보에서 하위 화면으로 들어가는 진입 버튼(w-ghost 링크) 2개 — 나란히.
+   `.warm a`(코럴 0-1-1)를 특이도로 이겨 고스트 버튼 색을 되살린다 — hover 코럴도 함께 복원 */
+.mypage .mypage-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.mn .auth-page section + section {
-  border-top: 2px solid var(--mn-line-strong);
-  padding-top: 16px;
+.mypage .mypage-actions .w-ghost {
+  flex: 1;
+  text-align: center;
+  color: var(--lg-text);
+  text-decoration: none;
 }
 
-/* 내 정보 표시 — 헤어라인으로 끊은 정의 목록 */
-.mn .my-info dl {
-  margin: 14px 0 0;
+.mypage .mypage-actions .w-ghost:hover {
+  color: var(--lg-accent);
 }
 
-.mn .my-info dl > div {
+/* 로그아웃 (홈 헤더에서 이관, 2026-08-26) — 계정 동작이지만 파괴적이지 않아 고스트 버튼.
+   위쪽 진입 버튼들과 구분되게 1px 라인 위에 둔다 */
+.mypage .mypage-logout {
+  margin-top: 16px;
+  border-top: 1px solid var(--lg-line);
+  border-radius: 0 0 12px 12px;
+}
+
+/* 로그아웃 실패 안내 — 재시도·이 기기에서만 버튼 포함 (백로그 44번) */
+.mypage .mypage-logout-error {
+  margin-top: 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.mypage .mypage-logout-error button {
+  border: 1px solid var(--lg-error);
+  border-radius: 8px;
+  background: none;
+  color: var(--lg-error);
+  padding: 3px 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* 내 정보 표시 — 1px 라인으로 끊은 라벨/값 행 */
+.mypage .my-info dl {
+  margin: 12px 0 0;
+}
+
+.mypage .my-info dl > div {
   display: grid;
   grid-template-columns: 84px 1fr;
   gap: 10px;
   align-items: center;
-  padding: 9px 0;
-  border-top: 1px solid var(--mn-line);
+  padding: 10px 0;
+  border-top: 1px solid var(--lg-line);
 }
 
-.mn .my-info dl > div:last-child {
-  border-bottom: 1px solid var(--mn-line);
+.mypage .my-info dt {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--lg-muted);
 }
 
-.mn .my-info dt {
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--mn-muted);
-}
-
-.mn .my-info dd {
+.mypage .my-info dd {
   margin: 0;
   font-size: 13.5px;
   font-weight: 800;
 }
 
-/* 프로필 사진 — 0 라운딩 사각, 흑백은 .mn img가 처리한다 */
-.mn .profile-photo {
+/* 프로필 사진 — 원형·컬러 (가입 화면 .login .profile-photo와 같은 문법의 마이페이지판) */
+.mypage .profile-photo {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 4px 0 16px;
+  margin: 10px 0 6px;
 }
 
-.mn .profile-photo img,
-.mn .profile-photo-placeholder {
-  width: 72px;
-  height: 72px;
-  border-radius: 0;
+.mypage .profile-photo img,
+.mypage .profile-photo-placeholder {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--mn-text);
+  border: 1px solid var(--lg-line);
+  background: var(--lg-bg-bottom);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
 }
 
-.mn .profile-photo-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(32, 30, 29, 0.07);
-  font-size: 26px;
-}
-
-/* 업로드 라벨 — 액션이므로 레드 텍스트 (mn-link와 같은 문법) */
-.mn .profile-photo-upload {
+/* 업로드 라벨 — 액션이므로 코럴 텍스트 (w-link와 같은 문법) */
+.mypage .profile-photo-upload {
   position: relative;
-  cursor: pointer;
-  font-size: 11.5px;
+  padding: 2px 4px;
+  font-size: 12.5px;
   font-weight: 800;
-  color: var(--mn-accent);
+  color: var(--lg-accent);
+  cursor: pointer;
 }
 
-.mn .profile-photo-upload:hover {
-  background: rgba(236, 48, 19, 0.1);
+.mypage .profile-photo-upload:hover {
+  color: var(--lg-accent-deep);
 }
 
 /* file input은 **화면에서만** 숨긴다 (visually-hidden).
    display:none / visibility:hidden으로 감추면 input이 포커스 트리에서 빠지고,
    label도 포커스를 받지 못해 마우스 없이는 사진을 등록할 방법이 사라진다 (리뷰 백로그 84번).
    pet.css의 .pet-photo-upload도 같은 이유로 같은 규칙을 쓴다 — 한쪽만 바꾸지 말 것 */
-.mn .profile-photo-upload input {
+.mypage .profile-photo-upload input {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -210,168 +195,147 @@ main.mn .auth-page {
 }
 
 /* 숨긴 input이 포커스를 받았을 때 label에 포커스 링을 그린다 — 키보드 사용자가 현재 위치를 볼 수 있게 */
-.mn .profile-photo-upload:focus-within {
-  outline: 2px solid var(--mn-accent);
+.mypage .profile-photo-upload:focus-within {
+  outline: 2px solid var(--lg-accent);
   outline-offset: 2px;
+  border-radius: 8px;
 }
 
 /* ── 보안 화면 — 로그인된 기기 목록 (api-spec.md 1절 5차) ── */
 
-.mn .session-list {
+.mypage .session-list {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   padding: 0;
 }
 
-.mn .session-list li {
+.mypage .session-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 11px 0;
-  border-top: 1px solid var(--mn-line);
+  border-top: 1px solid var(--lg-line);
 }
 
-.mn .session-list li:last-child {
-  border-bottom: 1px solid var(--mn-line);
-}
-
-.mn .session-info {
+.mypage .session-info {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
-.mn .session-device {
+.mypage .session-device {
   font-size: 13px;
   font-weight: 800;
 }
 
-/* "현재 기기" 배지 — 상태 표시라 레드가 아니라 검정 반전 */
-.mn .session-current {
+/* "현재 기기" 배지 — 코럴 채움 알약 (chat의 안 읽음 배지와 같은 "눈에 띄어야 하는 것 = 코럴" 규칙) */
+.mypage .session-current {
   margin-left: 8px;
-  padding: 2px 5px;
-  background: var(--mn-text);
-  color: var(--mn-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--lg-accent);
+  color: #fff;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.05em;
-}
-
-.mn .session-times {
-  font-size: 11px;
-  color: var(--mn-muted);
-}
-
-.mn .session-list button {
-  border: 1px solid var(--mn-line-strong);
-  border-radius: 0;
-  background: none;
-  color: inherit;
-  padding: 6px 9px;
-  font-size: 11.5px;
-  font-weight: 800;
-  cursor: pointer;
   white-space: nowrap;
 }
 
-.mn .session-list button:hover {
-  background: rgba(32, 30, 29, 0.07);
+.mypage .session-times {
+  font-size: 11px;
+  color: var(--lg-muted);
 }
 
-.mn .session-list button:disabled {
-  color: var(--mn-muted);
-  cursor: default;
+/* 원격 로그아웃 — 공용 w-ghost의 작은 알약판 */
+.mypage .session-list .w-ghost {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11.5px;
 }
 
 /* ── 위험 영역 — 회원 탈퇴 (api-spec.md 1절 6차) ─────────── */
 
-.mn .danger-zone {
-  border-top: 2px solid var(--mn-line-strong);
-  padding-top: 16px;
-}
-
-/* 위험 액션 텍스트 버튼 — 딥 레드(--mn-accent-deep). 채움(.mn-primary)은 쓰지 않는다 */
-.mn .danger-link {
+/* 위험 액션 텍스트 버튼(탈퇴 열기·펫 삭제) — --lg-error. 코럴/레드 채움은 쓰지 않는다 */
+.mypage .danger-link {
   background: none;
   border: 0;
   padding: 2px;
-  color: var(--mn-accent-deep);
-  font-size: 11.5px;
+  color: var(--lg-error);
+  font-size: 12px;
   font-weight: 800;
   text-decoration: underline;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.mn .danger-link:hover {
-  background: rgba(174, 24, 0, 0.08);
+.mypage .danger-link:hover {
+  color: var(--lg-accent-deep);
 }
 
-.mn .danger-link:disabled {
-  color: var(--mn-muted);
+.mypage .danger-link:disabled {
+  color: var(--lg-muted);
   cursor: default;
 }
 
-/* 탈퇴 확정 버튼 — 딥 레드 테두리(레드 채움은 화면 최상위 액션 전용이라 쓰지 않는다) */
-.mn .auth-form button.danger {
-  width: 100%;
-  background: none;
-  border: 1px solid var(--mn-accent-deep);
-  border-radius: 0;
-  color: var(--mn-accent-deep);
-  padding: 11px 13px;
-  font-size: 13.5px;
-  font-weight: 800;
-  text-align: left;
-  cursor: pointer;
-}
-
-.mn .auth-form button.danger:hover {
-  background: rgba(174, 24, 0, 0.08);
-}
-
-.mn .auth-form button.danger:disabled {
-  border-color: var(--mn-muted);
-  color: var(--mn-muted);
-}
+/* 탈퇴 확정 버튼은 공용 .w-ghost.danger(warm.css)가 맡는다 — 여기 추가 규칙 없음 */
 
 /* ── 펫 정보 탭 — 관리 목록 (pet.css 의존 제거, member 자체 정의) ── */
 
-.mn .mypage-pets-nav {
-  margin: 10px 0 4px;
+.mypage .mypage-pets-nav {
+  margin: 8px 0 2px;
 }
 
-.mn .mypage-pet-list {
+.mypage .mypage-pet-list {
   list-style: none;
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   padding: 0;
 }
 
-/* 공용 .mn-row에 44px 썸네일이 붙는 변형 — auth-page가 이미 좌우 18px 패딩이라 행 패딩은 0 */
-.mn .mypage-pet-list .mn-row {
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
-  padding: 11px 0;
+/* 첫 행의 윗선 제거 — 카드 안에서 안내 문구가 이미 구획을 만든다 (chat 방 목록과 같은 문법) */
+.mypage .mypage-pet-list li:first-child .w-row {
+  border-top: 0;
 }
 
-/* 마감선은 행이 아니라 li에 — 마지막 항목이 펼쳐져도 행과 액션 사이에 선이 끼지 않는다 */
-.mn .mypage-pet-list li:last-child {
-  border-bottom: 1px solid var(--mn-line);
-}
-
-.mn .mypage-pet-thumb {
+/* 공용 .w-row에 44px 라운드 컬러 썸네일이 붙는 변형 */
+.mypage .mypage-pet-thumb {
   width: 44px;
   height: 44px;
+  flex-shrink: 0;
   object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--lg-line);
 }
 
-/* 펼친 항목의 수정·삭제 — 텍스트 액션 나란히 */
-.mn .mypage-pet-actions {
+/* 사진 없는 항목 — 크림 배경 + 강아지 이모지 (홈 프로필 자리표시자와 같은 문법) */
+.mypage .mypage-pet-thumb-empty {
+  display: grid;
+  place-items: center;
+  background: var(--lg-bg-bottom);
+  font-size: 20px;
+}
+
+/* 펼친 항목의 상세·수정·삭제 — 텍스트 액션 나란히 */
+.mypage .mypage-pet-actions {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 4px 0 12px;
+  padding: 2px 0 10px;
+}
+
+/* ── 온보딩(가입 환영)·카카오 콜백 — .warm .auth-page 골격 위에 브랜드 헤더만 얹는다 ── */
+
+.warm .auth-page > .w-top {
+  padding-top: 18px;
+}
+
+/* 가입 직후 온보딩 — 선택지 두 개(w-cta block / w-ghost block)를 세로로 쌓는다 */
+.warm .onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
 }
 
 /* ── 로그인·가입 화면 — 웜톤 템플릿 리디자인 (2026-08-25 사용자 제공 시안) ──────
@@ -429,22 +393,15 @@ main.mn .auth-page {
   background: radial-gradient(circle, rgba(233, 200, 152, 0.35), transparent 70%);
 }
 
-/* 브랜드 — 로고 칩 + 서비스명 */
+/* 브랜드 — 로고 칩 + 서비스명 (히어로 사진 위 레이어) */
 .login-brand {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.login-brand-logo {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  font-size: 24px;
-  background: #fff;
-  border-radius: 14px;
-  box-shadow: 0 6px 16px -8px rgba(90, 60, 30, 0.3);
-}
+/* 로고 칩(.login-brand-logo)은 제거 (2026-08-25 사용자 결정) — 텍스트 브랜드만 남긴다 */
 .login-brand-name {
   font-size: 22px;
   font-weight: 800;
@@ -452,10 +409,17 @@ main.mn .auth-page {
   letter-spacing: -0.3px;
 }
 
-/* 히어로 카피 */
+/* 히어로 카피.
+   position을 두지 않는다 — 안의 사진(.login-hero-pets)이 .login 기준으로 배치돼
+   상단(브랜드 뒤)까지 올라가야 시안처럼 화면 배경에 녹는다 */
 .login-hero {
-  position: relative;
   padding: 26px 0 6px;
+}
+/* 카피는 사진 위로 — 시안처럼 헤드라인이 사진에 살짝 걸친다 */
+.login-hero h1,
+.login-hero p {
+  position: relative;
+  z-index: 1;
 }
 .login-hero h1 {
   margin: 0;
@@ -475,14 +439,22 @@ main.mn .auth-page {
   line-height: 1.55;
   color: var(--lg-muted);
 }
-/* 시안의 사진 자리 — PetsIllustration(인라인 SVG 일러스트)이 들어온다 */
+/* 히어로 사진 — public/login-pets.jpg (Pexels #35915496, 크림 차우차우 퍼피 800×1200).
+   시안처럼 액자 없이 배경에 녹인다: 컬럼 오른쪽 가장자리까지 블리드시키고(right -20 =
+   .login 좌우 패딩 상쇄) 라디얼 마스크로 왼쪽·아래 가장자리를 페이드 — 카피가 그 위에 얹힌다.
+   object-position은 강아지 얼굴 기준이라 사진을 바꾸면 마스크 중심과 함께 다시 볼 것 */
 .login-hero-pets {
   position: absolute;
-  right: -10px;
-  top: 30px;
+  top: 6px;
+  right: -20px;
+  width: 252px;
+  height: 330px;
+  object-fit: cover;
+  object-position: 60% 30%;
   pointer-events: none;
+  -webkit-mask-image: radial-gradient(115% 95% at 82% 26%, #000 46%, transparent 75%);
+  mask-image: radial-gradient(115% 95% at 82% 26%, #000 46%, transparent 75%);
 }
-.login-hero-pets svg { display: block; }
 
 /* 폼 카드 */
 .login-card {

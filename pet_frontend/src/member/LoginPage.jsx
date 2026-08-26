@@ -5,7 +5,6 @@ import Loading from '../common/Loading'
 import { useForm } from '../common/useForm'
 import { useAuth } from './AuthContext'
 import { startKakaoLogin } from './kakaoOAuth'
-import PetsIllustration from './PetsIllustration'
 import './member.css'
 
 function validate(values) {
@@ -69,7 +68,6 @@ export default function LoginPage() {
   return (
     <main className="login">
       <header className="login-brand">
-        <span className="login-brand-logo" aria-hidden="true">🐶</span>
         <span className="login-brand-name">댕댕댕</span>
       </header>
 
@@ -86,9 +84,9 @@ export default function LoginPage() {
           <br />
           발견하고, 함께 이야기해요
         </p>
-        <div className="login-hero-pets" aria-hidden="true">
-          <PetsIllustration width="176" />
-        </div>
+        {/* 히어로 사진 — Pexels 무료 라이선스(#6821106), public/login-pets.jpg (2026-08-25).
+            장식이라 alt는 비운다. 교체하려면 public의 파일만 갈아끼우면 된다 */}
+        <img className="login-hero-pets" src="/login-pets.jpg" alt="" aria-hidden="true" />
       </section>
 
       <section className="login-card">

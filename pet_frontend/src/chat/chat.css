@@ -1,64 +1,133 @@
-/* 오픈채팅 도메인 화면 스타일 — Modernist 적용 (2026-08-25).
-   토큰(--mn-*)·공용 클래스(룰·칩·행·링크·버튼)는 common/modernist.css(수정 금지)가 출처이고,
-   여기에는 chat 화면 전용 레이아웃·스킨만 둔다. 색·선은 반드시 --mn-* 토큰만 —
-   호버·구분선의 rgba(32,30,29,…) 리터럴은 modernist.css가 쓰는 값을 그대로 재사용한 것이다. */
+/* 오픈채팅 도메인 화면 스타일 — 웜톤 템플릿 재전환 (2026-08-26, Modernist에서 전환).
+   토큰(--lg-*)·공용 클래스(w-top·w-card·w-chip·w-row·w-input·w-cta 등)는 common/warm.css
+   (수정 금지)가 출처이고, 여기에는 chat 화면 전용 레이아웃·스킨만 둔다. 색·선은 반드시
+   --lg-* 토큰만 — 예외 리터럴 두 가지는 warm.css가 이미 쓰는 값의 재사용이다:
+   rgba(239,125,102,…) = 코럴(--lg-accent)의 저채도 판, rgba(90,60,30,…) = 카드 그림자. */
 
-/* 페이지 루트 — 폭·배경·글꼴은 .mn(modernist.css)이 맡는다. 좌우 여백은 섹션별 18px */
-.chat-page .mn-top h1 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.2;
+/* 페이지 루트 — 배경·글꼴·팔레트는 .warm(warm.css)이 맡고, 여기서는 홈과 같은
+   좌우 16px 컬럼·요소 간격만 정한다 */
+.chat-page {
+  gap: 12px;
+  padding: 16px 16px 28px;
 }
 
-/* 라우터 <Link>에 mn-link를 얹을 때 — 버튼과 달리 밑줄 기본값이 있어 걷어낸다 */
-.chat-page a.mn-link {
-  text-decoration: none;
-}
-
-/* 페이지 직속 안내 문구(불러오는 중·빈 목록·오류) — 섹션 좌우 여백에 맞춘다.
-   클래스 없는 p만 muted로 — .submit-error 등의 색은 modernist가 정한다 */
+/* 페이지 직속 안내·오류 문구 — 간격은 루트 gap이 담당하므로 기본 마진 제거 */
 .chat-page > p {
-  margin: 12px 0;
-  padding: 0 18px;
+  margin: 0;
 }
 
-.chat-page > p:not([class]) {
-  color: var(--mn-muted);
-  font-size: 12.5px;
+/* 방 이름이 길 때 헤더 오른쪽 링크를 밀어내지 않게 — 제목이 대신 잘린다 */
+.chat-page .w-top h1 {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── 방 목록 ─────────────────────────────────────────── */
 
-/* 목록 → 생성 페이지 진입 (생성 폼은 /chat/new로 분리 — 2026-08-11) */
-.chat-new-link {
-  display: inline-block;
-  margin: 12px 18px 2px;
-}
-
-/* "내 방"/"전체" 소제목 — 대문자·자간 타이포는 .mn h2(modernist)가 주고 여기선 배치만 (mn-sec-head와 동일 여백) */
-.chat-my-rooms h2,
-.chat-section-title {
+/* 목록 카드(내 방·전체) 안의 행 묶음 — 홈 오픈채팅 카드와 같은 문법 */
+.chat-room-list {
+  list-style: none;
+  padding: 0;
   margin: 0;
-  padding: 15px 18px 6px;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 3차: 검색·필터 (검색창 + 카테고리 칩 + 정렬 토글) */
+/* 방 한 줄 — 입장 영역은 안쪽 .w-row 버튼이 맡는다 (백로그 19번 구조 유지).
+   구분선(1px)은 li가 갖는다 — 고정핀 버튼이 줄 밖 형제라서 줄 전체에 걸치게 */
+.chat-room-list li {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid var(--lg-line);
+}
+
+.chat-room-list li:first-child {
+  border-top: 0; /* 카드 헤더(.w-card-head)가 이미 구획을 만든다 */
+}
+
+.chat-room-list .w-row {
+  border-top: 0; /* 구분선은 위의 li가 그린다 (중복 방지) */
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-room-list .w-row:disabled {
+  cursor: default;
+  color: var(--lg-muted);
+}
+
+/* 방 이름 줄 — 이름 + 안읽음 배지가 항상 한 줄에 붙어 있게 (백로그 101번).
+   이름이 길면 배지를 밀어내지 말고 이름을 자른다 — 배지는 위치가 곧 의미다 */
+.room-name-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.room-name-line b {
+  font-size: 13.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 안 읽은 배지 — 코럴 채움 알약 + 흰 글자 (알림이지 액션이 아니지만, 웜톤에서는
+   "눈에 띄어야 하는 것 = 코럴" 규칙을 따른다. 홈의 안 읽음 표기보다 강조가 필요한 자리) */
+.unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 17px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--lg-accent);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* 고정핀 버튼 — 이모지 유지, 라운드 고스트. 꺼져 있으면 흐리게(반투명)·켜지면 코럴 테두리 */
+.room-pin {
+  flex-shrink: 0;
+  margin-left: 6px;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 7px 10px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.45;
+}
+
+.room-pin:hover {
+  border-color: var(--lg-accent);
+  opacity: 1;
+}
+
+.room-pin.active {
+  opacity: 1;
+  border-color: var(--lg-accent);
+}
+
+.room-pin:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+/* 3차: 검색·필터 (검색창 .w-input + 카테고리 칩 .w-chip + 정렬 토글) */
 .chat-filter {
   display: flex;
   flex-direction: column;
   gap: 9px;
-  padding: 12px 18px 14px;
-}
-
-.chat-filter input {
-  border: 2px solid var(--mn-text);
-  border-radius: 0;
-  background: var(--mn-bg);
-  color: inherit;
-  padding: 10px 11px;
-  font-family: inherit;
-  font-size: 13.5px;
 }
 
 .chat-filter-row {
@@ -68,7 +137,7 @@
   align-items: center;
 }
 
-/* 정렬 토글 — 액션이 아니라 상태 전환이라 레드 대신 muted 텍스트 */
+/* 정렬 토글 — 액션이 아니라 상태 전환이라 코럴 대신 muted 텍스트 */
 .chat-sort {
   margin-left: auto;
   padding: 2px;
@@ -76,169 +145,31 @@
   background: none;
   font-size: 11.5px;
   font-weight: 800;
-  color: var(--mn-muted);
+  color: var(--lg-muted);
   cursor: pointer;
 }
 
 .chat-sort:hover {
-  color: var(--mn-text);
-}
-
-.chat-room-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 방 한 줄 — 입장 영역은 안쪽 .mn-row 버튼이 맡는다 (백로그 19번 구조 유지).
-   구분선(1px 헤어라인)은 li가 갖는다 — 고정핀 버튼이 줄 밖 형제라서 줄 전체에 걸치게 */
-.chat-room-list li {
-  display: flex;
-  align-items: center;
-  border-top: 1px solid var(--mn-line);
-}
-
-.chat-room-list .mn-row {
-  border-top: 0; /* 구분선은 위의 li가 그린다 (중복 방지) */
-  flex: 1;
-  min-width: 0;
-}
-
-.chat-room-list .mn-row:disabled {
-  cursor: default;
-  color: var(--mn-muted);
-}
-
-/* 3차: 방 프로필 표시 (목록 행 + 방 화면 헤더 아래) */
-.room-info {
-  display: block; /* 목록에서는 span이다 (버튼 안이라 — 백로그 19번). 안쪽 소개 줄이 블록으로 잡히게 */
-  text-align: left;
-  min-width: 0; /* 긴 소개가 행 폭을 밀어내지 않게 */
-}
-
-/* 카테고리 — 필 배경 대신 대문자·자간 라벨 (섹션 소제목과 같은 문법) */
-.room-category {
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--mn-muted);
-}
-
-/* 방 이름 줄 — 카테고리 + 이름 + 안읽음 배지가 항상 한 줄에 붙어 있게 (백로그 101번).
-   이름이 길면 배지를 밀어내지 말고 이름을 자른다 — 배지는 위치가 곧 의미다 */
-.room-name-line {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-}
-
-.room-name-line strong {
-  font-size: 13.5px;
-  font-weight: 800;
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 카테고리 라벨·배지는 줄이지 않는다 — 폭이 부족하면 이름(strong)이 ellipsis로 대신 줄어든다 (백로그 101번) */
-.room-name-line .room-category,
-.room-name-line .unread-badge {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* 안 읽은 배지 — 알림이지 액션이 아니라 레드 대신 반전(잉크 배경) 사각형 */
-.unread-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 16px;
-  padding: 0 5px;
-  background: var(--mn-text);
-  color: var(--mn-bg);
-  font-size: 10.5px;
-  font-weight: 800;
-}
-
-/* 목록의 소개 줄 — 스킨은 .mn-row .sub(modernist)가 맡고, ellipsis가 걸리도록 블록만 여기서
-   (span이라 inline 기본값으로는 text-overflow가 동작하지 않는다 — 백로그 19번 구조) */
-.chat-room-list .sub {
-  display: block;
-}
-
-/* 방 화면 헤더 아래 프로필 표시 */
-.room-profile {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 10px 18px 0;
-  text-align: left;
-}
-
-.room-profile .room-desc {
-  margin: 0;
-  font-size: 12px;
-  color: var(--mn-muted);
-  white-space: normal;
-}
-
-.room-capacity {
-  font-size: 11px;
-  color: var(--mn-muted);
-}
-
-/* 고정 버튼 — 켜져 있으면 진하게, 꺼져 있으면 흐리게. 흑백 유지(사진과 같은 규칙) */
-.room-pin {
-  background: none;
-  border: 0;
-  padding: 10px 14px;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0.25;
-  filter: grayscale(1);
-}
-
-.room-pin.active {
-  opacity: 1;
-}
-
-.room-pin:disabled {
-  cursor: default;
+  color: var(--lg-accent);
 }
 
 /* ── 방 생성·수정 폼 ─────────────────────────────────── */
 
-/* 3차: 방 프로필 필드가 늘어 세로 배치 (이름 / 카테고리+정원 / 소개 / 버튼) */
+/* 3차: 방 프로필 필드 세로 배치 — 카드 프레임은 .w-card가 맡는다 */
 .chat-create {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 18px;
 }
 
-/* 입력은 .mn 폼 스킨과 같은 문법 — 2px 잉크 테두리·라운딩 0 */
-.chat-create input,
-.chat-create select,
-.room-edit input,
-.room-edit select {
-  border: 2px solid var(--mn-text);
-  border-radius: 0;
-  background: var(--mn-bg);
-  color: inherit;
-  padding: 10px 11px;
-  font-family: inherit;
-  font-size: 13.5px;
+/* 생성 폼의 카테고리 칩 줄 (select 대신 — 목록 필터와 같은 문법) */
+.chat-cat-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-/* 카테고리 select + 정원 input 한 줄 배치 (생성·수정 폼 공용) */
+/* 카테고리 select + 정원 input 한 줄 배치 (수정 폼) */
 .chat-create-row {
   display: flex;
   gap: 8px;
@@ -250,14 +181,11 @@
   min-width: 0;
 }
 
-/* 3차: 방 정보 수정 폼 (OWNER) — 카드 테두리 대신 헤어라인으로 구획 */
+/* 3차: 방 정보 수정 폼 (OWNER) — 흰 카드 안 .w-input 세로 배치 */
 .room-edit {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin: 0 18px 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--mn-line);
 }
 
 .room-edit-actions {
@@ -265,42 +193,57 @@
   gap: 8px;
 }
 
-/* 취소(보조) — 저장은 .mn-primary가 맡는다 */
-.room-edit-actions button[type='button'] {
-  border: 1px solid var(--mn-line-strong);
-  background: none;
-  color: inherit;
-  padding: 9px 12px;
-  font-size: 12.5px;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.room-edit-actions button[type='button']:hover {
-  background: rgba(32, 30, 29, 0.07);
-}
-
 /* ── 채팅방 화면 ─────────────────────────────────────── */
 
-/* 미참여(403) 화면의 입장 버튼 — .mn이 flex column이라 늘어나지 않게 잡는다 */
+/* 미참여(403) 화면의 입장 버튼 — .warm이 flex column이라 늘어나지 않게 잡는다 */
 .chat-join {
-  margin: 14px 18px;
   align-self: flex-start;
 }
 
-/* 2차: 방 관리 버튼 줄 — 칩과 같은 문법의 테두리 버튼 */
+/* 방 프로필 표시 (헤더 아래) — 카테고리는 알약 라벨, 소개·정원은 muted */
+.room-profile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.room-category {
+  flex-shrink: 0;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 3px 10px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--lg-muted);
+  white-space: nowrap;
+}
+
+.room-capacity {
+  font-size: 11.5px;
+  color: var(--lg-muted);
+}
+
+.room-profile .room-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--lg-muted);
+  white-space: normal;
+}
+
+/* 2차: 방 관리 버튼 줄 — 칩과 같은 문법의 라운드 고스트 */
 .chat-toolbar {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  padding: 10px 18px 12px;
 }
 
 .chat-toolbar button {
-  border: 1px solid var(--mn-line-strong);
-  background: none;
-  color: inherit;
-  padding: 6px 9px;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 6px 11px;
   font-size: 11.5px;
   font-weight: 800;
   cursor: pointer;
@@ -308,23 +251,21 @@
 }
 
 .chat-toolbar button:hover {
-  background: rgba(32, 30, 29, 0.07);
+  border-color: var(--lg-accent);
+  color: var(--lg-accent);
 }
 
-/* 위험 동작(삭제·강퇴)은 액션이므로 레드 허용 */
+/* 위험 동작(삭제·강퇴)은 딥 레드 — .w-ghost.danger와 같은 규칙 */
 .chat-toolbar button.danger,
 .member-actions button.danger {
-  color: var(--mn-accent);
-  border-color: var(--mn-accent);
+  color: var(--lg-error);
+  border-color: var(--lg-error);
 }
 
-/* 참여자 패널 — 카드 대신 2px 룰로 열고 헤어라인으로 항목 구분 */
+/* 참여자 패널 — 흰 카드 안 목록, 항목 사이 1px 라인 */
 .chat-members {
   list-style: none;
-  margin: 0 0 12px;
-  padding: 0 18px;
-  border-top: 2px solid var(--mn-line-strong);
-  text-align: left;
+  margin: 0;
 }
 
 .chat-members li {
@@ -335,8 +276,16 @@
   padding: 9px 0;
 }
 
+.chat-members li:first-child {
+  padding-top: 0;
+}
+
+.chat-members li:last-child {
+  padding-bottom: 0;
+}
+
 .chat-members li + li {
-  border-top: 1px solid var(--mn-line);
+  border-top: 1px solid var(--lg-line);
 }
 
 .chat-members .member-name {
@@ -344,29 +293,30 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
+  min-width: 0;
 }
 
-/* 방 내 직책 — 정보 표기라 레드 대신 대문자 muted 라벨 */
+/* 방 내 직책(방장·부방장) — 정보 표기라 채움 없이 코럴 텍스트 */
 .role-badge {
   font-style: normal;
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--mn-muted);
+  color: var(--lg-accent);
   margin-left: 2px;
+  white-space: nowrap;
 }
 
 .member-actions {
   display: flex;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .member-actions button {
-  border: 1px solid var(--mn-line-strong);
-  background: none;
-  color: inherit;
-  padding: 4px 7px;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 4px 9px;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
@@ -374,16 +324,18 @@
 }
 
 .member-actions button:hover {
-  background: rgba(32, 30, 29, 0.07);
+  border-color: var(--lg-accent);
+  color: var(--lg-accent);
 }
 
-/* 아바타 — 메시지 발신자·참여자 목록 공용. 라운딩 0, 흑백은 .mn img가 자동 적용 */
+/* 아바타 — 메시지 발신자·참여자 목록 공용. 원형·컬러 유지 (웜톤 규칙: 사진은 흑백 금지) */
 .avatar {
-  width: 22px;
-  height: 22px;
-  border-radius: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
+  border: 1px solid var(--lg-line);
   vertical-align: middle;
 }
 
@@ -391,53 +343,39 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(32, 30, 29, 0.08);
+  background: var(--lg-bg-bottom);
   font-size: 13px;
-  filter: grayscale(1);
 }
 
-/* 3차: 공지 핀 배너 — 노랑 박스 대신 2px 룰 + 대문자 소제목(::before) 문법.
-   그리드: 1행 = 라벨(전체 폭), 2행 = 본문 | 해제 버튼 */
+/* 3차: 공지 핀 배너 — 연한 코럴 크림 카드 + 코럴 좌측 보더 */
 .pin-banner {
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
-  column-gap: 8px;
-  row-gap: 3px;
-  margin: 10px 18px 0;
-  padding: 9px 0 10px;
-  border-top: 2px solid var(--mn-text);
-  border-bottom: 1px solid var(--mn-line);
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(239, 125, 102, 0.08); /* --lg-accent의 저채도 배경 판 */
+  border-left: 3px solid var(--lg-accent);
+  border-radius: 12px;
   font-size: 12.5px;
-  text-align: left;
-}
-
-.pin-banner::before {
-  content: '공지';
-  grid-column: 1 / -1;
-  font-size: 9.5px;
-  font-weight: 800;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: var(--mn-muted);
 }
 
 .pin-banner .pin-content {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* 말풍선 안의 공지 고정 버튼 — 흑백 유지 */
+/* 말풍선 안의 공지 고정 버튼 — 흐리게 두고 호버에 살린다 */
 .pin-button {
   margin-left: 6px;
   padding: 0 2px;
   border: none;
   background: none;
   font-size: 12px;
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: pointer;
-  filter: grayscale(1);
 }
 
 .pin-button:hover {
@@ -446,29 +384,29 @@
 
 /* 실시간 연결 상태·과거 로드 안내 — 오류가 아니라 진행 중 표시라 muted */
 .chat-status {
-  margin: 8px 0 0;
-  padding: 0 18px;
+  margin: 0;
   font-size: 11.5px;
-  color: var(--mn-muted);
+  color: var(--lg-muted);
 }
 
+/* 메시지 영역 — 스크롤 구조 유지 (하단 고정·과거 로드 보정은 JSX의 ref가 맡는다) */
 .chat-messages {
   list-style: none;
-  padding: 0 18px;
-  margin: 12px 0 0;
+  padding: 2px;
+  margin: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
   max-height: 55vh;
   overflow-y: auto;
-  text-align: left;
 }
 
-/* 말풍선 — 라운딩 0. 상대 = 1px 테두리 + 투명 배경, 내 것 = 잉크 반전 */
+/* 말풍선 — 라운드 16px. 상대 = 흰 카드 톤(1px 라인), 내 것 = 코럴 채움 + 흰 글자 */
 .chat-messages li {
-  padding: 8px 11px;
-  border: 1px solid var(--mn-line-strong);
-  background: none;
+  padding: 9px 12px;
+  border: 1px solid var(--lg-line);
+  border-radius: 16px;
+  background: var(--lg-card);
   align-self: flex-start;
   max-width: 80%;
   font-size: 13px;
@@ -478,15 +416,15 @@
 }
 
 .chat-messages li.mine {
-  background: var(--mn-text);
-  border-color: var(--mn-text);
-  color: var(--mn-bg);
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: #fff;
   align-self: flex-end;
 }
 
-/* 잉크 배경 위에서는 레드 링크의 대비가 부족하다 — 배경색 글자 + 밑줄로 구분 */
+/* 코럴 배경 위에서는 코럴 링크의 대비가 없다 — 흰 글자 + 밑줄로 구분 */
 .chat-messages li.mine a {
-  color: var(--mn-bg);
+  color: #fff;
   text-decoration: underline;
 }
 
@@ -496,8 +434,8 @@
   gap: 6px;
   font-size: 10.5px;
   font-weight: 800;
-  color: var(--mn-muted);
-  margin-bottom: 3px;
+  color: var(--lg-muted);
+  margin-bottom: 4px;
 }
 
 /* 말풍선 안 이미지 (F10b) — 원본 크기로 두면 목록이 무너진다. 눌러서 원본 열기는 <a>가 맡는다 */
@@ -505,19 +443,25 @@
   display: block;
   max-width: 100%;
   max-height: 240px;
-  border-radius: 0;
+  border-radius: 12px;
   object-fit: cover;
 }
 
-/* 입력 바 — 홈 .home-ask-row와 같은 2px 잉크 테두리 사각형. 안쪽 입력은 테두리 없음 */
+/* 입력 바 — 홈 .home-ask와 같은 알약형(1px 테두리·내부 무테두리 input) */
 .chat-send {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 12px 18px 18px;
-  padding: 8px 9px;
-  border: 2px solid var(--mn-text);
-  background: var(--mn-bg);
+  margin: 0;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  box-shadow: 0 6px 14px -14px rgba(90, 60, 30, 0.3); /* warm.css 카드 그림자와 같은 값 */
+}
+
+.chat-send:focus-within {
+  border-color: var(--lg-accent);
 }
 
 .chat-send input[type='text'] {
@@ -532,25 +476,21 @@
 }
 
 .chat-send input[type='text']:focus {
-  outline: none; /* 포커스 표시는 2px 박스가 대신한다 (홈과 같은 선택) */
+  outline: none; /* 포커스 표시는 알약 테두리 색 전환이 대신한다 (홈과 같은 선택) */
 }
 
-/* mn-link에는 :disabled 정의가 없다 — 전송 잠금(백로그 20번) 동안 muted로 */
-.chat-send .mn-link:disabled {
-  color: var(--mn-muted);
-  cursor: default;
-  background: none;
+.chat-send input[type='text']::placeholder {
+  color: var(--lg-muted);
 }
 
-/* 사진 보내기 버튼 (F10b) — 입력창 왼쪽. label이 file input을 연다. 흑백 유지 */
+/* 사진 보내기 버튼 (F10b) — 입력창 왼쪽. label이 file input을 연다. 이모지 컬러 유지 */
 .chat-image-button {
   position: relative;
   cursor: pointer;
   font-size: 17px;
   line-height: 1;
-  padding: 0 4px;
+  padding: 0 2px;
   align-self: center;
-  filter: grayscale(1);
 }
 
 /* file input·보조 텍스트는 **화면에서만** 숨긴다 (visually-hidden).
@@ -569,8 +509,8 @@
   clip-path: inset(50%);
 }
 
-/* 숨긴 input이 포커스를 받으면 label에 포커스 링을 그린다 — .mn :focus-visible과 같은 색 */
+/* 숨긴 input이 포커스를 받으면 label에 포커스 링을 그린다 — .warm :focus-visible과 같은 색 */
 .chat-image-button:focus-within {
-  outline: 2px solid var(--mn-accent);
+  outline: 2px solid var(--lg-accent);
   outline-offset: 2px;
 }

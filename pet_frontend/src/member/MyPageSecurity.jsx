@@ -101,7 +101,7 @@ export default function MyPageSecurity() {
   return (
     <>
       <p className="mypage-back">
-        <Link to="/mypage">← 내 정보</Link>
+        <Link className="w-link" to="/mypage">← 내 정보</Link>
       </p>
       {/* 소셜 계정은 비밀번호 자체가 없어(password NULL) 폼을 보여줄 이유가 없다 —
           서버도 401로 거부하지만 폼을 숨기는 것이 1차 안내다 (api-spec.md 1절 4차) */}
@@ -133,7 +133,7 @@ export default function MyPageSecurity() {
               비밀번호가 변경되었습니다. 다른 기기에서는 로그아웃됩니다.
             </p>
           )}
-          <button type="submit" className="mn-primary block" disabled={form.submitting}>
+          <button type="submit" className="w-cta block" disabled={form.submitting}>
             {form.submitting ? '변경 중…' : '비밀번호 변경'}
           </button>
         </form>
@@ -161,6 +161,7 @@ export default function MyPageSecurity() {
                 {!s.current && (
                   <button
                     type="button"
+                    className="w-ghost"
                     onClick={() => onRevokeSession(s.sessionId)}
                     disabled={revokingId !== null}
                   >

@@ -77,12 +77,13 @@ export default function MyPageWithdraw() {
             />
           </label>
           {withdrawError && <p className="submit-error">{withdrawError}</p>}
-          <button type="submit" className="danger" disabled={withdrawing}>
+          {/* 탈퇴 확정 — 코럴 채움 대신 딥 레드 테두리(w-ghost danger). 취소는 일반 고스트 */}
+          <button type="submit" className="w-ghost danger" disabled={withdrawing}>
             {withdrawing ? '탈퇴 처리 중…' : '탈퇴하기'}
           </button>
           <button
             type="button"
-            className="mn-secondary"
+            className="w-ghost"
             disabled={withdrawing}
             onClick={() => { setWithdrawOpen(false); setWithdrawConfirm(''); setWithdrawError('') }}
           >

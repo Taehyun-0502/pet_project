@@ -1,3 +1,4 @@
+// [타 슬라이스 시각 수정] 2026-08-26 웜톤 통일(사용자 지시) — 로직 무변경, 담당자 확인 필요
 import React, { useState, useRef, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
@@ -215,7 +216,7 @@ export default function SkinDiagnosisPage() {
       cropH
     )
 
-    ctx.strokeStyle = '#6366F1'
+    ctx.strokeStyle = '#ef7d66'
     ctx.lineWidth = 3
     ctx.strokeRect(cropX, cropY, cropW, cropH)
   }
@@ -575,9 +576,9 @@ export default function SkinDiagnosisPage() {
                   style={{
                     fontSize: '12px',
                     fontWeight: '700',
-                    color: '#4F46E5',
-                    backgroundColor: '#EEF2FF',
-                    border: '1px solid #C7D2FE',
+                    color: '#ef7d66',
+                    backgroundColor: '#fdeee8',
+                    border: '1px solid #f6cdc2',
                     borderRadius: '12px',
                     padding: '6px 10px',
                     cursor: 'pointer',
@@ -591,9 +592,9 @@ export default function SkinDiagnosisPage() {
                   style={{
                     fontSize: '12px',
                     fontWeight: '700',
-                    color: '#059669',
-                    backgroundColor: '#ECFDF5',
-                    border: '1px solid #A7F3D0',
+                    color: '#2a9d6e',
+                    backgroundColor: '#eaf6f0',
+                    border: '1px solid #bfe3d2',
                     borderRadius: '12px',
                     padding: '6px 10px',
                     cursor: 'pointer',
@@ -673,14 +674,14 @@ export default function SkinDiagnosisPage() {
               <div
                 style={{
                   ...mobileTopPredictionCardStyle,
-                  backgroundColor: getItemClassName(topBinaryPrediction) === '정상' ? '#ECFDF5' : '#FEF2F2',
-                  borderColor: getItemClassName(topBinaryPrediction) === '정상' ? '#A7F3D0' : '#FECACA',
+                  backgroundColor: getItemClassName(topBinaryPrediction) === '정상' ? '#eaf6f0' : '#fdeeea',
+                  borderColor: getItemClassName(topBinaryPrediction) === '정상' ? '#bfe3d2' : '#f3c4b8',
                 }}
               >
                 <span
                   style={{
                     ...mobileTopBadgeStyle,
-                    backgroundColor: getItemClassName(topBinaryPrediction) === '정상' ? '#059669' : '#DC2626',
+                    backgroundColor: getItemClassName(topBinaryPrediction) === '정상' ? '#2a9d6e' : '#d64530',
                   }}
                 >
                   스크리닝 소견
@@ -688,7 +689,7 @@ export default function SkinDiagnosisPage() {
                 <h3
                   style={{
                     ...mobileTopDiseaseNameStyle,
-                    color: getItemClassName(topBinaryPrediction) === '정상' ? '#065F46' : '#991B1B',
+                    color: getItemClassName(topBinaryPrediction) === '정상' ? '#1f5f43' : '#a03322',
                   }}
                 >
                   {getItemClassName(topBinaryPrediction)}
@@ -696,7 +697,7 @@ export default function SkinDiagnosisPage() {
                 <div
                   style={{
                     ...mobileTopConfidenceStyle,
-                    color: getItemClassName(topBinaryPrediction) === '정상' ? '#047857' : '#B91C1C',
+                    color: getItemClassName(topBinaryPrediction) === '정상' ? '#237a55' : '#b53a28',
                   }}
                 >
                   신뢰도 <strong>{getItemConfidence(topBinaryPrediction)}%</strong>
@@ -751,7 +752,7 @@ export default function SkinDiagnosisPage() {
                       style={{
                         ...mobileProgressBarFillStyle,
                         width: `${Math.min(getItemConfidence(item), 100)}%`,
-                        backgroundColor: index === 0 ? '#6366F1' : '#CBD5E1',
+                        backgroundColor: index === 0 ? '#ef7d66' : '#e6d3bd',
                       }}
                     />
                   </div>
@@ -775,14 +776,14 @@ export default function SkinDiagnosisPage() {
                   width: '100%',
                   marginTop: '12px',
                   padding: '12px',
-                  backgroundColor: '#4F46E5',
-                  color: '#FFFFFF',
+                  backgroundColor: '#ef7d66',
+                  color: '#fffdfa',
                   border: 'none',
                   borderRadius: '10px',
                   fontSize: '14px',
                   fontWeight: '700',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(79, 70, 229, 0.2)',
+                  boxShadow: '0 2px 4px rgba(239, 125, 102, 0.2)',
                 }}
               >
                 📄 수의사 제출용 PDF 소견서 발급
@@ -819,8 +820,8 @@ const mobileContainerStyle = {
   padding: '16px 12px 32px 12px',
   boxSizing: 'border-box',
   fontFamily: "'Pretendard', system-ui, -apple-system, sans-serif",
-  backgroundColor: '#F8FAFC',
-  color: '#0F172A',
+  backgroundColor: '#fdf6ec',
+  color: '#4b4037',
   overflowX: 'hidden',
 }
 
@@ -838,8 +839,8 @@ const badgeRowStyle = {
 const mobileHeaderBadgeStyle = {
   fontSize: '12px',
   fontWeight: '700',
-  color: '#4F46E5',
-  backgroundColor: '#EEF2FF',
+  color: '#ef7d66',
+  backgroundColor: '#fdeee8',
   padding: '3px 10px',
   borderRadius: '12px',
 }
@@ -847,14 +848,14 @@ const mobileHeaderBadgeStyle = {
 const mobileTitleStyle = {
   fontSize: '22px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
   margin: '0 0 6px 0',
   letterSpacing: '-0.5px',
 }
 
 const mobileSubtitleStyle = {
   fontSize: '13px',
-  color: '#64748B',
+  color: '#9a8d80',
   margin: 0,
   lineHeight: 1.4,
 }
@@ -866,20 +867,20 @@ const mobileMainContentStyle = {
 }
 
 const mobileCardStyle = {
-  backgroundColor: '#FFFFFF',
+  backgroundColor: '#fffdfa',
   borderRadius: '20px',
   padding: '20px 16px',
   boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-  border: '1px solid #F1F5F9',
+  border: '1px solid #f0e3d2',
 }
 
 const mobileDropzoneStyle = {
-  border: '2px dashed #CBD5E1',
+  border: '2px dashed #e6d3bd',
   borderRadius: '16px',
   padding: '32px 16px',
   textAlign: 'center',
   cursor: 'pointer',
-  backgroundColor: '#F8FAFC',
+  backgroundColor: '#fdf6ec',
   transition: 'all 0.2s ease',
 }
 
@@ -893,7 +894,7 @@ const mobileCameraCircleStyle = {
   width: '56px',
   height: '56px',
   borderRadius: '28px',
-  backgroundColor: '#EEF2FF',
+  backgroundColor: '#fdeee8',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -904,13 +905,13 @@ const mobileCameraCircleStyle = {
 const mobileUploadTextStyle = {
   fontSize: '15px',
   fontWeight: '700',
-  color: '#1E293B',
+  color: '#4b4037',
   margin: '0 0 4px 0',
 }
 
 const mobileUploadSubTextStyle = {
   fontSize: '12px',
-  color: '#94A3B8',
+  color: '#9a8d80',
 }
 
 const mobileCropAreaContainerStyle = {
@@ -923,8 +924,8 @@ const mobileCropAreaContainerStyle = {
 const cropInstructionBadgeStyle = {
   fontSize: '13px',
   fontWeight: '700',
-  color: '#4F46E5',
-  backgroundColor: '#EEF2FF',
+  color: '#ef7d66',
+  backgroundColor: '#fdeee8',
   padding: '6px 12px',
   borderRadius: '20px',
 }
@@ -953,8 +954,8 @@ const mobileCanvasStyle = {
 const mobileCropNoticeBadgeStyle = {
   fontSize: '12px',
   fontWeight: '700',
-  color: '#4F46E5',
-  backgroundColor: '#EEF2FF',
+  color: '#ef7d66',
+  backgroundColor: '#fdeee8',
   padding: '4px 10px',
   borderRadius: '10px',
   marginBottom: '8px',
@@ -978,8 +979,8 @@ const mobilePreviewImageStyle = {
 const mobileErrorMessageStyle = {
   marginTop: '12px',
   padding: '10px 14px',
-  backgroundColor: '#FEF2F2',
-  color: '#EF4444',
+  backgroundColor: '#fdeeea',
+  color: '#d64530',
   borderRadius: '10px',
   fontSize: '13px',
   fontWeight: '600',
@@ -1001,8 +1002,8 @@ const mobileButtonGroupVerticalStyle = {
 const mobilePrimaryButtonStyle = {
   flex: 1,
   minHeight: '48px',
-  backgroundColor: '#4F46E5',
-  color: '#FFFFFF',
+  backgroundColor: '#ef7d66',
+  color: '#fffdfa',
   border: 'none',
   borderRadius: '14px',
   fontSize: '15px',
@@ -1013,21 +1014,21 @@ const mobilePrimaryButtonStyle = {
 const mobilePrimaryFullButtonStyle = {
   width: '100%',
   minHeight: '50px',
-  backgroundColor: '#4F46E5',
-  color: '#FFFFFF',
+  backgroundColor: '#ef7d66',
+  color: '#fffdfa',
   border: 'none',
   borderRadius: '14px',
   fontSize: '16px',
   fontWeight: '700',
   cursor: 'pointer',
-  boxShadow: '0 4px 14px rgba(79, 70, 229, 0.3)',
+  boxShadow: '0 4px 14px rgba(239, 125, 102, 0.3)',
 }
 
 const mobileSecondaryButtonStyle = {
   flex: 1,
   minHeight: '46px',
-  backgroundColor: '#F1F5F9',
-  color: '#475569',
+  backgroundColor: '#f0e3d2',
+  color: '#7a6c5f',
   border: 'none',
   borderRadius: '14px',
   fontSize: '14px',
@@ -1036,17 +1037,17 @@ const mobileSecondaryButtonStyle = {
 }
 
 const mobileResultCardStyle = {
-  backgroundColor: '#FFFFFF',
+  backgroundColor: '#fffdfa',
   borderRadius: '20px',
   padding: '20px 16px',
   boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-  border: '1px solid #F1F5F9',
+  border: '1px solid #f0e3d2',
 }
 
 const mobileResultHeadingStyle = {
   fontSize: '18px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
   marginBottom: '16px',
 }
 
@@ -1061,8 +1062,8 @@ const mobileTopPredictionCardStyle = {
 const mobileTopBadgeStyle = {
   display: 'inline-block',
   padding: '4px 10px',
-  backgroundColor: '#4F46E5',
-  color: '#FFFFFF',
+  backgroundColor: '#ef7d66',
+  color: '#fffdfa',
   borderRadius: '12px',
   fontSize: '11px',
   fontWeight: '700',
@@ -1082,12 +1083,12 @@ const mobileTopConfidenceStyle = {
 const mobileSecondaryActionContainerStyle = {
   marginTop: '16px',
   paddingTop: '16px',
-  borderTop: '1px dashed #E2E8F0',
+  borderTop: '1px dashed #f0e3d2',
 }
 
 const mobileSecondaryActionNoticeStyle = {
   fontSize: '13px',
-  color: '#475569',
+  color: '#7a6c5f',
   marginBottom: '10px',
   lineHeight: 1.4,
 }
@@ -1095,8 +1096,8 @@ const mobileSecondaryActionNoticeStyle = {
 const mobileMultiDiagnosisButtonStyle = {
   width: '100%',
   minHeight: '48px',
-  backgroundColor: '#1E1B4B',
-  color: '#FFFFFF',
+  backgroundColor: '#e2664e',
+  color: '#fffdfa',
   border: 'none',
   borderRadius: '14px',
   fontSize: '15px',
@@ -1107,7 +1108,7 @@ const mobileMultiDiagnosisButtonStyle = {
 const mobileSubHeadingStyle = {
   fontSize: '14px',
   fontWeight: '700',
-  color: '#334155',
+  color: '#5b4f44',
   marginBottom: '12px',
 }
 
@@ -1131,17 +1132,17 @@ const mobileLabelRowStyle = {
 
 const mobileDiseaseLabelStyle = {
   fontWeight: '600',
-  color: '#1E293B',
+  color: '#4b4037',
 }
 
 const mobileConfidenceTextStyle = {
   fontWeight: '700',
-  color: '#475569',
+  color: '#7a6c5f',
 }
 
 const mobileProgressBarTrackStyle = {
   height: '8px',
-  backgroundColor: '#F1F5F9',
+  backgroundColor: '#f0e3d2',
   borderRadius: '4px',
   overflow: 'hidden',
 }

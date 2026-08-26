@@ -1,3 +1,4 @@
+// [타 슬라이스 시각 수정] 2026-08-26 웜톤 통일(사용자 지시) — 로직 무변경, 담당자 확인 필요
 import React, { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BACKEND_URL } from '../config'
@@ -349,10 +350,10 @@ export default function HybridDiagnosisPage() {
 
   const getFieldStyle = (isReadOnly) => ({
     ...mobileInputStyle,
-    backgroundColor: isReadOnly ? '#F1F5F9' : '#FFFFFF',
-    color: isReadOnly ? '#64748B' : '#0F172A',
+    backgroundColor: isReadOnly ? '#f0e3d2' : '#fffdfa',
+    color: isReadOnly ? '#9a8d80' : '#4b4037',
     cursor: isReadOnly ? 'not-allowed' : 'text',
-    borderColor: isReadOnly ? '#E2E8F0' : '#CBD5E1',
+    borderColor: isReadOnly ? '#f0e3d2' : '#e6d3bd',
   })
 
   return (
@@ -376,7 +377,7 @@ export default function HybridDiagnosisPage() {
 
           {/* 검진 대상 반려견 선택 드롭다운 셀렉트 박스 */}
           <div style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '13px', fontWeight: '700', color: '#475569', display: 'block', marginBottom: '6px' }}>
+            <label style={{ fontSize: '13px', fontWeight: '700', color: '#7a6c5f', display: 'block', marginBottom: '6px' }}>
               🐶 검진 대상 반려견 선택
             </label>
             <select
@@ -388,9 +389,9 @@ export default function HybridDiagnosisPage() {
                 fontSize: '14px',
                 fontWeight: '600',
                 borderRadius: '10px',
-                border: '1px solid #CBD5E1',
-                backgroundColor: '#F8FAFC',
-                color: '#0F172A',
+                border: '1px solid #e6d3bd',
+                backgroundColor: '#fdf6ec',
+                color: '#4b4037',
                 cursor: 'pointer',
               }}
             >
@@ -498,7 +499,7 @@ export default function HybridDiagnosisPage() {
                   style={{
                     ...gaugeFillStyle,
                     width: `${Math.min((crp / 4.0) * 100, 100)}%`,
-                    backgroundColor: crp > 2.0 ? '#EF4444' : '#10B981',
+                    backgroundColor: crp > 2.0 ? '#d64530' : '#2a9d6e',
                   }}
                 />
               </div>
@@ -527,7 +528,7 @@ export default function HybridDiagnosisPage() {
                   style={{
                     ...gaugeFillStyle,
                     width: `${Math.min((igg / 5.0) * 100, 100)}%`,
-                    backgroundColor: igg > 3.5 ? '#EF4444' : '#10B981',
+                    backgroundColor: igg > 3.5 ? '#d64530' : '#2a9d6e',
                   }}
                 />
               </div>
@@ -556,7 +557,7 @@ export default function HybridDiagnosisPage() {
                   style={{
                     ...gaugeFillStyle,
                     width: `${Math.min((il6 / 5.0) * 100, 100)}%`,
-                    backgroundColor: il6 > 2.5 ? '#EF4444' : '#10B981',
+                    backgroundColor: il6 > 2.5 ? '#d64530' : '#2a9d6e',
                   }}
                 />
               </div>
@@ -580,9 +581,9 @@ export default function HybridDiagnosisPage() {
                     <label
                       style={{
                         ...mobileCheckboxLabelStyle,
-                        backgroundColor: isSelected ? '#EEF2FF' : '#F8FAFC',
-                        borderColor: isSelected ? '#6366F1' : '#E2E8F0',
-                        color: isSelected ? '#4338CA' : '#334155',
+                        backgroundColor: isSelected ? '#fdeee8' : '#fdf6ec',
+                        borderColor: isSelected ? '#ef7d66' : '#f0e3d2',
+                        color: isSelected ? '#e2664e' : '#5b4f44',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -602,7 +603,7 @@ export default function HybridDiagnosisPage() {
                         <span style={{ fontSize: '14px', fontWeight: '700' }}>{symptom}</span>
                       </div>
                       {isSelected && subItems.length > 0 && (
-                        <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#6366F1', color: '#FFFFFF', padding: '2px 8px', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '700', backgroundColor: '#ef7d66', color: '#fffdfa', padding: '2px 8px', borderRadius: '10px' }}>
                           세부옵션 선택중 ▼
                         </span>
                       )}
@@ -612,15 +613,15 @@ export default function HybridDiagnosisPage() {
                     {isSelected && subItems.length > 0 && (
                       <div
                         style={{
-                          backgroundColor: '#F8FAFC',
-                          border: '1px solid #E2E8F0',
+                          backgroundColor: '#fdf6ec',
+                          border: '1px solid #f0e3d2',
                           borderRadius: '10px',
                           padding: '12px',
                           marginLeft: '12px',
                           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
                         }}
                       >
-                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#5b4f44', marginBottom: '8px' }}>
                           🔍 [{symptom}] 세부 내용 선택 (해당하는 항목을 모두 체크해 주세요):
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -640,9 +641,9 @@ export default function HybridDiagnosisPage() {
                                   fontWeight: '600',
                                   cursor: 'pointer',
                                   border: '1px solid',
-                                  backgroundColor: isSubChecked ? '#4F46E5' : '#FFFFFF',
-                                  borderColor: isSubChecked ? '#4338CA' : '#CBD5E1',
-                                  color: isSubChecked ? '#FFFFFF' : '#334155',
+                                  backgroundColor: isSubChecked ? '#ef7d66' : '#fffdfa',
+                                  borderColor: isSubChecked ? '#e2664e' : '#e6d3bd',
+                                  color: isSubChecked ? '#fffdfa' : '#5b4f44',
                                   transition: 'all 0.15s ease',
                                 }}
                               >
@@ -650,7 +651,7 @@ export default function HybridDiagnosisPage() {
                                   type="checkbox"
                                   checked={isSubChecked}
                                   onChange={() => handleSubSymptomToggle(subItem)}
-                                  style={{ accentColor: '#4F46E5' }}
+                                  style={{ accentColor: '#ef7d66' }}
                                 />
                                 <span>{subItem}</span>
                               </label>
@@ -667,8 +668,8 @@ export default function HybridDiagnosisPage() {
 
           {/* 🩺 상세 증상 작성 메모란 위치에 결과 카드가 출력되도록 배치 */}
           {result && (
-            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '2px solid #E2E8F0' }}>
-              <h2 style={{ ...mobileSectionTitleStyle, color: '#0F172A', marginBottom: '8px' }}>
+            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '2px solid #f0e3d2' }}>
+              <h2 style={{ ...mobileSectionTitleStyle, color: '#4b4037', marginBottom: '8px' }}>
                 🩺 수의사 정밀진료 진단 결과
               </h2>
               {result.status === 'NOR' || result.diagnosis === 'NOR' || result.is_normal ? (
@@ -699,14 +700,14 @@ export default function HybridDiagnosisPage() {
                   width: '100%',
                   marginTop: '12px',
                   padding: '12px',
-                  backgroundColor: '#059669',
-                  color: '#FFFFFF',
+                  backgroundColor: '#ef7d66',
+                  color: '#fffdfa',
                   border: 'none',
                   borderRadius: '12px',
                   fontSize: '14px',
                   fontWeight: '700',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
+                  boxShadow: '0 2px 4px rgba(239, 125, 102, 0.25)',
                 }}
               >
                 📄 수의사 제출용 PDF 진단서 발급
@@ -754,8 +755,8 @@ const mobileContainerStyle = {
   padding: '16px 12px 32px 12px',
   boxSizing: 'border-box',
   fontFamily: "'Pretendard', system-ui, -apple-system, sans-serif",
-  backgroundColor: '#F8FAFC',
-  color: '#0F172A',
+  backgroundColor: '#fdf6ec',
+  color: '#4b4037',
   overflowX: 'hidden',
 }
 
@@ -773,8 +774,8 @@ const badgeRowStyle = {
 const mobileHeaderBadgeStyle = {
   fontSize: '12px',
   fontWeight: '700',
-  color: '#4F46E5',
-  backgroundColor: '#EEF2FF',
+  color: '#ef7d66',
+  backgroundColor: '#fdeee8',
   padding: '3px 10px',
   borderRadius: '12px',
 }
@@ -782,14 +783,14 @@ const mobileHeaderBadgeStyle = {
 const mobileTitleStyle = {
   fontSize: '22px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
   margin: '0 0 6px 0',
   letterSpacing: '-0.5px',
 }
 
 const mobileSubtitleStyle = {
   fontSize: '13px',
-  color: '#64748B',
+  color: '#9a8d80',
   margin: 0,
   lineHeight: 1.4,
 }
@@ -801,11 +802,11 @@ const mobileMainFormStyle = {
 }
 
 const mobileCardStyle = {
-  backgroundColor: '#FFFFFF',
+  backgroundColor: '#fffdfa',
   borderRadius: '20px',
   padding: '20px 16px',
   boxShadow: '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-  border: '1px solid #F1F5F9',
+  border: '1px solid #f0e3d2',
 }
 
 const mobileSectionHeaderFlexStyle = {
@@ -818,7 +819,7 @@ const mobileSectionHeaderFlexStyle = {
 const mobileSectionTitleStyle = {
   fontSize: '16px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
   margin: '0 0 14px 0',
 }
 
@@ -849,7 +850,7 @@ const formSubGroupStyle = {
 const mobileLabelStyle = {
   fontSize: '13px',
   fontWeight: '700',
-  color: '#334155',
+  color: '#5b4f44',
   display: 'block',
   marginBottom: '8px',
 }
@@ -857,40 +858,40 @@ const mobileLabelStyle = {
 const unitSpanStyle = {
   fontSize: '11px',
   fontWeight: '400',
-  color: '#94A3B8',
+  color: '#9a8d80',
 }
 
 const mobileInputStyle = {
   padding: '12px 14px',
   borderRadius: '12px',
-  border: '1px solid #CBD5E1',
+  border: '1px solid #e6d3bd',
   fontSize: '16px',
   outline: 'none',
   width: '100%',
   boxSizing: 'border-box',
-  backgroundColor: '#FFFFFF',
-  color: '#0F172A',
+  backgroundColor: '#fffdfa',
+  color: '#4b4037',
 }
 
 const mobileTextareaStyle = {
   width: '100%',
   padding: '12px 14px',
   borderRadius: '12px',
-  border: '1px solid #CBD5E1',
+  border: '1px solid #e6d3bd',
   fontSize: '16px',
   outline: 'none',
   resize: 'none',
   boxSizing: 'border-box',
-  backgroundColor: '#FFFFFF',
-  color: '#0F172A',
+  backgroundColor: '#fffdfa',
+  color: '#4b4037',
   lineHeight: 1.4,
 }
 
 const mobileRefreshButtonStyle = {
   padding: '6px 12px',
-  backgroundColor: '#F1F5F9',
-  color: '#475569',
-  border: '1px solid #E2E8F0',
+  backgroundColor: '#f0e3d2',
+  color: '#7a6c5f',
+  border: '1px solid #f0e3d2',
   borderRadius: '10px',
   fontSize: '12px',
   fontWeight: '700',
@@ -898,10 +899,10 @@ const mobileRefreshButtonStyle = {
 }
 
 const mobileSensorCardStyle = {
-  backgroundColor: '#F8FAFC',
+  backgroundColor: '#fdf6ec',
   borderRadius: '14px',
   padding: '12px',
-  border: '1px solid #E2E8F0',
+  border: '1px solid #f0e3d2',
   position: 'relative',
 }
 
@@ -915,7 +916,7 @@ const sensorCardHeaderStyle = {
 const sensorNameStyle = {
   fontSize: '12px',
   fontWeight: '700',
-  color: '#475569',
+  color: '#7a6c5f',
 }
 
 const tooltipIconStyle = {
@@ -928,8 +929,8 @@ const mobileTooltipBoxStyle = {
   top: '32px',
   left: '6px',
   right: '6px',
-  backgroundColor: '#0F172A',
-  color: '#FFFFFF',
+  backgroundColor: '#4b4037',
+  color: '#fffdfa',
   fontSize: '11px',
   padding: '8px 10px',
   borderRadius: '8px',
@@ -941,18 +942,18 @@ const mobileTooltipBoxStyle = {
 const sensorValueStyle = {
   fontSize: '18px',
   fontWeight: '800',
-  color: '#0F172A',
+  color: '#4b4037',
 }
 
 const sensorUnitStyle = {
   fontSize: '12px',
   fontWeight: '500',
-  color: '#64748B',
+  color: '#9a8d80',
 }
 
 const gaugeTrackStyle = {
   height: '6px',
-  backgroundColor: '#E2E8F0',
+  backgroundColor: '#f0e3d2',
   borderRadius: '3px',
   marginTop: '8px',
   overflow: 'hidden',
@@ -967,7 +968,7 @@ const gaugeFillStyle = {
 const gaugeLabelStyle = {
   fontSize: '10px',
   fontWeight: '700',
-  color: '#64748B',
+  color: '#9a8d80',
   display: 'block',
   marginTop: '4px',
 }
@@ -995,7 +996,7 @@ const mobileCheckboxLabelStyle = {
 const mobileCheckboxInputStyle = {
   width: '16px',
   height: '16px',
-  accentColor: '#4F46E5',
+  accentColor: '#ef7d66',
   cursor: 'pointer',
 }
 
@@ -1006,14 +1007,14 @@ const mobileCheckboxTextStyle = {
 const mobileFullWidthSubmitButtonStyle = {
   width: '100%',
   minHeight: '52px',
-  backgroundColor: '#4F46E5',
-  color: '#FFFFFF',
+  backgroundColor: '#ef7d66',
+  color: '#fffdfa',
   border: 'none',
   borderRadius: '16px',
   fontSize: '16px',
   fontWeight: '800',
   cursor: 'pointer',
-  boxShadow: '0 4px 16px rgba(79, 70, 229, 0.3)',
+  boxShadow: '0 4px 16px rgba(239, 125, 102, 0.3)',
 }
 
 const mobileResultCardContainerStyle = {
@@ -1021,8 +1022,8 @@ const mobileResultCardContainerStyle = {
 }
 
 const mobileNormalResultCardStyle = {
-  backgroundColor: '#ECFDF5',
-  border: '1.5px solid #A7F3D0',
+  backgroundColor: '#eaf6f0',
+  border: '1.5px solid #bfe3d2',
   borderRadius: '20px',
   padding: '20px 16px',
   textAlign: 'center',
@@ -1031,8 +1032,8 @@ const mobileNormalResultCardStyle = {
 const mobileResultBadgeStyle = {
   display: 'inline-block',
   padding: '4px 12px',
-  backgroundColor: '#059669',
-  color: '#FFFFFF',
+  backgroundColor: '#2a9d6e',
+  color: '#fffdfa',
   borderRadius: '12px',
   fontSize: '12px',
   fontWeight: '700',
@@ -1042,20 +1043,20 @@ const mobileResultBadgeStyle = {
 const mobileResultTitleStyle = {
   fontSize: '18px',
   fontWeight: '800',
-  color: '#065F46',
+  color: '#1f5f43',
   margin: '0 0 6px 0',
 }
 
 const mobileResultDescStyle = {
   fontSize: '13px',
-  color: '#047857',
+  color: '#237a55',
   margin: 0,
   lineHeight: 1.4,
 }
 
 const mobileAbnormalResultCardStyle = {
-  backgroundColor: '#FEF2F2',
-  border: '1.5px solid #FECACA',
+  backgroundColor: '#fdeeea',
+  border: '1.5px solid #f3c4b8',
   borderRadius: '20px',
   padding: '20px 16px',
   textAlign: 'center',
@@ -1064,8 +1065,8 @@ const mobileAbnormalResultCardStyle = {
 const mobileAbnormalBadgeStyle = {
   display: 'inline-block',
   padding: '4px 12px',
-  backgroundColor: '#DC2626',
-  color: '#FFFFFF',
+  backgroundColor: '#d64530',
+  color: '#fffdfa',
   borderRadius: '12px',
   fontSize: '12px',
   fontWeight: '700',
@@ -1075,13 +1076,13 @@ const mobileAbnormalBadgeStyle = {
 const mobileAbnormalTitleStyle = {
   fontSize: '18px',
   fontWeight: '800',
-  color: '#991B1B',
+  color: '#a03322',
   margin: '0 0 6px 0',
 }
 
 const mobileAbnormalDescStyle = {
   fontSize: '13px',
-  color: '#B91C1C',
+  color: '#b53a28',
   margin: 0,
   lineHeight: 1.4,
 }

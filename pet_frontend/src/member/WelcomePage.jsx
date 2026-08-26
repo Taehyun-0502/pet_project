@@ -1,9 +1,10 @@
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
-import '../common/modernist.css'
+import '../common/warm.css'
 import './member.css'
 
 // 가입 직후 한 번만 보여주는 온보딩 화면 — 반려동물을 지금 등록할지 물어본다.
+// 웜톤 템플릿 전환 (2026-08-26) — 가입 화면(.login)과 같은 무드의 .warm 셸을 쓴다.
 // "가입 직후 1회"가 노출 조건이므로 SignupPage가 넘겨준 state로만 들어올 수 있다.
 // URL을 직접 치거나 새로고침 아닌 경로로 진입하면 홈으로 보낸다
 export default function WelcomePage() {
@@ -18,12 +19,11 @@ export default function WelcomePage() {
   const goHome = () => navigate('/', { replace: true })
 
   return (
-    <main className="mn">
-      <div className="mn-top">
-        <div className="mn-brand">댕댕댕</div>
-      </div>
-      <div className="mn-rule" />
+    <main className="warm">
       <div className="auth-page">
+        <header className="w-top">
+          <span className="w-brand">댕댕댕</span>
+        </header>
         <h1>{user.name}님, 환영합니다!</h1>
         <p className="notice">가입이 완료되었습니다.</p>
         {/* 가입은 됐는데 사진만 실패한 경우 (SignupPage의 실패 정책 — 되돌리지 않고 안내만 넘긴다).
@@ -38,11 +38,11 @@ export default function WelcomePage() {
           나중에 홈에서 등록해도 됩니다.
         </p>
         <div className="onboarding-actions">
-          {/* 권장 선택지 하나만 레드 채움 — 나머지는 테두리 버튼 */}
-          <button type="button" className="mn-primary block" onClick={goRegister}>
+          {/* 권장 선택지 하나만 코럴 채움(w-cta) — 나머지는 고스트 버튼 */}
+          <button type="button" className="w-cta block" onClick={goRegister}>
             지금 등록하기
           </button>
-          <button type="button" className="mn-secondary" onClick={goHome}>
+          <button type="button" className="w-ghost block" onClick={goHome}>
             나중에 하기
           </button>
         </div>

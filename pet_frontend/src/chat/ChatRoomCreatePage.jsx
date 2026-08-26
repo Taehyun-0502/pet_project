@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { createRoom } from './chatApi'
 import { ROOM_CATEGORIES } from './roomCategories'
 import '../common/forms.css'
-import '../common/modernist.css' // Modernist 공용 토큰·클래스 (chat.css보다 먼저)
+import '../common/warm.css' // 웜톤 공용 토큰·클래스 (chat.css보다 먼저)
 import './chat.css'
 
 /**
@@ -60,35 +60,44 @@ export default function ChatRoomCreatePage() {
   }
 
   return (
-    <main className="mn chat-page">
-      <header className="mn-top">
+    <main className="warm chat-page">
+      <header className="w-top">
         <h1>새 채팅방</h1>
-        <Link to="/chat" className="mn-link">← 방 목록으로</Link>
+        <Link to="/chat" className="w-link">← 방 목록으로</Link>
       </header>
-      <div className="mn-rule" />
 
-      <form className="chat-create" onSubmit={onCreate}>
+      <form className="w-card chat-create" onSubmit={onCreate}>
         <input
+          className="w-input"
           type="text" name="name" value={form.name} onChange={onChange}
           placeholder="방 이름 (예: 푸들 보호자 모임)"
         />
-        <div className="chat-create-row">
-          <select name="category" value={form.category} onChange={onChange} aria-label="카테고리">
-            {ROOM_CATEGORIES.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
-            ))}
-          </select>
-          <input
-            type="number" name="maxMembers" value={form.maxMembers} onChange={onChange}
-            placeholder="정원 (선택)" min={2} max={100}
-          />
+        {/* 카테고리 — 웜톤 전환으로 select 대신 알약 칩 (목록 필터와 같은 문법, 상태는 form.category 그대로) */}
+        <div className="chat-cat-chips" role="group" aria-label="카테고리">
+          {ROOM_CATEGORIES.map((c) => (
+            <button
+              key={c.value}
+              type="button"
+              className="w-chip"
+              aria-pressed={form.category === c.value}
+              onClick={() => setForm({ ...form, category: c.value })}
+            >
+              {c.label}
+            </button>
+          ))}
         </div>
         <input
+          className="w-input"
+          type="number" name="maxMembers" value={form.maxMembers} onChange={onChange}
+          placeholder="정원 (선택)" min={2} max={100}
+        />
+        <input
+          className="w-input"
           type="text" name="description" value={form.description} onChange={onChange}
           placeholder="소개 (선택, 200자 이내)" maxLength={200}
         />
         {error && <p className="submit-error">{error}</p>}
-        <button type="submit" className="mn-primary block" disabled={creating}>
+        <button type="submit" className="w-cta block" disabled={creating}>
           {creating ? '만드는 중…' : '방 만들기'}
         </button>
       </form>

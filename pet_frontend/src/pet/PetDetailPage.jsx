@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { deletePet, getPet, uploadPetImage } from './petApi'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
-import '../common/modernist.css'
+import '../common/warm.css'
 import './pet.css'
 
 // 반려동물 상세 — 수정 진입점·삭제·프로필 사진 업로드를 담당한다 (docs/api-spec.md 2절)
@@ -66,12 +66,11 @@ export default function PetDetailPage() {
   // 없는 id·타인 소유·삭제됨이 모두 404로 오므로 한 문구로 안내한다 (서버가 구분하지 않는다)
   if (loadError) {
     return (
-      <main className="mn pet-page">
-        <div className="mn-top">
-          <div className="mn-brand">반려동물</div>
-          <Link className="mn-link" to="/mypage/pets">← 펫 목록으로</Link>
+      <main className="warm pet-page">
+        <div className="w-top">
+          <div className="w-brand">반려동물</div>
+          <Link className="w-link" to="/mypage/pets">← 펫 목록으로</Link>
         </div>
-        <div className="mn-rule" />
         <p className="submit-error">
           {loadError.code === 'PET_NOT_FOUND'
             ? '찾을 수 없는 반려동물입니다. 삭제되었거나 접근 권한이 없습니다.'
@@ -83,26 +82,27 @@ export default function PetDetailPage() {
 
   if (!pet) {
     return (
-      <main className="mn pet-page">
+      <main className="warm pet-page">
         <p className="pet-empty">불러오는 중…</p>
       </main>
     )
   }
 
   return (
-    <main className="mn pet-page">
-      <div className="mn-top">
-        <div className="mn-brand">반려동물</div>
-        <Link className="mn-link" to="/mypage/pets">← 펫 목록으로</Link>
+    <main className="warm pet-page">
+      <div className="w-top">
+        <div className="w-brand">반려동물</div>
+        <Link className="w-link" to="/mypage/pets">← 펫 목록으로</Link>
       </div>
-      <div className="mn-rule" />
 
-      <div className="pet-body">
+      {/* 본문 전체를 흰 라운드 카드 하나로 — 사진·속성·액션이 한 덩어리 (웜톤 카드 문법) */}
+      <div className="w-card pet-body">
         <div className="pet-photo">
           {pet.profileImageUrl ? (
-            <img className="mn-photo" src={pet.profileImageUrl} alt={`${pet.name} 사진`} />
+            <img src={pet.profileImageUrl} alt={`${pet.name} 사진`} />
           ) : (
-            <div className="pet-photo-placeholder mn-photo" aria-hidden="true" />
+            // 사진 없음 — 크림 배경 + 🐶 (홈 .home-pet-photo-empty와 같은 문법, 컬러 유지)
+            <div className="pet-photo-placeholder" aria-hidden="true">🐶</div>
           )}
           {/* label이 file input을 연다. 키보드 접근은 input을 pet.css에서 visually-hidden으로만
               숨기기 때문에 성립한다 — display:none으로 바꾸면 Tab으로 도달할 수 없게 된다 (백로그 84번) */}
@@ -136,8 +136,9 @@ export default function PetDetailPage() {
         {actionError && <p className="submit-error">{actionError}</p>}
 
         <div className="pet-actions">
-          <Link className="mn-primary block" to={`/pets/${petId}/edit`}>수정</Link>
-          <button type="button" className="mn-secondary danger" onClick={onDelete} disabled={deleting}>
+          {/* 수정은 코럴 채움(.w-cta) — a 요소 밑줄·색 보정은 pet.css의 .warm a.w-cta */}
+          <Link className="w-cta block" to={`/pets/${petId}/edit`}>수정</Link>
+          <button type="button" className="w-ghost danger block" onClick={onDelete} disabled={deleting}>
             {deleting ? '삭제 중…' : '삭제'}
           </button>
         </div>
