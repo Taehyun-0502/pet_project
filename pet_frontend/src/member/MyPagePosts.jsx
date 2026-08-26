@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { deleteShorts, getMemberShorts } from '../shorts/shortsApi'
 import { useAuth } from './AuthContext'
 import './member.css'
@@ -12,8 +12,10 @@ import './member.css'
  * 이 슬라이스가 만들었다. 삭제는 이미 있던 `DELETE /api/shorts/{shortId}`를 그대로 쓴다.
  *
  * 설계 판단 세 가지:
- * - **재생은 여기서 하지 않는다.** 항목을 누르면 공유 링크와 같은 `/shorts?v={id}`로 보낸다.
+ * - **재생은 여기서 하지 않는다.** 항목을 누르면 `/shorts?v={id}&only=1`로 보낸다.
  *   그리드 안에 플레이어를 또 만들면 음악·트림·오버레이 재생 규칙이 피드와 두 벌이 된다.
+ *   `only=1`은 그 영상 하나만 보여주고 다른 영상으로 넘기지 않는다(ShortsFeed의 singleRef).
+ *   공유 링크는 이 플래그 없이 `?v=`만 쓰며, 그 뒤로 평소 피드가 이어진다.
  * - **정렬 토글은 URL이 아니라 로컬 상태**다. 마이페이지 탭 자체가 이미 URL이고(F1),
  *   정렬까지 경로에 넣으면 탭 활성 판정(MyPage의 OTHER_TAB_PREFIXES)이 함께 복잡해진다.
  * - **삭제 후 목록 전체를 다시 읽지 않는다.** 펫 탭은 그렇게 하지만 그쪽은 페이지네이션이
@@ -28,6 +30,41 @@ const SORTS = [
   { key: 'popular', label: '인기순' },
 ]
 
+/*
+ * 영상을 보고 **돌아왔을 때** 화면을 그대로 되살리기 위한 값 (2026-08-26 사용자 요청).
+ *
+ * 정렬은 로컬 상태이고(위 두 번째 판단) 스크롤은 어디에도 남지 않으므로, 영상을 열러 나가는
+ * 순간 정렬·스크롤·불러와 있던 개수를 적어 두고 돌아올 때 그대로 되살린다.
+ *
+ * sessionStorage를 쓰는 이유: 이 탭 안에서만 유효하면 된다. 새로고침이나 다음 방문에까지
+ * 지난 스크롤을 되살리면 오히려 놀란다.
+ *
+ * 되살리기는 **돌아온 경우에만** 한다 — 홈에서 마이페이지로 처음 들어온 사람에게 지난번
+ * 스크롤을 적용하면 이유를 알 수 없는 자리에서 화면이 시작된다. 그래서 숏츠 화면의 돌아가기
+ * 버튼이 `state: { restoreView: true }`를 실어 보내고(ShortsFeed의 .sf-back), 그 표시가
+ * 있을 때만 읽는다.
+ */
+const RESTORE_KEY = 'mypage-posts-view'
+
+// 저장·읽기 모두 실패를 삼킨다 — 사파리 프라이빗 모드 등에서는 접근 자체가 예외를 던지는데,
+// 화면 되살리기는 부가 기능이라 그것 때문에 목록이 안 뜨면 안 된다
+function readView() {
+  try {
+    const raw = sessionStorage.getItem(RESTORE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function writeView(view) {
+  try {
+    sessionStorage.setItem(RESTORE_KEY, JSON.stringify(view))
+  } catch {
+    /* 위와 같다 */
+  }
+}
+
 // 12 → "0:12", 75 → "1:15". 초 단위 정수만 온다(durationSec)
 function formatDuration(seconds) {
   if (seconds == null) return ''
@@ -39,7 +76,17 @@ export default function MyPagePosts() {
   const { user } = useAuth()
   const memberId = user?.id
 
-  const [sort, setSort] = useState('latest')
+  const location = useLocation()
+
+  /*
+   * 돌아온 경우에만 채워지는 값. useRef 초기값이라 **첫 렌더에 한 번** 정해지고, 아래
+   * 조회 effect가 쓰고 나면 비운다(정렬을 바꿔 다시 조회할 때 또 되살리면 안 된다).
+   */
+  const restoreRef = useRef(location.state?.restoreView ? readView() : null)
+  // 되돌릴 스크롤 위치. 목록이 실제로 그려진 뒤에 적용해야 해서 따로 들고 있는다
+  const pendingScrollRef = useRef(restoreRef.current?.scrollTop ?? null)
+
+  const [sort, setSort] = useState(restoreRef.current?.sort ?? 'latest')
   const [items, setItems] = useState(null) // null = 아직 불러오는 중
   const [cursor, setCursor] = useState(null)
   const [hasNext, setHasNext] = useState(false)
@@ -47,13 +94,33 @@ export default function MyPagePosts() {
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState(null)
 
+  /*
+   * 되살리기 표시를 히스토리에서 지운다 — "한 번만" 적용하기 위한 것이다.
+   * 지우지 않으면 이 화면에서 뒤로/앞으로 오갈 때마다 같은 스크롤로 다시 튄다
+   * (ShortsFeed가 justUploaded를 지우는 것과 같은 처리).
+   */
+  useEffect(() => {
+    if (location.state?.restoreView) window.history.replaceState({}, '')
+  }, [location.state])
+
   // 정렬이 바뀌면 첫 페이지부터 다시 — 커서는 정렬마다 구성이 달라 그대로 쓸 수 없다
   useEffect(() => {
     if (!memberId) return undefined
     let cancelled = false
+
+    /*
+     * 돌아온 첫 조회에서만 **예전에 불러와 있던 개수만큼 한 번에** 받는다.
+     * "더 보기"로 2페이지 이상 열어둔 상태에서 돌아오면, 첫 페이지(20개)만 받아서는
+     * 되돌릴 스크롤 위치에 내용이 없어 화면이 끝으로 밀린다.
+     * 서버가 size를 50으로 자르므로(ShortsService.MAX_LIST_SIZE) 그보다 많이 열어둔
+     * 경우에는 50개까지만 복원되고 스크롤도 그 높이에서 멈춘다.
+     */
+    const size = restoreRef.current?.count > 0 ? restoreRef.current.count : undefined
+    restoreRef.current = null
+
     setItems(null)
     setError('')
-    getMemberShorts(memberId, { sort })
+    getMemberShorts(memberId, { sort, size })
       .then((data) => {
         if (cancelled) return
         setItems(data.items)
@@ -63,6 +130,23 @@ export default function MyPagePosts() {
       .catch((err) => { if (!cancelled) setError(err.message) })
     return () => { cancelled = true }
   }, [memberId, sort])
+
+  /*
+   * 목록이 그려진 뒤에 스크롤을 되돌린다.
+   *
+   * setItems 직후(then 안)에 하면 먹지 않는다 — 그 시점에는 아직 타일이 DOM에 없어서
+   * 문서 높이가 스크롤 위치에 못 미치고, 브라우저가 값을 잘라버린다. effect는 커밋 뒤에
+   * 돌기 때문에 높이가 이미 잡혀 있다.
+   *
+   * 타일이 aspect-ratio: 9/16(member.css)이라 썸네일 이미지가 늦게 와도 높이가 변하지
+   * 않는다 — 그래서 이미지 로드를 기다릴 필요가 없다.
+   */
+  useEffect(() => {
+    const top = pendingScrollRef.current
+    if (top == null || items == null) return
+    pendingScrollRef.current = null
+    document.scrollingElement?.scrollTo({ top })
+  }, [items])
 
   const onLoadMore = async () => {
     setLoadingMore(true)
@@ -128,8 +212,23 @@ export default function MyPagePosts() {
         <ul className="mypage-post-grid">
           {items.map((short) => (
             <li key={short.id}>
-              {/* 재생은 피드가 담당한다 — 공유 링크와 같은 주소로 보낸다 */}
-              <Link className="mypage-post-thumb" to={`/shorts?v=${short.id}`}>
+              {/* 재생은 피드가 담당한다. only=1은 **이 영상 하나만** 보여달라는 뜻이다 —
+                  스크롤로 다른 영상으로 넘어가지 않는다 (2026-08-26 사용자 요청).
+                  공유 링크(only 없음)는 그 영상 뒤로 평소 피드가 이어지는 쪽을 그대로 쓴다 */}
+              <Link
+                className="mypage-post-thumb"
+                to={`/shorts?v=${short.id}&only=1`}
+                /* 나가기 직전의 화면을 적어 둔다 — 돌아왔을 때 되살릴 값이다 (RESTORE_KEY 주석).
+                   unmount 시점이 아니라 여기서 하는 이유: 영상 화면으로 가는 길이 이 링크뿐이고,
+                   언마운트는 다른 탭으로 옮길 때도 일어나 그때의 스크롤까지 덮어쓰게 된다 */
+                onClick={() =>
+                  writeView({
+                    sort,
+                    count: items?.length ?? 0,
+                    scrollTop: document.scrollingElement?.scrollTop ?? 0,
+                  })
+                }
+              >
                 {short.thumbnailUrl ? (
                   <img src={short.thumbnailUrl} alt={short.caption ?? '숏츠 미리보기'} />
                 ) : (

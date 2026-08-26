@@ -50,12 +50,37 @@ function installLabel() {
   return '즐겨찾기'
 }
 
+/**
+ * 마이페이지 "내 게시물"에서 연 단일 영상 화면인지 (`/shorts?v={id}&only=1`).
+ *
+ * 주소는 /shorts지만 **마이페이지의 연장**이다 — 내 게시물 그리드에서 내 영상 하나를 열어
+ * 본 것이고, 그 화면의 돌아가기 버튼도 그리드로 돌아간다. 그래서 활성 탭도 숏츠가 아니라
+ * 마이페이지여야 한다 (2026-08-26 사용자 요청).
+ *
+ * 플래그의 뜻과 만드는 곳은 ShortsFeed의 singleRef · MyPagePosts의 링크에 있다.
+ */
+const isMyPostShort = (pathname, search) =>
+  pathname.startsWith('/shorts') && new URLSearchParams(search).get('only') === '1'
+
+// match는 (pathname, search)를 받는다 — 탭 판정에 쿼리까지 봐야 하는 경우가 있다(위 참고)
 const TABS = [
   { key: 'home', label: '홈', icon: '🏠', to: '/', match: (p) => p === '/' },
   { key: 'map', label: '댕맵', icon: '🗺️', to: '/map', match: (p) => p.startsWith('/map') || p.startsWith('/walk') },
   { key: 'chat', label: '오픈채팅', icon: '💬', to: '/chat', match: (p) => p.startsWith('/chat') },
-  { key: 'shorts', label: '숏츠', icon: '🎬', to: '/shorts', match: (p) => p.startsWith('/shorts') },
-  { key: 'my', label: '마이페이지', icon: '👤', to: '/mypage', match: (p) => p.startsWith('/mypage') },
+  {
+    key: 'shorts',
+    label: '숏츠',
+    icon: '🎬',
+    to: '/shorts',
+    match: (p, s) => p.startsWith('/shorts') && !isMyPostShort(p, s),
+  },
+  {
+    key: 'my',
+    label: '마이페이지',
+    icon: '👤',
+    to: '/mypage',
+    match: (p, s) => p.startsWith('/mypage') || isMyPostShort(p, s),
+  },
 ]
 
 /**
@@ -67,7 +92,7 @@ const TABS = [
  */
 export default function AppShell({ bar = true }) {
   const navigate = useNavigate()
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetPet, setSheetPet] = useState(null) // 진단 화면에 넘길 반려동물 (없으면 빈 폼)
   const showBrand = !bar || pathname === '/'
@@ -147,7 +172,7 @@ export default function AppShell({ bar = true }) {
       {bar && (
       <nav className="appbar" aria-label="주요 메뉴">
         {TABS.map((t) => {
-          const active = t.match ? t.match(pathname) : false
+          const active = t.match ? t.match(pathname, search) : false
           return (
             <button
               key={t.key}

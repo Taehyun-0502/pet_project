@@ -258,10 +258,18 @@ export default function PublishPage({ draft, patchDraft, goBack }) {
         >
           ←
         </button>
-        <span className="sc-title">발행</span>
+        <span className="sc-title">제작 마무리</span>
         <span className="sc-bar-spacer" aria-hidden="true" />
       </header>
 
+      {/*
+        커버 정하기 시트가 열려 있는 동안에는 폼을 감춘다 (2026-08-26 — 두 화면 모두
+        스크롤 없이 보이게 하기 위함). 둘을 함께 두면 폼 + 큰 커버 시트 + 올리기 버튼이
+        한 화면에 다 들어가지 않아 결국 스크롤이 생긴다. ③ 편집(EditPage)도 시트가 열리면
+        같은 방식으로 안내 패널을 감춘다.
+        캡션 등 입력값은 draft에 있으므로 언마운트해도 사라지지 않는다.
+      */}
+      {!thumbOpen && (
       <div className="sc-publish-body">
         {/* 썸네일 자리. 5단계에서 누르면 썸네일 정하기 시트가 뜨고, 기본값은 맨 앞 프레임이다.
             지금은 영상 미리보기를 작게 보여줘 "무엇에 대한 설명인지"만 알 수 있게 한다 */}
@@ -405,6 +413,7 @@ export default function PublishPage({ draft, patchDraft, goBack }) {
 
         {submitError && <p className="sc-error">{submitError}</p>}
       </div>
+      )}
 
       {thumbOpen && (
         <ThumbnailSheet draft={draft} patchDraft={patchDraft} onClose={() => setThumbOpen(false)} />

@@ -99,11 +99,13 @@ const FALLBACK_BG = [
 ];
 const bgOf = (id) => FALLBACK_BG[id % FALLBACK_BG.length];
 
-// 만들기 진입점. 카드는 한 장이 화면을 꽉 채우므로 카드마다 하나씩 두면
-// 지금 보이는 화면에 항상 떠 있는 것처럼 보인다 (빈 목록 화면에도 필요).
-// 4페이지 제작 플로우(/shorts/create)로 보낸다 — 기존 한 화면 폼은 /shorts/new에 남아 있다
+// 만들기 진입점. 헤더 아래 버튼 줄(.sf-tools)에 **한 벌만** 둔다 — 전에는 카드마다 하나씩
+// 그려서 "항상 떠 있는 것처럼" 보이게 했지만, 이제 카드 밖 고정 자리라 한 벌로 충분하다
+// (빈 목록·로딩 화면에서도 같은 줄에 그대로 있다).
+// 4페이지 제작 플로우(/shorts/create)로 보낸다 — 기존 한 화면 폼은 /shorts/new에 남아 있다.
+// stopPropagation을 뺐다 — 카드 안이 아니라서 가로챌 상위 onClick(handleTap)이 없다
 const UploadButton = () => (
-  <Link className="sf-upload" to="/shorts/create" aria-label="숏츠 만들기" onClick={(e) => e.stopPropagation()}>
+  <Link className="sf-upload" to="/shorts/create" aria-label="숏츠 만들기">
     +
   </Link>
 );
@@ -156,10 +158,34 @@ const Note = () => (
 );
 
 /* ───────── 영상 카드 하나 ───────── */
-function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnter, onRemove }) {
+/**
+ * @param moreOpen 더보기(삭제·신고) 시트를 열지. 버튼이 카드 밖 .sf-tools로 옮겨갔으므로
+ *   여는 판단은 피드가 하고 카드는 **결과만** 받는다. 시트 자체는 카드에 남는다 —
+ *   .cs-sheet/.rs-sheet가 `position:absolute; bottom:0`으로 **카드 기준** 배치라
+ *   (ShortsFeed.css) 카드 밖으로 옮기면 놓일 기준이 없어진다.
+ * @param onMoreClose 그 시트를 닫을 때 부른다 (피드의 moreOpen을 내린다)
+ * @param onAutoplayBlocked 소리를 켠 상태의 자동재생이 브라우저에 거부됐을 때 부른다.
+ *   피드가 음소거로 내려 재생이 멈추지 않게 한다 (관찰자 안의 주석 참고).
+ *   관찰자 의존성에 들어가므로 **정체성이 고정돼야 한다**(피드에서 useCallback([])).
+ */
+function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnter, onRemove, moreOpen = false, onMoreClose, onAutoplayBlocked }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const videoRef = useRef(null);
+  /*
+   * 재생 판정(IntersectionObserver)이 보는 요소. **영상이 아니라 카드다.**
+   *
+   * 영상 요소(.crop-media)는 cropFrame.js가 cover 크기로 키워 놓기 때문에 카드보다 크다 —
+   * 16:9 영상이면 폭이 카드의 316%다. IntersectionObserver의 비율은
+   * `보이는 면적 / 대상 자신의 면적`이라, 카드가 화면을 꽉 채워도 그 비율은
+   * 1/3.16 ≈ 0.32밖에 안 된다. threshold 0.5를 **영원히 넘지 못해 자동재생이 아예 안 됐다**
+   * (9:16으로 찍은 영상만 크기가 카드와 같아서 우연히 동작했다).
+   *
+   * 카드는 정확히 한 화면 크기이고 변형도 없다. 그래서 비율이 "화면에 보이는 정도"와 같아지고,
+   * 한 화면에 두 카드가 동시에 50%를 넘을 수 없으므로 **두 영상이 같이 재생될 수도 없다**
+   * (소리가 겹치던 원인).
+   */
+  const cardRef = useRef(null);
   // 배경음악. 업로더가 고른 곡을 카탈로그에서 찾는다 — 곡을 안 골랐거나(musicKey=null)
   // 카탈로그에서 빠진 키면 null이고, 그 경우 오디오 요소와 곡 표시를 함께 건너뛴다
   const track = findTrack(data.musicKey);
@@ -167,6 +193,12 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   // 지금 이 카드가 화면에 있는지. 탭에 돌아왔을 때 시계를 다시 돌릴지 판단하는 데 쓴다.
   // state가 아니라 ref인 이유 — 화면에 그릴 값이 아니라서 리렌더가 필요 없다
   const visibleRef = useRef(false);
+  /*
+   * 사용자가 **직접 탭해서** 멈춰둔 상태인지. 자동 복구(resumeIfStalled)가 그 정지를
+   * 되살리면 안 되기 때문에 구분한다 — 관찰자·브라우저가 멈춘 것과는 뜻이 다르다.
+   * 카드가 새로 화면에 올라오면 false로 되돌린다(그때는 자동 재생이 기본).
+   */
+  const userPausedRef = useRef(false);
   // 이번 시청 묶음에서 지금까지 쌓인 시간(ms). loop이므로 영상 길이를 넘어 계속 커진다
   const watchedMsRef = useRef(0);
   // 지금 돌고 있는 구간의 시작 시각.
@@ -174,8 +206,6 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   const runningSinceRef = useRef(null);
   const [progress, setProgress] = useState(0);
   const [commentsOpen, setCommentsOpen] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [likePending, setLikePending] = useState(false);
   const [actionError, setActionError] = useState("");
   // 공유 결과 안내. 성공/실패 모두 이 자리에 잠깐 띄운다
@@ -190,6 +220,24 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
    * 둘이다 — 업로드 직후 맨 앞에 끼워 넣은 카드, 그리고 자기 영상 공유 링크로 들어온 경우.
    */
   const isMine = user != null && data.memberId != null && user.id === data.memberId;
+
+  /*
+   * 더보기 버튼 하나가 두 시트로 갈린다 — 내 영상이면 삭제, 남의 영상이면 신고.
+   * (자기 영상을 신고할 일은 없고 남의 영상을 지울 수는 없으니 버튼을 둘로 나누지 않는다.)
+   * state가 아니라 prop에서 유도한다 — 버튼이 카드 밖(.sf-tools)으로 옮겨가서 여는 쪽이
+   * 피드이기 때문이다. 두는 곳이 둘이 되면 어긋날 수 있으므로 카드는 값을 갖지 않는다
+   */
+  const deleteOpen = moreOpen && isMine;
+  const reportOpen = moreOpen && !isMine;
+
+  /*
+   * 더보기 시트가 열리면 댓글 시트를 닫는다. 둘 다 카드 아래에서 올라오는 같은 층의
+   * 시트라서 겹치면 서로를 뚫고 보인다. 전에는 버튼 onClick에서 함께 처리했지만
+   * 그 버튼이 카드 밖으로 나갔으므로, 열렸다는 사실을 보고 여기서 닫는다
+   */
+  useEffect(() => {
+    if (moreOpen) setCommentsOpen(false);
+  }, [moreOpen]);
 
   /*
    * 시청 시계. 아래 관찰자 effect와 handleTap 양쪽에서 써야 해서 effect 밖에 둔다.
@@ -375,7 +423,43 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
       ([entry]) => {
         visibleRef.current = entry.isIntersecting;
         if (entry.isIntersecting) {
-          video.play().catch(() => {});
+          /*
+           * 소리를 켠 상태로 재생을 시도하고, **소리 때문에** 거부되면 음소거로 한 번 더 한다.
+           *
+           * 피드는 소리가 들리는 상태로 시작한다(useState(false), 2026-08-26 사용자 요청).
+           * 그런데 브라우저 자동재생 정책은 음소거가 아닌 재생을 사용자 조작 없이 허용하지
+           * 않는다. 앱바에서 숏츠 탭을 눌러 들어오면 그 클릭이 사용자 조작으로 남아 통과하지만,
+           * 주소로 바로 열거나 새로고침하면 거부된다.
+           *
+           * 거부를 그냥 삼키면 **영상이 멈춘 채로 남는다** — 예전에는 muted로 시작했기 때문에
+           * 없던 문제다. 그래서 거부되면 음소거로 내려 재생을 살린다. 그때 소리 버튼은
+           * 음소거로 보이고, 누르면 사용자 조작이라 그 시점의 재생은 정책을 통과한다.
+           */
+          userPausedRef.current = false; // 새로 올라온 카드는 '자동 재생할 것'이 기본이다
+          video.play().catch((err) => {
+            /*
+             * 실패 이유를 가려야 한다. 전에는 모든 실패를 "소리 때문"으로 보고 음소거로
+             * 되살렸는데, 그게 두 가지 사고를 냈다:
+             *
+             * ① play()는 **정지·재로딩으로 취소돼도** 거부된다(AbortError). 빠르게 넘기면
+             *    관찰자가 곧바로 '벗어남'으로 video.pause()를 부르고, 그 취소가 여기로 온다.
+             *    그때 재생을 되살리면 **화면에 없는 카드가 재생돼 소리만 겹쳐 들린다.**
+             * ② 그 경로에서 onAutoplayBlocked()까지 불려, 사용자가 켜 둔 소리 설정이
+             *    엉뚱한 이유로 꺼졌다(음소거 버튼이 제멋대로 바뀌는 것처럼 보임).
+             *
+             * 그래서 ⓐ 아직 이 카드가 보이는 중일 때만, ⓑ 자동재생 정책에 막힌
+             * 경우(NotAllowedError)에만 음소거로 되살린다.
+             */
+            if (!visibleRef.current) return;
+            if (err?.name !== "NotAllowedError") return;
+            // 이미 음소거인데도 막혔다면 소리 탓이 아니다 — 조용히 넘긴다
+            if (video.muted) return;
+            // prop으로도 곧 내려오지만, 지금 이 자리에서 재생을 살리려면 직접 걸어야 한다
+            video.muted = true;
+            video.play().catch(() => {});
+            // 버튼 표시(음소거/소리)도 실제 상태와 맞춘다
+            onAutoplayBlocked();
+          });
           syncClock();
           // play 이벤트로도 syncAudio가 불리지만 여기서 한 번 더 부른다 —
           // 자동재생이 거부되면 play 이벤트가 아예 발생하지 않아 곡이 시작되지 않는다.
@@ -389,16 +473,25 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
           video.pause();
           // 0이 아니라 구간 시작으로 되돌린다 — 다시 올라온 카드가 잘라낸 앞부분부터 재생되면 안 된다
           video.currentTime = trimStart;
-          // 곡도 구간 시작점으로 되돌린다(0이 아니다 — 업로더가 고른 지점이다).
-          // video.pause()가 pause 이벤트를 내보내 syncAudio가 정지까지는 해주지만 재생 위치는
-          // 남아, 다시 올라온 카드에서 노래가 구간 중간부터 시작한다
-          if (audio) audio.currentTime = musicStart;
+          if (audio) {
+            /*
+             * 곡을 **여기서 바로** 멈춘다. video.pause()가 내보내는 pause 이벤트로도
+             * syncAudio가 멈춰주지만, 그 이벤트는 태스크로 큐에 들어가 한 틱 뒤에 처리된다 —
+             * 빠르게 넘기면 그 사이에 다음 카드가 재생을 시작해 **두 곡이 겹쳐 들린다.**
+             * 이벤트 순서에 기대지 않고 같은 자리에서 끊는다(두 번 멈춰도 무해하다).
+             */
+            audio.pause();
+            // 구간 시작점으로 되돌린다(0이 아니다 — 업로더가 고른 지점이다). 위치는 pause로
+            // 지워지지 않아서, 다시 올라온 카드에서 노래가 구간 중간부터 시작한다
+            audio.currentTime = musicStart;
+          }
           emitWatch();
         }
       },
       { threshold: 0.5 }
     );
-    observer.observe(video);
+    // 영상이 아니라 카드를 본다 — 이유는 cardRef 선언부의 주석에 있다
+    observer.observe(cardRef.current ?? video);
 
     /*
      * 탭을 숨기거나 영상을 정지하면 시계만 멈춘다 — 보내지는 않는다 (가이드 3-4절 ③).
@@ -428,6 +521,24 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     video.addEventListener("pause", syncAudio);
     document.addEventListener("visibilitychange", syncAudio);
 
+    /*
+     * 재생할 수 있게 된 순간 다시 시도한다 — **간헐적으로 재생이 안 되던 것의 대책이다.**
+     *
+     * preload="metadata"라 카드가 올라온 시점에는 아직 재생할 데이터가 없을 수 있다. 그 사이
+     * 스크롤이 흔들려 관찰자가 pause를 한 번 부르면 진행 중이던 play()가 취소되고(AbortError),
+     * 이후 다시 시도할 계기가 없어 그 카드만 첫 프레임에서 멈춘 채 남았다. 파일이 큰
+     * 영상(가로로 찍어 해상도가 높은 것)에서 데이터가 늦게 와 더 자주 걸린다.
+     *
+     * 조건을 셋 다 본다 — 아직 보이는 카드이고(안 보이면 소리만 겹친다), 사용자가 직접
+     * 멈춘 것이 아니고(탭으로 정지해 둔 것을 되살리면 안 된다), 지금 멈춰 있을 때만.
+     */
+    const resumeIfStalled = () => {
+      if (!visibleRef.current || userPausedRef.current || !video.paused) return;
+      video.play().catch(() => {});
+    };
+    video.addEventListener("canplay", resumeIfStalled);
+    video.addEventListener("loadeddata", resumeIfStalled);
+
     // 관찰자를 끊는 것만으로는 '벗어남' 콜백이 오지 않는다 — 보던 중에 다른 화면으로
     // 이동하면 마지막 시청 기록이 통째로 사라지므로 여기서 직접 남긴다
     return () => {
@@ -440,6 +551,8 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
       video.removeEventListener("play", syncAudio);
       video.removeEventListener("pause", syncAudio);
       document.removeEventListener("visibilitychange", syncAudio);
+      video.removeEventListener("canplay", resumeIfStalled);
+      video.removeEventListener("loadeddata", resumeIfStalled);
       // 카드가 사라질 때 노래가 계속 흐르지 않게 직접 멈춘다. 요소가 DOM에서 빠지면 대개
       // 함께 멈추지만, 리액트가 요소를 재사용하는 경우(같은 위치의 다른 카드)에는 남는다
       if (audio) audio.pause();
@@ -448,7 +561,7 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     };
     // musicStart도 id·durationSec과 같이 카드가 사는 동안 바뀌지 않는 값이라
     // 의존성에 넣어도 관찰자가 다시 만들어지지 않는다
-  }, [id, durationSec, index, musicStart, trimStart, onEvent, onEnter, pauseClock, syncClock, syncAudio]);
+  }, [id, durationSec, index, musicStart, trimStart, onEvent, onEnter, onAutoplayBlocked, pauseClock, syncClock, syncAudio]);
 
   /*
    * 탭 한 번에 정지/재생 + 가운데 표시.
@@ -471,6 +584,8 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
     const v = videoRef.current;
     // play()는 비동기라 그 결과를 기다리면 표시가 늦는다. 누른 순간의 의도로 정한다
     const pausing = !v.paused;
+    // 직접 멈춘 것인지 기록한다 — 자동 복구(resumeIfStalled)가 이 정지를 되살리지 않게
+    userPausedRef.current = pausing;
     if (pausing) v.pause();
     else v.play().catch(() => {});
 
@@ -648,7 +763,7 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
   };
 
   return (
-    <div className="sf-card" onClick={handleTap}>
+    <div className="sf-card" ref={cardRef} onClick={handleTap}>
       <div className="sf-fallback" style={{ background: bgOf(data.id) }}>🐾</div>
       {/*
         loop으로 되돌렸다 (가이드 3-3절). 머무는 동안 시청 시간이 영상 길이를 넘어 쌓이고,
@@ -754,31 +869,8 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
           {tapHint.paused ? <PauseMark /> : <PlayMark />}
         </div>
       )}
-      <UploadButton />
-      {/*
-        같은 자리에 두 역할이 들어간다 — 내 영상이면 삭제(휴지통), 남의 영상이면 신고(햄버거).
-        자기 영상을 신고할 일은 없고(서버도 막을 대상이다) 남의 영상을 지울 수는 없으니
-        둘을 나란히 두면 항상 하나는 쓸모없는 버튼이 된다.
-
-        stopPropagation이 필요한 이유는 sf-actions와 같다 — 없으면 카드의 onClick(handleTap)까지
-        올라가 영상이 함께 정지된다.
-      */}
-      <button
-        type="button"
-        className="sf-more"
-        aria-label={isMine ? "이 영상 삭제하기" : "이 영상 신고하기"}
-        aria-expanded={isMine ? deleteOpen : reportOpen}
-        onClick={(e) => {
-          e.stopPropagation();
-          // 댓글 시트를 함께 닫는다 — 이 버튼은 댓글 시트(하단 65%)에 가리지 않는 위쪽에 있어서
-          // 댓글을 열어둔 채로 누를 수 있고, 그러면 같은 z-index의 시트 둘이 겹쳐 보인다
-          setCommentsOpen(false);
-          if (isMine) setDeleteOpen(true);
-          else setReportOpen(true);
-        }}
-      >
-        {isMine ? <Trash /> : <Hamburger />}
-      </button>
+      {/* 만들기(+)·더보기 버튼은 카드가 아니라 피드 위 .sf-tools 줄에 있다 (2026-08-26) —
+          영상을 가리지 않고, 카드마다 한 벌씩 그리지 않아도 된다 */}
 
       <div className="sf-info">
         <div className="sf-user">
@@ -819,14 +911,14 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
 
       {/* shortId를 넘기지 않는다 — 지금은 서버로 보내지 않아 쓸 곳이 없다.
           접수 API가 생기면 shortId={data.id}를 다시 넘긴다 */}
-      {reportOpen && <ReportSheet onClose={() => setReportOpen(false)} />}
+      {reportOpen && <ReportSheet onClose={onMoreClose} />}
 
       {deleteOpen && (
         <DeleteSheet
           shortId={data.id}
-          onClose={() => setDeleteOpen(false)}
+          onClose={onMoreClose}
           // 지운 카드는 부모가 목록에서 빼므로 이 컴포넌트가 곧 언마운트된다 —
-          // setDeleteOpen(false)를 따로 부르지 않아도 된다
+          // onMoreClose를 따로 부르지 않아도 된다
           onDeleted={onRemove}
         />
       )}
@@ -863,7 +955,12 @@ function ShortCard({ data, index, muted, onToggleMute, onChange, onEvent, onEnte
 }
 
 /* ───────── 영상 사이에 끼는 광고 카드 ───────── */
-function AdCard({ ad }) {
+/**
+ * @param onShown 이 광고가 화면에 들어왔을 때 부른다. 헤더 아래 더보기 버튼은 "지금 보는
+ *   영상"을 대상으로 삼는데, 광고를 보는 동안에는 대상이 없다 — 알려주지 않으면 직전
+ *   영상이 대상으로 남아 광고 화면에서 엉뚱한 영상을 신고·삭제하게 된다
+ */
+function AdCard({ ad, onShown }) {
   /*
    * 이미지가 깨지면 카드를 통째로 내린다 (AdBanner와 같은 판단).
    * 영상 사이에 깨진 이미지 한 장이 끼면 광고가 아니라 피드가 고장 난 것처럼 보인다.
@@ -872,12 +969,30 @@ function AdCard({ ad }) {
    * 스크롤이 튀지 않는다.
    */
   const [broken, setBroken] = useState(false);
+  const rootRef = useRef(null);
+
+  // 노출 판정 기준(50%)은 영상 카드의 관찰자와 같게 둔다 — 다르면 영상↔광고 경계에서
+  // 둘 다 "보이는 중"이거나 둘 다 아닌 순간이 생긴다
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || !onShown) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) onShown();
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onShown]);
+
+  // 훅보다 뒤에 둔다 — 조건부로 훅을 건너뛰면 훅 순서가 깨진다
   if (broken) return null;
 
   return (
     /* 높이·스냅·overflow는 .sf-card를 그대로 쓴다 — 영상과 같은 "한 장 = 한 화면"이어야
        스크롤 스냅이 광고 카드에서만 어긋나지 않는다 */
-    <div className="sf-card sf-ad">
+    <div className="sf-card sf-ad" ref={rootRef}>
       {/*
         카드 전체가 광고 링크다. 실제 앱들의 전면 광고와 같은 동작이고, 아래 '자세히 보기'는
         그것을 눈에 보이게 하는 표시다 — 넘기는 동작(스와이프)에서는 click이 나지 않으므로
@@ -905,9 +1020,8 @@ function AdCard({ ad }) {
       <div className="sf-scrim" />
       {/* 광고임을 알리는 표시 (표시광고법 권장) */}
       <span className="sf-ad-badge">AD</span>
-      {/* 광고 카드에서도 만들기 버튼은 남는다 — 카드마다 하나씩 있어야 "항상 떠 있는" 것처럼
-          보이는데, 여기서만 빠지면 넘길 때 버튼이 사라졌다 나타난다 (UploadButton 주석) */}
-      <UploadButton />
+      {/* 만들기 버튼은 여기 없다 — 피드 위 .sf-tools 줄에 한 벌만 있어서 광고 카드로 넘겨도
+          그대로 떠 있다. 전에는 카드마다 그려야 "항상 떠 있는" 것처럼 보였다 (2026-08-26) */}
       <div className="sf-ad-info">
         <div className="sf-ad-title">{ad.title}</div>
         <a className="sf-ad-cta" href={ad.linkUrl} target="_blank" rel="noopener noreferrer sponsored">
@@ -925,7 +1039,18 @@ function AdCard({ ad }) {
 export default function ShortsFeed() {
   const { user } = useAuth();
   const location = useLocation();
-  const [muted, setMuted] = useState(true); // 모바일 자동재생은 muted 필수
+  /*
+   * 소리가 **들리는** 상태로 시작한다 (2026-08-26 사용자 요청. 전에는 true = 음소거였다).
+   *
+   * 브라우저 자동재생 정책은 음소거가 아닌 재생에 사용자 조작을 요구하므로 이 값만 뒤집으면
+   * 첫 영상이 멈춰 있을 수 있다. 그래서 카드의 관찰자가 거부를 받으면 음소거로 내려 재생을
+   * 살린다(onAutoplayBlocked — 그쪽 주석에 자세히). 즉 "되는 곳에서는 소리부터, 안 되는
+   * 곳에서는 예전처럼 음소거"가 된다.
+   *
+   * 실제로는 앱바의 숏츠 탭을 눌러 들어오는 경로가 대부분인데, 그 클릭이 사용자 조작으로
+   * 남아 있어 소리 있는 자동재생이 통과한다. 거부되는 쪽은 주소로 바로 열거나 새로고침한 경우다.
+   */
+  const [muted, setMuted] = useState(false);
   const [shorts, setShorts] = useState(null); // null = 아직 불러오는 중
   const [error, setError] = useState("");
   // 서버가 "더 있다"고 알려준 값. 다음 페이지를 받을지 판단한다
@@ -937,6 +1062,18 @@ export default function ShortsFeed() {
    * 목록이 달라질 일이 없다. 비어 있으면(계약이 없거나 전부 종료) 광고 카드가 아예 끼지 않는다
    */
   const [adRotation, setAdRotation] = useState([]);
+  /*
+   * 지금 화면에 있는 영상의 순번(shorts 배열 기준). 카드가 화면에 들어올 때 알려준다
+   * (handleCardEnter). 헤더 아래 더보기 버튼이 이 영상을 대상으로 삼는다.
+   *
+   * 광고 카드는 이 값을 갱신하지 않는다(관찰자가 없다) — 광고를 보는 동안에는 직전
+   * 영상이 대상으로 남는다. 그래서 광고 카드에서는 더보기 버튼을 감춘다(아래 adShowing).
+   */
+  const [activeIndex, setActiveIndex] = useState(0);
+  // 더보기(삭제·신고) 시트가 열려 있는지. 어느 영상인지는 activeIndex가 정한다
+  const [moreOpen, setMoreOpen] = useState(false);
+  // 지금 화면이 광고 카드인지 (AdCard가 알려준다). 그동안은 더보기 버튼을 감춘다
+  const [adShowing, setAdShowing] = useState(false);
 
   /*
    * 다음 페이지 요청에 필요한 값들을 ref로도 들고 있는 이유:
@@ -944,6 +1081,21 @@ export default function ShortsFeed() {
    * 관찰자가 다시 만들어져 재생이 끊긴다. 그래서 loadMore는 useCallback([])으로 고정하고
    * 최신 값은 ref로 읽는다 (onEvent를 loggedInRef로 처리한 것과 같은 이유).
    */
+  /*
+   * 단일 영상 모드 — `/shorts?v={id}&only=1`.
+   *
+   * 마이페이지 "내 게시물"에서 들어오는 경로다 (2026-08-26 사용자 요청): 고른 영상 하나만
+   * 보여주고 스크롤로 다른 영상으로 넘어가지 않는다. 공유 링크(`?v=` 단독)는 지금처럼
+   * 그 영상을 맨 앞에 두고 **아래로 평소 피드가 이어진다** — 둘을 이 플래그로 가른다.
+   *
+   * 넘길 카드가 없게 만드는 방법은 목록을 아예 받지 않는 것이다. 스크롤 스냅·선반입은
+   * 목록 길이만 보고 동작하므로 항목이 하나면 따로 막을 것이 없다.
+   *
+   * window.location.search를 읽는 이유는 loadPinned와 같다 — 처음 한 번만 정해지는 값이라
+   * 반응형 의존성(location)으로 만들지 않는다.
+   */
+  const singleRef = useRef(new URLSearchParams(window.location.search).get("only") === "1");
+
   const shortsRef = useRef([]);
   const hasNextRef = useRef(false);
   // 요청이 겹치지 않게 하는 잠금. 끝부분 카드 여러 장이 연달아 화면에 들어오면
@@ -1023,6 +1175,10 @@ export default function ShortsFeed() {
   }, [flushEvents]);
 
   useEffect(() => {
+    // 단일 영상 모드에서는 영상이 한 장뿐이라 광고 자리(ADS_EVERY=5)가 아예 생기지 않는다.
+    // 쓰지 않을 목록을 받아올 이유가 없다
+    if (singleRef.current) return;
+
     getAds(AD_PLACEMENT)
       .then((ads) => setAdRotation(shuffled(ads)))
       // 광고는 부가 요소다. 못 받아도 피드는 그대로 보여준다 (AdBanner와 같은 판단) —
@@ -1080,6 +1236,21 @@ export default function ShortsFeed() {
 
     (async () => {
       const pinned = await loadPinned();
+      if (cancelled) return;
+
+      /*
+       * 단일 영상 모드는 여기서 끝난다 — 피드 목록(getShortsFeed)을 받지 않는다.
+       * 넘길 카드가 없으니 hasNext도 false로 남아 선반입(loadMore)도 돌지 않는다.
+       *
+       * 덤으로 첫 재생이 빨라진다: 아래 평소 경로는 목록까지 기다린 뒤에야 그리기 때문에
+       * 영상 하나만 필요한 이 경로에서는 그 대기가 그대로 낭비였다.
+       */
+      if (singleRef.current) {
+        if (pinned) setShorts([pinned]);
+        else setError("영상을 찾을 수 없습니다. 삭제되었을 수 있습니다.");
+        return;
+      }
+
       try {
         // 첫 페이지. 목록은 이미 점수 순으로 정렬돼 있어 그대로 그리면 된다
         const feed = await getShortsFeed();
@@ -1144,11 +1315,45 @@ export default function ShortsFeed() {
    */
   const handleCardEnter = useCallback(
     (index) => {
+      /*
+       * 지금 보고 있는 카드를 기억해 둔다 — 헤더 아래 더보기 버튼(.sf-tools)이 어느 영상을
+       * 대상으로 삼을지 여기서 정해진다. 버튼이 카드 안에 있을 때는 필요 없던 값이다.
+       *
+       * setActiveIndex는 useState가 준 함수라 정체성이 변하지 않으므로 이 useCallback의
+       * 의존성에 넣지 않아도 되고, 넣지 않아야 한다 — 이 함수는 카드의
+       * IntersectionObserver 의존성이라 정체성이 바뀌면 관찰자가 다시 만들어져 재생이 끊긴다
+       * (loadMore를 useCallback([])으로 고정한 것과 같은 이유).
+       */
+      setActiveIndex(index);
+      // 영상이 올라왔으니 광고 화면은 끝났다 (AdCard가 켠 값을 여기서 끈다)
+      setAdShowing(false);
+      /*
+       * 다른 카드로 넘어갔으면 더보기 시트를 닫는다.
+       *
+       * 시트 상태가 카드가 아니라 피드에 있어서(버튼이 카드 밖으로 나간 결과) 카드가
+       * 바뀌어도 저절로 사라지지 않는다. 닫지 않으면 열어둔 채 넘긴 시트가 **다음 영상의**
+       * 시트로 그대로 이어져, 신고하려던 영상이 아닌 것을 신고하게 된다
+       */
+      setMoreOpen(false);
+
       const total = shortsRef.current.length;
       if (total > 0 && index >= total - PREFETCH_BEFORE_END) loadMore();
     },
     [loadMore]
   );
+
+  /* 정체성을 고정한다 — handleAdShown은 AdCard의 IntersectionObserver 의존성이라
+     매 렌더 새 함수가 가면 관찰자가 계속 다시 만들어진다 (handleCardEnter와 같은 이유) */
+  /* 소리 있는 자동재생이 거부됐을 때 음소거로 내린다. 카드의 관찰자 의존성이므로
+     정체성을 고정한다 (handleCardEnter와 같은 이유 — 바뀌면 관찰자가 다시 만들어진다) */
+  const handleAutoplayBlocked = useCallback(() => setMuted(true), []);
+
+  const handleAdShown = useCallback(() => {
+    setAdShowing(true);
+    // 광고로 넘어갈 때도 더보기 시트를 닫는다 (handleCardEnter와 같은 이유)
+    setMoreOpen(false);
+  }, []);
+  const closeMore = useCallback(() => setMoreOpen(false), []);
 
   // 좋아요·댓글 수가 바뀐 항목만 갈아끼운다 — 피드를 다시 불러오면 재생이 끊기기 때문
   const updateShort = (id, patch) =>
@@ -1161,28 +1366,91 @@ export default function ShortsFeed() {
    * 마지막 한 장이었다면 목록이 비어 "아직 올라온 숏츠가 없습니다" 안내로 바뀐다.
    * 그 화면에도 업로드 버튼이 있어 막다른 길은 아니다.
    */
-  const removeShort = (id) => setShorts((prev) => prev.filter((s) => s.id !== id));
+  const removeShort = (id) => {
+    setShorts((prev) => prev.filter((s) => s.id !== id));
+    /* 지운 카드가 빠지면 그 자리(activeIndex)에 다음 영상이 들어온다. 시트 상태가 피드에
+       있으므로 내리지 않으면 그 다음 영상의 삭제 시트가 곧바로 열린 채로 나타난다 */
+    setMoreOpen(false);
+  };
+
+  /* 더보기 시트의 대상 — 지금 보고 있는 영상. 아이콘이 갈리는 기준은 카드의 isMine과 같다
+     (memberName이 아니라 memberId로 비교 — 동명이인이면 남의 영상에 휴지통이 뜬다) */
+  const activeShort = shorts?.[activeIndex] ?? null;
+  const activeIsMine =
+    user != null && activeShort?.memberId != null && user.id === activeShort.memberId;
+  // 광고를 보는 중이거나 대상 영상이 없으면(로딩·빈 목록) 더보기 버튼 자체를 감춘다
+  const showMore = activeShort != null && !adShowing;
+
+  /*
+   * 제목 헤더 + 버튼 줄. 로딩·빈 목록 화면에도 그대로 나와야 하므로 두 분기가 함께 쓴다 —
+   * 목록을 못 받았을 때 헤더까지 사라지면 화면이 통째로 빈 검은 판이 된다.
+   */
+  const chrome = (
+    <>
+      {/* 화면 제목 — 댕맵·오픈채팅·마이페이지와 같은 형식(.w-top)을 검은 화면용으로 옮긴 것 */}
+      <header className="sf-top">
+        <h1>숏츠</h1>
+      </header>
+
+      {/* 헤더와 영상 사이 검은 자리에 놓는 버튼 줄 (2026-08-26 사용자 요청) —
+          전에는 둘 다 카드 안에서 영상 위에 얹혀 있었다 */}
+      <div className="sf-tools">
+        {/* 단일 영상 모드에서만 — 이 화면은 마이페이지 "내 게시물"에서 들어오는데 피드에는
+            뒤로 가는 길이 없어서 하단 앱바로 나가야 했다. 그리드로 바로 돌려보낸다.
+            navigate(-1)이 아니라 주소를 못박은 이유: 링크를 직접 열었거나 화면 안에서
+            몇 번 오간 뒤에는 -1이 그리드가 아닌 곳으로 갈 수 있다 */}
+        {singleRef.current && (
+          <Link
+            className="sf-back"
+            to="/mypage/posts"
+            /* 그리드가 정렬·스크롤을 되살릴 신호. 이 표시가 있을 때만 되살린다 —
+               홈에서 마이페이지로 처음 들어온 경우에는 그대로 맨 위에서 시작해야 한다
+               (MyPagePosts의 RESTORE_KEY 주석) */
+            state={{ restoreView: true }}
+            aria-label="내 게시물로 돌아가기"
+          >
+            ←
+          </Link>
+        )}
+        <UploadButton />
+        {showMore && (
+          <button
+            type="button"
+            className="sf-more"
+            aria-label={activeIsMine ? "이 영상 삭제하기" : "이 영상 신고하기"}
+            aria-expanded={moreOpen}
+            onClick={() => setMoreOpen(true)}
+          >
+            {activeIsMine ? <Trash /> : <Hamburger />}
+          </button>
+        )}
+      </div>
+    </>
+  );
 
   // 상태 메시지도 같은 9:16 박스 안에 넣는다 — 로딩→목록으로 바뀔 때 화면 크기가 튀지 않게
   if (error || shorts === null || shorts.length === 0) {
     return (
-      <div className="sf-feed sf-feed-message">
-        {/* 목록이 비어 있어도 업로드 화면으로는 갈 수 있어야 한다 */}
-        <UploadButton />
-        <p>
-          {error
-            ? error
-            : shorts === null
-              ? "불러오는 중…"
-              : "아직 올라온 숏츠가 없습니다. 오른쪽 위 + 로 첫 영상을 올려보세요."}
-        </p>
-      </div>
+      <>
+        {chrome}
+        <div className="sf-feed sf-feed-message">
+          <p>
+            {error
+              ? error
+              : shorts === null
+                ? "불러오는 중…"
+                : "아직 올라온 숏츠가 없습니다. 위쪽 + 로 첫 영상을 올려보세요."}
+          </p>
+        </div>
+      </>
     );
   }
 
   // sf-feed가 9:16 세로 박스 + 스크롤 컨테이너를 겸한다 (ShortsFeed.css 참고)
   return (
-    <div className="sf-feed">
+    <>
+      {chrome}
+      <div className="sf-feed">
       {shorts.flatMap((s, index) => {
         const card = (
           <ShortCard
@@ -1197,6 +1465,11 @@ export default function ShortsFeed() {
             onEvent={handleEvent}
             onEnter={handleCardEnter}
             onRemove={removeShort}
+            /* 시트는 카드에 남지만 여는 판단은 여기서 한다 — 버튼이 .sf-tools로 나갔다.
+               지금 보고 있는 카드에만 열린다 */
+            moreOpen={moreOpen && index === activeIndex}
+            onMoreClose={closeMore}
+            onAutoplayBlocked={handleAutoplayBlocked}
           />
         );
         // 영상 ADS_EVERY개를 채운 자리마다 광고 한 장. 광고가 없으면 영상만 이어진다
@@ -1204,8 +1477,16 @@ export default function ShortsFeed() {
 
         // 몇 번째 광고 자리인지 (0,1,2…). 섞어둔 순서를 이 번호로 순회한다
         const slot = (index + 1) / ADS_EVERY - 1;
-        return [card, <AdCard key={`ad-${slot}`} ad={adRotation[slot % adRotation.length]} />];
+        return [
+          card,
+          <AdCard
+            key={`ad-${slot}`}
+            ad={adRotation[slot % adRotation.length]}
+            onShown={handleAdShown}
+          />,
+        ];
       })}
-    </div>
+      </div>
+    </>
   );
 }

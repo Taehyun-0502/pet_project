@@ -178,12 +178,53 @@
    숏츠는 풀스크린 세로 영상이라 앱바가 자막(.sf-info)·좋아요 버튼(.sf-actions)·진행 바를
    덮는다. 그 요소들을 하나씩 밀어 올리는 대신 **피드 자체를 앱바 높이만큼 줄여** 아래에
    자리를 만든다 — 카드가 .sf-feed 높이의 100%라 비율(9:16)이 그대로 유지된다.
-   ShortsFeed.css는 타 슬라이스 파일이라 고치지 않고 여기서 덮어쓴다 */
+   ShortsFeed.css는 타 슬라이스 파일이라 고치지 않고 여기서 덮어쓴다.
+
+   폭 기준 (2026-08-26 사용자 요청 — 숏츠 폭을 앱바에 맞춤):
+   전에는 남은 **높이**에서 9:16을 역산해 폭을 정했다(--sf-avail * 9/16). 그래서 높이
+   1080px 창에서 피드가 607px이 되어 앱바(360px)보다 넓었다. 이제 폭을 먼저 앱바와
+   같게 고정하고(무조건), 높이를 그 폭에서 계산한다 — 기준이 높이에서 폭으로 뒤집혔다.
+   이 규칙은 `.sf-feed`(ShortsFeed.css)보다 특이도가 높아 그쪽 width/height를 덮어쓴다 */
+/* 폭·높이 토큰은 **컨테이너**에 둔다 — 피드(.sf-feed)만 쓰는 값이 아니라 그 위의
+   헤더(.sf-top)·버튼 줄(.sf-tools)도 같은 폭에 맞춰야 하기 때문이다(ShortsFeed.css).
+   커스텀 속성은 아래로만 상속되므로 형제끼리 나눠 쓰려면 공통 조상에 있어야 한다 */
+#root:has(.appbar):has(.sf-feed) {
+  /* 앱바가 세로로 먹는 높이 */
+  --sf-bar-h: calc(70px + env(safe-area-inset-bottom, 0px));
+  /* 앱바와 같은 컬럼 폭(.appbar의 max-width) — 아래 480px 분기에서 함께 푼다 */
+  --sf-col-w: 360px;
+  /* .appbar의 `width:100%` + `max-width:360px`와 같은 결과.
+     앱바는 fixed라 그 100%가 뷰포트 기준이므로 100vw로 맞춘다 */
+  --sf-w: min(100vw, var(--sf-col-w));
+}
+
 #root:has(.appbar) .sf-feed {
-  --sf-avail: calc(100dvh - 70px - env(safe-area-inset-bottom, 0px));
-  width: min(100vw, calc(var(--sf-avail) * 9 / 16));
-  height: min(var(--sf-avail), calc(100vw * 16 / 9));
-  /* 원본은 margin:auto(상하 가운데)라 남는 공간이 위아래로 갈린다 — 가로만 가운데로 두어
-     남는 공간을 전부 아래(앱바 자리)에 몰아준다 */
-  margin: 0 auto;
+  /* 폭은 **무조건** 앱바와 같다. 화면 높이로 좁히지 않는다 */
+  width: var(--sf-w);
+  /* 높이는 그 폭에서 9:16으로 계산한다. 창이 낮아 그만큼이 안 나올 때만 남은 높이에서
+     멈춘다 — 폭을 줄이는 대신 영상이 조금 잘리는 쪽을 택한 것이다(cropFrame.css의
+     object-fit:cover). 폭이 앱바와 어긋나지 않는 것이 우선이다 */
+  height: min(calc(var(--sf-w) * 16 / 9), calc(100dvh - var(--sf-bar-h)));
+  /*
+   * 위의 제목 헤더(.sf-top)·버튼 줄(.sf-tools)까지 합쳐 화면을 넘으면 그만큼 **줄어든다.**
+   * ShortsFeed.css는 flex:none(줄어들지 못하게)인데, 헤더가 생기면서 그게 맞지 않게 됐다 —
+   * 위 height는 헤더 높이를 모르고(글자·safe-area에 따라 달라져 px로 못 적는다),
+   * 줄어들지 못하면 #root의 overflow:hidden에 영상 아래가 잘린다(폰에서 실제로 넘친다).
+   * 줄어드는 쪽을 택한 이유는 폭 기준과 같다 — 폭을 앱바에 맞추는 것이 우선이고,
+   * 모자란 높이는 영상이 조금 잘리는 것으로 감수한다
+   */
+  flex: 0 1 auto;
+  min-height: 0;
+  /* 남는 높이는 전부 위로 보내고(margin-top:auto) 아래는 앱바 높이만큼 비운다 —
+     그래야 피드 아래변이 앱바 위변에 딱 붙는다. 가로는 auto로 가운데 */
+  margin: auto auto var(--sf-bar-h);
+}
+
+/* 폰에서는 앱바가 폭 제한을 푸니(위 480px 분기) 피드도 함께 풀어야 좌우가 맞는다.
+   이 분기가 없으면 390px 폰에서 앱바는 전폭인데 피드만 360px로 남아 다시 어긋난다.
+   위 규칙과 특이도가 같고 뒤에 있어 이 값이 이긴다 */
+@media (max-width: 480px) {
+  #root:has(.appbar):has(.sf-feed) {
+    --sf-col-w: 100vw;
+  }
 }
