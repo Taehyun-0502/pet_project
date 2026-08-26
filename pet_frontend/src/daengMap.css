@@ -56,3 +56,10 @@
 .daengmap-view .walk-page {
   padding: 0;
 }
+
+/* 화면 제목("산책")은 숨긴다 (2026-08-26) — 이 레이아웃이 이미 "댕맵" 제목과
+   지도/산책 탭으로 어디인지 알려주므로 지도 바로 위 한 줄이 중복이다.
+   WalkPage.jsx는 타 슬라이스라 고치지 않고 여기서 가린다 (단독 진입 시에는 그대로 보인다) */
+.daengmap-view .walk-page__title {
+  display: none;
+}
