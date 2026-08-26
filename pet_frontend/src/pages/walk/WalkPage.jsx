@@ -25,10 +25,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import BottomSheet from '../../components/BottomSheet'
 import PetMap from '../../components/PetMap'
 import { formatDistanceLabel } from '../../common/geo'
-import { DEFAULT_CENTER } from '../../common/mapDefaults'
-import { useGeolocation } from '../../hooks/useGeolocation'
+import { useInitialLocation } from '../../hooks/useInitialLocation'
 import { useWalkTracker } from '../../hooks/useWalkTracker'
 // pet 도메인(멤버 소유) — 조회 함수만 가져다 쓴다. pet 도메인 파일 자체는 수정하지 않는다
 // (2026-08-12 사용자 요청 "강아지별 시작" — 아래 petApi.js JSDoc: 내 것만, 최근 등록순).
@@ -61,6 +61,12 @@ const RISK_META = {
 // DANGER 이상(위험/매우 위험)이면 발바닥 화상 주의 문구를 추가로 보여준다.
 const PAW_WARNING_LEVELS = new Set(['DANGER', 'SEVERE'])
 
+// GPS 안내 팝업의 진입 애니메이션 시간(ms) — BottomSheet의 enterMs로 전달한다.
+// WalkPage.css의 애니메이션 지속시간과 일치 필수. 이 시트는 닫힐 때 역재생 없이
+// 즉시 언마운트한다(exitMs 미사용) — MapPage 장소 목록 시트(340ms, 열림+닫힘 모두
+// 애니메이션)와는 다른 값·다른 동작이며, 리팩토링 전 그대로 유지한다.
+const START_SHEET_ENTER_MS = 240
+
 function formatTemp(value) {
   return Number.isFinite(value) ? `${value.toFixed(1)}℃` : '-'
 }
@@ -74,7 +80,6 @@ function formatElapsed(totalSeconds) {
 }
 
 function WalkPage() {
-  const { location, requestLocation } = useGeolocation()
   const tracker = useWalkTracker()
 
   const [weather, setWeather] = useState(null) // null = 아직 없음 또는 조회 실패 — 배너 비표시
@@ -132,46 +137,18 @@ function WalkPage() {
   const pendingRecordRef = useRef(null)
   const startedAtRef = useRef(null)
 
-  // 마운트 시 1회 — 위치 권한 결과와 3초 타이머를 race시킨다 (MapPage.jsx와 동일 패턴,
-  // 상세 사유는 파일 상단 주석·MapPage.jsx의 원본 주석 참고).
-  useEffect(() => {
-    let cancelled = false
-    let settled = false
-    let timedOut = false
-
-    const timer = setTimeout(() => {
-      if (cancelled || settled) return
-      settled = true
-      timedOut = true
-      fetchWeather(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng)
-    }, 3000)
-
-    requestLocation().then((loc) => {
-      if (cancelled) return
-      clearTimeout(timer)
-
-      if (timedOut) {
-        // 이미 기본 좌표로 날씨를 조회한 상태 — 위치가 뒤늦게 "허용"으로 확정된
-        // 경우에만 그 좌표로 재조회하고 지도도 내 위치 기준으로 옮긴다.
-        if (loc) {
-          setFitBoundsKey((key) => key + 1)
-          fetchWeather(loc.lat, loc.lng)
-        }
-        return
-      }
-
-      if (settled) return
-      settled = true
-      const center = loc ?? DEFAULT_CENTER
-      if (loc) setFitBoundsKey((key) => key + 1)
+  // 위치 권한 3초 race는 hooks/useInitialLocation 공용 훅으로 승격됨 (2026-08-26
+  // QA L-3 리팩토링 — MapPage.jsx·NearbyPlaces.jsx와 동일 훅, 버그 실증 등 상세
+  // 사유는 그 훅의 JSDoc 참고). 이 페이지만의 차이: 실제 좌표(`granted`)일
+  // 때만 지도를 그 위치로 다시 맞추고(fitBoundsKey 증가), 기본 좌표 폴백일
+  // 때는 날씨만 조회한다(기존 동작 그대로 — "if (loc) setFitBoundsKey(...)" 를
+  // meta.granted로 표현).
+  const { location, requestLocation } = useInitialLocation({
+    onResolve: (center, { granted }) => {
+      if (granted) setFitBoundsKey((key) => key + 1)
       fetchWeather(center.lat, center.lng)
-    })
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [requestLocation, fetchWeather])
+    },
+  })
 
   // "내 위치로 이동" 버튼 — PetMap이 currentLocation 없을 때만 호출한다.
   const handleLocateClick = useCallback(() => {
@@ -187,7 +164,8 @@ function WalkPage() {
   }, [tracker.path.length, tracker.status])
 
   // 지도에 보여줄 현재 위치 — 추적 중이면 방금 채택된 최신 경로 지점, 아니면
-  // useGeolocation의 위치(권한 미획득/거부면 null → PetMap이 현위치 마커를 숨김).
+  // useInitialLocation이 통과시키는 위치(권한 미획득/거부면 null → PetMap이
+  // 현위치 마커를 숨김).
   const latestTrackedPoint =
     tracker.path.length > 0 ? tracker.path[tracker.path.length - 1] : null
   const mapCurrentLocation = latestTrackedPoint ?? location
@@ -233,54 +211,11 @@ function WalkPage() {
     beginTracking(selectedPet)
   }
 
-  // GPS 안내 팝업 접근성 — MapPage/PetMap의 기존 바텀시트 패턴 준용: 열릴 때
-  // 시트로 포커스 이동 + Tab 트랩(시트 안 순환, 버튼이 2개라 PetMap 상세 시트와
-  // 동일 원칙 적용) + ESC로 닫기 + 배경 스크롤 잠금, 닫힐 때 열기 전 포커스로 복귀.
-  const startSheetRef = useRef(null)
-  const startPreviousFocusRef = useRef(null)
-
-  useEffect(() => {
-    if (!startConfirmOpen) return
-
-    startPreviousFocusRef.current = document.activeElement
-    startSheetRef.current?.focus()
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        closeStartConfirm()
-        return
-      }
-      if (event.key !== 'Tab') return
-
-      const panel = startSheetRef.current
-      if (!panel) return
-      const focusable = panel.querySelectorAll('button:not([disabled])')
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-      startPreviousFocusRef.current?.focus?.()
-    }
-  }, [startConfirmOpen, closeStartConfirm])
-
-  const handleStartBackdropClick = (event) => {
-    if (event.target === event.currentTarget) closeStartConfirm()
-  }
+  // GPS 안내 팝업의 백드롭/패널/접근성(포커스 이동+복귀·Tab 트랩·ESC 닫기·배경
+  // 스크롤 잠금)은 이제 공용 <BottomSheet>가 담당한다(2026-08-26 QA L-3
+  // 리팩토링 — MapPage/PetMap과 동일한 바텀시트 패턴으로 개별 useEffect 복붙을
+  // 승격). 이 시트는 진입 애니메이션만 있고(240ms) 닫힐 때는 즉시 언마운트한다
+  // (역재생 없음 — 기존 동작 그대로, START_SHEET_ENTER_MS 참고).
 
   const handleStop = () => {
     const endedAt = new Date().toISOString()
@@ -523,48 +458,41 @@ function WalkPage() {
             호출되고, 취소/백드롭/ESC는 아무 것도 시작하지 않는다. 기존에 하단에
             상시 노출하던 중단 고지 문구는 중복을 피해 이 팝업 안으로 옮겼다. */}
         {startConfirmOpen && (
-          <div
-            className="walk-page__sheet-backdrop"
-            onMouseDown={handleStartBackdropClick}
+          <BottomSheet
+            onClose={closeStartConfirm}
+            ariaLabelledBy="walk-start-confirm-title"
+            backdropClassName="walk-page__sheet-backdrop"
+            panelClassName="walk-page__sheet"
+            enterMs={START_SHEET_ENTER_MS}
           >
-            <div
-              ref={startSheetRef}
-              className="walk-page__sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="walk-start-confirm-title"
-              tabIndex={-1}
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <span className="walk-page__sheet-handle" aria-hidden="true" />
-              <h2 id="walk-start-confirm-title" className="walk-page__sheet-title">
-                {selectedPet
-                  ? `${selectedPet.name}${withWaGwa(selectedPet.name)} 산책을 시작할까요?`
-                  : '산책을 시작할까요?'}
-              </h2>
-              <ul className="walk-page__sheet-list">
-                <li>산책 경로·거리 기록을 위해 GPS 위치 정보를 사용합니다(브라우저 위치 권한 허용 필요).</li>
-                <li>화면이 꺼지거나 다른 앱으로 이동하면 기록이 일시 중단될 수 있어요.</li>
-                <li>위치 정보는 산책 기록에만 사용됩니다.</li>
-              </ul>
-              <div className="walk-page__sheet-actions">
-                <button
-                  type="button"
-                  className="walk-page__sheet-cancel-btn"
-                  onClick={closeStartConfirm}
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  className="walk-page__sheet-confirm-btn"
-                  onClick={handleConfirmStart}
-                >
-                  시작하기
-                </button>
-              </div>
+            <span className="walk-page__sheet-handle" aria-hidden="true" />
+            <h2 id="walk-start-confirm-title" className="walk-page__sheet-title">
+              {selectedPet
+                ? `${selectedPet.name}${withWaGwa(selectedPet.name)} 산책을 시작할까요?`
+                : '산책을 시작할까요?'}
+            </h2>
+            <ul className="walk-page__sheet-list">
+              <li>산책 경로·거리 기록을 위해 GPS 위치 정보를 사용합니다(브라우저 위치 권한 허용 필요).</li>
+              <li>화면이 꺼지거나 다른 앱으로 이동하면 기록이 일시 중단될 수 있어요.</li>
+              <li>위치 정보는 산책 기록에만 사용됩니다.</li>
+            </ul>
+            <div className="walk-page__sheet-actions">
+              <button
+                type="button"
+                className="walk-page__sheet-cancel-btn"
+                onClick={closeStartConfirm}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="walk-page__sheet-confirm-btn"
+                onClick={handleConfirmStart}
+              >
+                시작하기
+              </button>
             </div>
-          </div>
+          </BottomSheet>
         )}
       </div>
 

@@ -14,13 +14,12 @@ export function getWalkWeather(lat, lng) {
   return request(`/api/walk/weather?${params.toString()}`)
 }
 
-// body: { petId?, startedAt, endedAt, durationSeconds, distanceMeters,
+// body: { petId, startedAt, endedAt, durationSeconds, distanceMeters,
 //         path: [{ lat, lng }], airTemp?, asphaltTemp? }
-// petId는 "강아지별 시작"(2026-08-12 사용자 요청, WalkPage.jsx)으로 이제 사용자가
-// 리스트에서 고른 실제 강아지 id를 채워 보낸다 — 백엔드는 JWT 연동 전이라 아직
-// 소유권 검증은 하지 않지만(루트 CLAUDE.md "실연동 시 M-2"), 필드 자체는 nullable
-// 스키마 그대로 실값을 담아 전달한다. 값이 없으면(이론상 발생하지 않음)
-// JSON.stringify가 undefined 키를 생략해 기존 nullable 처리와 호환된다.
+// petId는 "강아지별 시작"(WalkPage.jsx)으로 사용자가 리스트에서 고른 강아지 id를
+// 항상 채워 보낸다. 백엔드는 petId 필수(@NotNull — 누락 시 400)이며 로그인 사용자의
+// 소유권을 검증한다 (타인 petId는 404 — 2026-08-26 QA H-1 반영). 저장 실패 시
+// WalkPage의 "다시 저장" 경로가 페이로드를 보존한다.
 export function saveWalkRecord(payload) {
   return request('/api/walk/records', {
     method: 'POST',

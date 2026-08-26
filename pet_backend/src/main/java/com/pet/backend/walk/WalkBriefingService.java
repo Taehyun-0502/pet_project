@@ -8,8 +8,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
  * 공식·새 기상청 호출 코드는 만들지 않는다.
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class WalkBriefingService {
 
@@ -36,10 +36,54 @@ public class WalkBriefingService {
     private final WalkBriefingRepository walkBriefingRepository;
     private final KmaClient kmaClient;
 
+    // walk.briefing.pet-id(선택, QA M-1) — 지정하면 그 반려동물의 최신 산책 기록을 판정
+    // 기준으로 삼는다. 비어 있으면 기존 동작(findFirstByOrderByStartedAtDesc — 전체 사용자
+    // 통틀어 최신 기록)을 그대로 유지한다. 이 기본 동작은 "단일 사용자 개인 비서 데모" 전제라
+    // 여러 사용자가 함께 기록을 남기는 환경에서는 반드시 이 값을 지정해야 한다(그러지 않으면
+    // 남이 남긴 산책 기록의 좌표·petId로 내 브리핑이 판정된다).
+    private final Long briefingPetId;
+
+    @Autowired
+    public WalkBriefingService(WalkRecordRepository walkRecordRepository,
+                                WalkBriefingRepository walkBriefingRepository,
+                                KmaClient kmaClient,
+                                @Value("${walk.briefing.pet-id:}") String briefingPetIdRaw) {
+        this.walkRecordRepository = walkRecordRepository;
+        this.walkBriefingRepository = walkBriefingRepository;
+        this.kmaClient = kmaClient;
+        this.briefingPetId = parsePetId(briefingPetIdRaw);
+    }
+
+    // 테스트 전용 — walk.briefing.pet-id 미설정(기존 동작) 케이스를 그대로 검증할 수 있도록
+    // 3-인자 생성자를 둔다(KmaClient·WalkWeatherService의 테스트 전용 생성자와 동일 패턴).
+    WalkBriefingService(WalkRecordRepository walkRecordRepository,
+                         WalkBriefingRepository walkBriefingRepository,
+                         KmaClient kmaClient) {
+        this(walkRecordRepository, walkBriefingRepository, kmaClient, null);
+    }
+
+    private static Long parsePetId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return Long.parseLong(raw.trim());
+    }
+
     @Transactional
     public void runBriefing() {
+        // 키 미설정(mcp/mcp-http 로컬 검증 등) 환경에서는 mock 날씨(기온 30℃ 고정)로 허위
+        // 판정을 DB에 남길 수 있다 — 실배포(EC2)의 최신 판정 행을 덮어쓰는 사고를 막기 위해
+        // 저장 자체를 건너뛴다(QA M-2). 스케줄러도 이 프로파일들에서 @Profile로 등록되지 않지만,
+        // 이 서비스가 다른 경로(수동 트리거 등)로 호출될 가능성에 대비한 이중 방어선이다.
+        if (!kmaClient.isServiceKeyConfigured()) {
+            log.warn("산책 브리핑: KMA_SERVICE_KEY가 설정되지 않아(mock 날씨) 이번 회차는 저장하지 않습니다.");
+            return;
+        }
+
         Instant now = Instant.now();
-        Optional<WalkRecord> lastRecord = walkRecordRepository.findFirstByOrderByStartedAtDesc();
+        Optional<WalkRecord> lastRecord = briefingPetId != null
+                ? walkRecordRepository.findFirstByPetIdOrderByStartedAtDesc(briefingPetId)
+                : walkRecordRepository.findFirstByOrderByStartedAtDesc();
 
         if (lastRecord.isEmpty()) {
             walkBriefingRepository.save(

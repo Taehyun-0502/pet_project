@@ -2,8 +2,8 @@
 /**
  * AI 강아지 관리 비서 — 브리핑 판정 결과 읽기 (발송 브리지용, 기획 v2 · 2026-08-24)
  *
- * 클로드 스케줄 세션(12:05 발송 브리지)이 실행한다. 역할은 "읽기"뿐이다:
- * 자바 스케줄러(12:00, pet_backend walk/WalkBriefingScheduler)가 walk_briefing 테이블에
+ * 클로드 스케줄 세션(18:00 발송 브리지)이 실행한다. 역할은 "읽기"뿐이다:
+ * 자바 스케줄러(17:55, pet_backend walk/WalkBriefingScheduler)가 walk_briefing 테이블에
  * 기록한 오늘의 판정을 조회해 JSON으로 출력한다. 기상청 호출·아스팔트 공식·게이트 판정은
  * 전부 자바에 있다 — 이 파일에 판정 로직을 추가하지 말 것 (복제 부채 금지, 기획 v2 원칙).
  *
@@ -19,7 +19,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const WALK_LINK = "http://localhost:5173/walk"; // 폰에서 열려면 배포/터널 필요 (기획 잔여 항목)
+// 배포 도메인 기준 (2026-08-26 QA M-4 반영 — 폰에서도 열림). 도메인 변경 시
+// pet_backend/.env의 WEB_BASE_URL을 따라간다 (미설정이면 배포 도메인 폴백).
+// 주의: .env 로드 실패가 main의 JSON 에러 처리를 타도록 여기서 loadEnv()를 호출하지 않는다.
+const DEPLOYED_WEB_URL = "https://dddang.duckdns.org";
+const walkLink = (env) => `${env.WEB_BASE_URL || DEPLOYED_WEB_URL}/walk`;
 
 function loadEnv() {
   const env = {};
@@ -99,7 +103,7 @@ async function main() {
       petName,
       checkedAt: b.checked_at,
     },
-    link: WALK_LINK,
+    link: walkLink(env),
     mcpDesktopRegistered,
   };
 }

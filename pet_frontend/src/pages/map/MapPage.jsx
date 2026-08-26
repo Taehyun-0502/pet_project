@@ -56,12 +56,12 @@
 // placeholder 자리로 변경). 지도를 옮길 때마다(프로그래밍적 이동 포함) 최신화된다.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import BottomSheet from '../../components/BottomSheet'
 import PetMap from '../../components/PetMap'
 import PlaceListItem from '../../components/PlaceListItem'
 import SearchBar from '../../components/SearchBar'
 import { distanceMeters } from '../../common/geo'
-import { DEFAULT_CENTER } from '../../common/mapDefaults'
-import { useGeolocation } from '../../hooks/useGeolocation'
+import { useInitialLocation } from '../../hooks/useInitialLocation'
 import { askChat, getNearbyPlaces } from './mapApi'
 import './MapPage.css'
 
@@ -81,8 +81,6 @@ const SHEET_MOTION_MS = 340
 const CHIP_FADE_MS = 260
 
 function MapPage() {
-  const { location, requestLocation } = useGeolocation()
-
   // nearbyPlaces: 진입 시(또는 "내 위치로 이동" 재시도 시) 조회한 "주변 전체" 마커
   // searchPlaces: AI 검색 응답으로 받은 마커 — 답변 시트가 떠 있는 동안만 노출
   const [nearbyPlaces, setNearbyPlaces] = useState([])
@@ -189,52 +187,17 @@ function MapPage() {
     setResearchLoading(false)
   }
 
-  // 마운트 시 1회 — 위치 권한 결과와 3초 타이머를 race시킨다.
-  // 버그 실증: 사용자가 브라우저 권한 팝업에 응답하지 않으면 getCurrentPosition의
-  // 두 콜백(성공/실패) 모두 영영 발화하지 않는다 — Geolocation의 `timeout` 옵션은
-  // "허용 후 위치 확인이 오래 걸릴 때"만 적용되고, 팝업 자체가 방치된 경우에는
-  // 동작하지 않는다. 그 결과 requestLocation()의 Promise가 끝내 resolve되지 않아
-  // 초기 GET /api/places 호출 자체가 발생하지 않았다(Network 탭 무요청으로 확인됨).
-  // 그래서 여기서는 위치 확정을 최대 3초만 기다리고, 그 안에 못 받으면 일단
-  // DEFAULT_CENTER로 초기 조회를 먼저 발사한 뒤, 이후 위치가 "허용"으로 늦게
-  // 도착하면 그 좌표로 1회 더 재조회한다(거부/미지원으로 늦게 확정되면 재조회 없음).
-  useEffect(() => {
-    let cancelled = false
-    let settled = false // 이미 "초기" 조회를 발사했는지 (3초 타이머 or 정상 응답 중 먼저 온 쪽)
-    let timedOut = false
-
-    const timer = setTimeout(() => {
-      if (cancelled || settled) return
-      settled = true
-      timedOut = true
-      loadNearbyPlaces(DEFAULT_CENTER.lat, DEFAULT_CENTER.lng, { fit: true })
-    }, 3000)
-
-    requestLocation().then((loc) => {
-      if (cancelled) return
-      clearTimeout(timer)
-
-      if (timedOut) {
-        // 이미 기본 좌표로 초기 조회를 한 상태 — 위치가 뒤늦게 "허용"으로 확정된 경우에만
-        // 그 좌표로 재조회하고 지도도 내 위치 기준으로 옮긴다(fit). loadNearbyPlaces
-        // 내부의 requestId 가드가 두 응답 중 오래된 쪽을 자동으로 폐기한다.
-        if (loc) loadNearbyPlaces(loc.lat, loc.lng, { fit: true })
-        return
-      }
-
-      if (settled) return // 안전장치 — 이론상 도달하지 않음
-      settled = true
-      // 허용이면 내 위치 기준, 거부/미지원이면 서울시청 기준으로 초기 뷰를 잡는다
-      // (2026-08-06 사용자 확정: "허용하지 않았을 때만 서울시청").
-      const center = loc ?? DEFAULT_CENTER
+  // 위치 권한 3초 race("응답이 늦으면 기본 좌표로 먼저 진행, 늦은 허용 시 1회
+  // 재조회")는 hooks/useInitialLocation 공용 훅으로 승격됨 (2026-08-26 QA L-3
+  // 리팩토링 — NearbyPlaces.jsx·WalkPage.jsx와 동일 훅, 버그 실증 등 상세 사유는
+  // 그 훅의 JSDoc 참고). 이 페이지는 어느 경우든(기본 좌표 폴백/즉시 허용/늦은
+  // 보정) 항상 `fit: true`로 재조회한다 — meta(granted/late)를 참고할 필요가
+  // 없다(기존 동작 그대로).
+  const { location, requestLocation } = useInitialLocation({
+    onResolve: (center) => {
       loadNearbyPlaces(center.lat, center.lng, { fit: true })
-    })
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-  }, [requestLocation, loadNearbyPlaces])
+    },
+  })
 
   // "내 위치로 이동" 버튼(PetMap)에서만 명시적으로 위치를 재요청하고, 성공하면 그 좌표로
   // 주변 장소를 재조회한다. 마운트 시 첫 조회는 위 이펙트가 이미 처리하므로 여기서는
@@ -277,53 +240,28 @@ function MapPage() {
     }
   }
 
-  // AI 답변 바텀시트 접근성(PetMap의 마커 상세 시트와 동일한 원칙 — 가벼운 버전):
-  // 열릴 때 시트로 포커스 이동 + ESC로 닫기 + 배경 스크롤 잠금, 닫힐 때 이전
-  // 포커스로 복귀. 이 시트는 닫기 버튼 하나뿐이라 Tab 트랩(순환)은 생략했다 —
-  // 포커스 가능한 요소가 1개뿐이면 트랩이 사실상 아무 효과가 없다.
-  const answerSheetRef = useRef(null)
-  const answerPreviousFocusRef = useRef(null)
-
-  useEffect(() => {
-    if (!answer) return
-
-    answerPreviousFocusRef.current = document.activeElement
-    answerSheetRef.current?.focus()
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setAnswer(null)
-    }
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-      answerPreviousFocusRef.current?.focus?.()
-    }
-  }, [answer])
-
-  const handleAnswerBackdropClick = (event) => {
-    if (event.target === event.currentTarget) setAnswer(null)
-  }
+  // AI 답변 바텀시트의 백드롭/패널/접근성(포커스 이동+복귀·ESC 닫기·배경 스크롤
+  // 잠금)은 이제 공용 <BottomSheet>가 담당한다(2026-08-26 QA L-3 리팩토링 —
+  // PetMap 마커 상세 시트와 같은 원칙으로 개별 useEffect 복붙을 승격). 이 시트는
+  // 모션이 없다(enterMs 미지정 — 기존과 동일하게 즉시 마운트/언마운트).
 
   // 장소 목록 바텀시트 (2026-08-07 사용자 요청): 지도 하단 "목록 보기" 버튼으로
   // 현재 지도에 표시 중인 장소(displayedPlaces — AI 검색 중이면 검색 결과, 아니면
   // 주변 조회 결과)를 리스트로 보여준다. 재검색/AI 검색으로 장소가 갈리면 열려 있는
   // 목록도 같이 갱신된다. 항목 클릭 동작(지도 이동·상세 연동)은 아직 미구현 —
-  // "목록 표시까지"가 이번 범위(사용자 결정). 접근성은 AI 답변 시트와 동일한
-  // 가벼운 버전(포커스 이동 + ESC + 스크롤 잠금 + 백드롭 클릭 닫기).
+  // "목록 표시까지"가 이번 범위(사용자 결정). 백드롭/패널/접근성은 BottomSheet가
+  // 담당(포커스 이동 + ESC + 스크롤 잠금 + 백드롭 클릭 닫기).
   const [listOpen, setListOpen] = useState(false)
   // 닫힘 요청 후 슬라이드다운 애니메이션이 재생되는 동안 true — 끝나면 언마운트
   const [listClosing, setListClosing] = useState(false)
-  const listSheetRef = useRef(null)
-  const listPreviousFocusRef = useRef(null)
 
   // 시트 열림/닫힘 모션 (2026-08-07 목업 승인): 열릴 때 하단 슬라이드업 + 배경 페이드인,
   // 닫힐 때 역재생. 즉시 언마운트하면 닫힘 애니메이션이 보이지 않으므로, 닫기는
   // listClosing을 켜서 애니메이션을 재생한 뒤 SHEET_MOTION_MS 후에 언마운트한다.
+  // (이 지연 언마운트 타이밍은 BottomSheet가 아니라 이 페이지가 계속 소유한다 —
+  // 아래 카테고리 토글 칩의 지도→시트 포털 이동이 같은 listOpen/listClosing 상태를
+  // 참고해야 하기 때문. BottomSheet의 `closing` prop은 여기서 만든 listClosing
+  // 값을 그대로 받아 퇴장 애니메이션 클래스만 입힌다.)
   const closeList = useCallback(() => {
     setListClosing(true)
   }, [])
@@ -352,31 +290,6 @@ function MapPage() {
     }
     setChipsInSheet(false)
   }, [listOpen, listClosing])
-
-  useEffect(() => {
-    if (!listOpen) return
-
-    listPreviousFocusRef.current = document.activeElement
-    listSheetRef.current?.focus()
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') closeList()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-      listPreviousFocusRef.current?.focus?.()
-    }
-  }, [listOpen, closeList])
-
-  const handleListBackdropClick = (event) => {
-    if (event.target === event.currentTarget) closeList()
-  }
 
   return (
     <div className="map-page">
@@ -457,84 +370,70 @@ function MapPage() {
         )}
 
         {!loading && !error && answer && (
-          <div className="map-page__sheet-backdrop" onMouseDown={handleAnswerBackdropClick}>
-            <div
-              ref={answerSheetRef}
-              className="map-page__sheet"
-              role="dialog"
-              aria-label="AI 답변"
-              tabIndex={-1}
-              onMouseDown={(event) => event.stopPropagation()}
+          <BottomSheet
+            onClose={() => setAnswer(null)}
+            ariaLabel="AI 답변"
+            backdropClassName="map-page__sheet-backdrop"
+            panelClassName="map-page__sheet"
+          >
+            <span className="map-page__sheet-handle" aria-hidden="true" />
+            <button
+              type="button"
+              className="map-page__sheet-close"
+              onClick={() => setAnswer(null)}
+              aria-label="답변 닫기"
             >
-              <span className="map-page__sheet-handle" aria-hidden="true" />
-              <button
-                type="button"
-                className="map-page__sheet-close"
-                onClick={() => setAnswer(null)}
-                aria-label="답변 닫기"
-              >
-                ×
-              </button>
-              <p className="map-page__sheet-text">{answer}</p>
-            </div>
-          </div>
+              ×
+            </button>
+            <p className="map-page__sheet-text">{answer}</p>
+          </BottomSheet>
         )}
 
         {listOpen && (
-          <div
-            className={
-              'map-page__sheet-backdrop map-page__sheet-backdrop--animated' +
-              (listClosing ? ' map-page__sheet-backdrop--closing' : '')
-            }
-            onMouseDown={handleListBackdropClick}
+          <BottomSheet
+            onClose={closeList}
+            closing={listClosing}
+            ariaLabel="이 지역 장소 목록"
+            backdropClassName="map-page__sheet-backdrop"
+            panelClassName="map-page__sheet map-page__sheet--list"
+            enterMs={SHEET_MOTION_MS}
+            backdropAnimated
           >
-            <div
-              ref={listSheetRef}
-              className={
-                'map-page__sheet map-page__sheet--list map-page__sheet--animated' +
-                (listClosing ? ' map-page__sheet--closing' : '')
-              }
-              role="dialog"
-              aria-label="이 지역 장소 목록"
-              tabIndex={-1}
-              onMouseDown={(event) => event.stopPropagation()}
-            >
-              <span className="map-page__sheet-handle" aria-hidden="true" />
-              {/* 헤더 한 줄: 제목 + 닫기 (마커 상세 시트의 배지·닫기 한 줄 배치와 동일 원칙) */}
-              <div className="map-page__list-header">
-                <strong className="map-page__list-title">
-                  이 지역 장소 ({displayedPlaces.length})
-                </strong>
-                <button
-                  type="button"
-                  className="map-page__sheet-close map-page__sheet-close--inline"
-                  onClick={closeList}
-                  aria-label="목록 닫기"
-                >
-                  ×
-                </button>
-              </div>
-              {/* 카테고리 토글 칩 슬롯 — 지도 칩이 페이드아웃된 뒤 이 자리로 이동해 페이드인 */}
-              <div
-                className={
-                  'map-page__list-toggle-slot' +
-                  (chipsInSheet ? ' map-page__list-toggle-slot--visible' : '')
-                }
-                ref={setListToggleSlotNode}
-              />
-              {/* 아이템 UI는 PlaceListItem 공용 컴포넌트 (2026-08-13 — AI 검색 결과·
-                  NearbyPlaces와 마크업 공유. 리스트 모양 수정은 그 한 곳에서) */}
-              <ul className="place-list">
-                {displayedPlaces.map((place, index) => (
-                  <PlaceListItem
-                    key={`${place.name}-${place.lat}-${place.lng}-${index}`}
-                    place={place}
-                    currentLocation={location}
-                  />
-                ))}
-              </ul>
+            <span className="map-page__sheet-handle" aria-hidden="true" />
+            {/* 헤더 한 줄: 제목 + 닫기 (마커 상세 시트의 배지·닫기 한 줄 배치와 동일 원칙) */}
+            <div className="map-page__list-header">
+              <strong className="map-page__list-title">
+                이 지역 장소 ({displayedPlaces.length})
+              </strong>
+              <button
+                type="button"
+                className="map-page__sheet-close map-page__sheet-close--inline"
+                onClick={closeList}
+                aria-label="목록 닫기"
+              >
+                ×
+              </button>
             </div>
-          </div>
+            {/* 카테고리 토글 칩 슬롯 — 지도 칩이 페이드아웃된 뒤 이 자리로 이동해 페이드인 */}
+            <div
+              className={
+                'map-page__list-toggle-slot' +
+                (chipsInSheet ? ' map-page__list-toggle-slot--visible' : '')
+              }
+              ref={setListToggleSlotNode}
+            />
+            {/* 아이템 UI는 PlaceListItem 공용 컴포넌트 (2026-08-13 — AI 검색 결과·
+                NearbyPlaces와 마크업 공유. 리스트 모양 수정은 그 한 곳에서) */}
+            <ul className="place-list">
+              {displayedPlaces.map((place, index) => (
+                <PlaceListItem
+                  key={`${place.name}-${place.lat}-${place.lng}-${index}`}
+                  place={place}
+                  currentLocation={location}
+                />
+              ))}
+            </ul>
+          </BottomSheet>
         )}
 
         {emptyResultNotice && (

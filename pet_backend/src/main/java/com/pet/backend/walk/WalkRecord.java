@@ -21,9 +21,11 @@ import org.hibernate.type.SqlTypes;
  * QA L-3·D-4 정정 — 더 이상 실행할 파일이 없다). 이제 스키마는 Supabase에서 직접
  * 관리한다("DB 테이블 없음" 방침의 예외 — 루트 CLAUDE.md 산책 Phase 확정사항).
  *
- * <p>petId는 JWT 인증 연동 전이라 nullable이다. 로그인 연동 시 토큰에서 꺼낸 값으로
- * 필수화하고 소유권 검증을 추가해야 한다(그 전까지는 누구나 임의 petId로 기록을 남길 수 있음 —
- * 데모 단계의 알려진 제약).
+ * <p>petId 컬럼 자체는 nullable(과거 인증 연동 전에 petId 없이 저장된 레거시 행이 있을 수 있음)
+ * 이지만, 신규 저장은 {@link WalkRecordCreateRequest}가 petId를 필수로 검증하고
+ * {@link WalkRecordService#create}가 인증된 memberId의 소유인지 확인한다(QA H-1, IDOR 수정).
+ * 조회({@link WalkRecordService#list})도 인증된 memberId 소유 petId로만 필터링되므로,
+ * petId가 null인 레거시 행은 조회 결과에서 자연히 제외된다.
  */
 @Entity
 @Table(name = "walk_record")
