@@ -1,3 +1,8 @@
+# ⚠️ 미사용 — 실배포는 팀원의 pet-backend.service(setup-server.sh가 생성, prod 프로파일 포함)가
+#    가동 중 (2026-08-26 QA M-3 실측 확정). 이 유닛을 설치·enable하지 말 것 — 가동 중인
+#    pet-backend 유닛과 8080 포트를 다투고, 이 유닛엔 --spring.profiles.active=prod가 없어
+#    prod 설정(ddl-auto=validate 등)이 미적용된다. 계통 단일화는 팀 합의 안건.
+#
 # Pet Care 백엔드 systemd 유닛 (EC2: /etc/systemd/system/petcare-backend.service)
 #
 # WorkingDirectory가 /opt/petcare 인 이유: application.properties의

@@ -15,9 +15,12 @@
  * 노출한다 (2026-08-13 사용자 결정 — 지도 페이지의 목록 보기 UX와 통일. 시트
  * 슬라이드 모션·접근성도 동일 원칙: 포커스 이동/ESC/스크롤 잠금/백드롭 닫기).
  *
- * 위치: 마운트 시 1회 위치 권한을 요청하되, 3초 안에 확정되지 않으면
- * DEFAULT_CENTER(서울시청)로 폴백해 먼저 조회한다(MapPage의 race 패턴 축약판 —
- * 늦게 허용돼도 재조회하지 않는 단순 버전. 부가 섹션이라 한 번의 조회로 충분).
+ * 위치: 마운트 시(또는 `deferred` 모드에서 버튼을 눌러 `revealed`가 된 시점)
+ * `hooks/useInitialLocation`으로 1회 위치 권한을 요청하되, 3초 안에 확정되지
+ * 않으면 DEFAULT_CENTER(서울시청)로 폴백해 먼저 조회한다. `lateCorrection:
+ * false`로 늦게 허용된 위치로의 재조회는 하지 않는다(부가 섹션이라 한 번의
+ * 조회로 충분 — MapPage/WalkPage의 race 패턴과 다른 부분은 이 옵션 하나뿐,
+ * 2026-08-26 QA L-3 리팩토링으로 3곳 공용 훅으로 승격).
  *
  * 로그인: GET /api/places는 인증 필요. 진단 페이지는 공개 라우트라 비로그인
  * 진입이 가능하므로, 401이면 지도는 그대로 두고 리스트 자리에 로그인 안내만 띄운다.
@@ -32,20 +35,20 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
+import BottomSheet from './BottomSheet'
 import PetMap from './PetMap'
 import PlaceListItem from './PlaceListItem'
 import { CATEGORY_META } from './categoryMeta'
 import { getNearbyPlaces } from '../pages/map/mapApi'
-import { useGeolocation } from '../hooks/useGeolocation'
-import { DEFAULT_CENTER } from '../common/mapDefaults'
+import { useInitialLocation } from '../hooks/useInitialLocation'
 import './NearbyPlaces.css'
 
-// 시트 열림/닫힘 모션 시간(ms) — NearbyPlaces.css의 애니메이션 지속시간과 일치 필수.
-// 지도 페이지 목록 시트와 같은 모션 값 (2026-08-07 목업 승인 — MapPage SHEET_MOTION_MS).
+// 시트 열림/닫힘 모션 시간(ms) — BottomSheet의 enterMs/exitMs로 그대로 전달한다
+// (NearbyPlaces.css의 애니메이션 지속시간과 일치 필수 — 지도 페이지 목록 시트와
+// 같은 모션 값, 2026-08-07 목업 승인 — MapPage SHEET_MOTION_MS).
 const SHEET_MOTION_MS = 340
 
 function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원', deferred = false }) {
-  const { location, requestLocation } = useGeolocation()
   const [places, setPlaces] = useState(null) // null = 로딩 중
   const [error, setError] = useState(null)
   const requestIdRef = useRef(0)
@@ -64,53 +67,46 @@ function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원'
   // categories 배열이 매 렌더 새 참조여도 이펙트가 재실행되지 않도록 문자열 키로 고정
   const categoriesKey = categories.join(',')
 
-  useEffect(() => {
-    if (!revealed) return // deferred 모드 — 버튼 클릭 전에는 위치 요청·조회 모두 보류
+  // 위치 확정(즉시/기본 좌표 폴백)마다 그 좌표로 주변 장소를 조회한다. requestIdRef로
+  // 응답 순서 역전(오래된 요청이 늦게 도착)을 방지 — categoriesKey가 바뀌어 훅이
+  // race를 재시작하는 경우에도 이전 요청의 응답을 무시하게 해준다.
+  const loadPlaces = (center) => {
+    const requestId = ++requestIdRef.current
+    getNearbyPlaces(center.lat, center.lng, categoriesKey.split(','))
+      .then((data) => {
+        if (requestIdRef.current !== requestId) return
+        setPlaces(data.places ?? [])
+      })
+      .catch((err) => {
+        if (requestIdRef.current !== requestId) return
+        setPlaces([])
+        setError(
+          err?.status === 401
+            ? `로그인하면 주변 ${label} 정보를 볼 수 있어요.`
+            : `주변 ${label} 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.`,
+        )
+      })
+  }
 
-    let cancelled = false
-    let settled = false // 이미 조회를 시작했는지 (3초 타이머 vs 위치 응답 중 먼저 온 쪽)
-
-    const load = (center) => {
-      if (cancelled || settled) return
-      settled = true
-      const requestId = ++requestIdRef.current
-      getNearbyPlaces(center.lat, center.lng, categoriesKey.split(','))
-        .then((data) => {
-          if (cancelled || requestIdRef.current !== requestId) return
-          setPlaces(data.places ?? [])
-        })
-        .catch((err) => {
-          if (cancelled || requestIdRef.current !== requestId) return
-          setPlaces([])
-          setError(
-            err?.status === 401
-              ? `로그인하면 주변 ${label} 정보를 볼 수 있어요.`
-              : `주변 ${label} 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.`,
-          )
-        })
-    }
-
-    // 권한 팝업이 방치되면 requestLocation의 Promise가 오래 걸릴 수 있어(브라우저
-    // 특성 — MapPage 주석 참고) 3초를 넘기면 기본 좌표로 먼저 조회한다.
-    const timer = setTimeout(() => load(DEFAULT_CENTER), 3000)
-    requestLocation().then((loc) => {
-      clearTimeout(timer)
-      load(loc ?? DEFAULT_CENTER)
-    })
-
-    return () => {
-      cancelled = true
-      clearTimeout(timer)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- label은 categoriesKey에서 파생
-  }, [requestLocation, categoriesKey, revealed])
+  // 위치 권한 3초 race는 hooks/useInitialLocation 공용 훅으로 승격됨 (2026-08-26
+  // QA L-3 리팩토링 — MapPage.jsx·WalkPage.jsx와 동일 훅 사용). `lateCorrection:
+  // false`로 늦게 "허용"된 위치가 와도 재조회하지 않는다(부가 섹션이라 한 번의
+  // 조회로 충분 — 기존 동작 그대로). `enabled: revealed`로 deferred 모드에서
+  // 버튼을 누르기 전까지는 위치 요청·조회 모두 보류한다. `resetKey: categoriesKey`로
+  // categories prop이 바뀌면(드문 경우) 기존처럼 위치 확정부터 다시 시작한다.
+  const { location } = useInitialLocation({
+    enabled: revealed,
+    lateCorrection: false,
+    resetKey: categoriesKey,
+    onResolve: loadPlaces,
+  })
 
   // 장소 목록 바텀시트 — 지도 페이지 목록 시트와 같은 열림/닫힘 상태 기계:
   // 닫기는 listClosing으로 닫힘 애니메이션을 재생한 뒤 SHEET_MOTION_MS 후 언마운트.
+  // 백드롭/패널/접근성(포커스 이동·ESC·스크롤 잠금)은 BottomSheet가 담당한다
+  // (2026-08-26 QA L-3 리팩토링 — 개별 useEffect 복붙을 승격).
   const [listOpen, setListOpen] = useState(false)
   const [listClosing, setListClosing] = useState(false)
-  const sheetRef = useRef(null)
-  const previousFocusRef = useRef(null)
 
   const closeList = () => setListClosing(true)
 
@@ -122,33 +118,6 @@ function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원'
     }, SHEET_MOTION_MS)
     return () => clearTimeout(timer)
   }, [listClosing])
-
-  // 시트 접근성(가벼운 버전 — MapPage 목록 시트와 동일 원칙): 열릴 때 포커스 이동 +
-  // ESC 닫기 + 배경 스크롤 잠금, 닫힐 때 이전 포커스 복귀.
-  useEffect(() => {
-    if (!listOpen) return
-
-    previousFocusRef.current = document.activeElement
-    sheetRef.current?.focus()
-
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') setListClosing(true)
-    }
-    document.addEventListener('keydown', handleKeyDown)
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-      document.body.style.overflow = previousOverflow
-      previousFocusRef.current?.focus?.()
-    }
-  }, [listOpen])
-
-  const handleBackdropMouseDown = (event) => {
-    if (event.target === event.currentTarget) closeList()
-  }
 
   // deferred 모드에서 아직 버튼을 누르기 전 — "<title> 보기" 버튼만 노출
   if (!revealed) {
@@ -199,48 +168,39 @@ function NearbyPlaces({ categories = ['HOSPITAL'], title = '주변 동물병원'
       )}
 
       {listOpen && (
-        <div
-          className={
-            'nearby-places__sheet-backdrop' +
-            (listClosing ? ' nearby-places__sheet-backdrop--closing' : '')
-          }
-          onMouseDown={handleBackdropMouseDown}
+        <BottomSheet
+          onClose={closeList}
+          closing={listClosing}
+          ariaLabel={`${title} 목록`}
+          backdropClassName="nearby-places__sheet-backdrop"
+          panelClassName="nearby-places__sheet"
+          enterMs={SHEET_MOTION_MS}
+          backdropAnimated
         >
-          <div
-            ref={sheetRef}
-            className={
-              'nearby-places__sheet' + (listClosing ? ' nearby-places__sheet--closing' : '')
-            }
-            role="dialog"
-            aria-label={`${title} 목록`}
-            tabIndex={-1}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <span className="nearby-places__sheet-handle" aria-hidden="true" />
-            <div className="nearby-places__sheet-header">
-              <strong className="nearby-places__sheet-title">
-                {title} ({places?.length ?? 0})
-              </strong>
-              <button
-                type="button"
-                className="nearby-places__sheet-close"
-                onClick={closeList}
-                aria-label="목록 닫기"
-              >
-                ×
-              </button>
-            </div>
-            <ul className="place-list">
-              {(places ?? []).map((place, index) => (
-                <PlaceListItem
-                  key={`${place.name}-${place.lat}-${place.lng}-${index}`}
-                  place={place}
-                  currentLocation={location}
-                />
-              ))}
-            </ul>
+          <span className="nearby-places__sheet-handle" aria-hidden="true" />
+          <div className="nearby-places__sheet-header">
+            <strong className="nearby-places__sheet-title">
+              {title} ({places?.length ?? 0})
+            </strong>
+            <button
+              type="button"
+              className="nearby-places__sheet-close"
+              onClick={closeList}
+              aria-label="목록 닫기"
+            >
+              ×
+            </button>
           </div>
-        </div>
+          <ul className="place-list">
+            {(places ?? []).map((place, index) => (
+              <PlaceListItem
+                key={`${place.name}-${place.lat}-${place.lng}-${index}`}
+                place={place}
+                currentLocation={location}
+              />
+            ))}
+          </ul>
+        </BottomSheet>
       )}
     </section>
   )

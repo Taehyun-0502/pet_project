@@ -7,9 +7,12 @@
  *   ① 지도 단독 메뉴 — size="full"
  *   ② AI 챗봇 답변 카드 — size="mini"
  *
- * 카카오 JS 키(`VITE_KAKAO_JS_KEY`)가 설정되지 않은 경우, 빈 화면 대신
- * 안내 문구를 표시한다 (키 미발급 상태의 팀원도 다른 화면 작업을 막지
- * 않도록 하기 위함).
+ * 카카오 JS 키(`VITE_KAKAO_JS_KEY` — config.js 경유 통일안(QA L-6)은 config.js가
+ * 팀 공용 파일이라 사용자 결정으로 반영하지 않음, 2026-08-26)가
+ * 설정되지 않은 경우, 빈 화면 대신 일반 사용자용 안내 문구를 표시한다 (키 미발급 상태의
+ * 팀원도 다른 화면 작업을 막지 않도록 하기 위함). 개발 용어(`.env`·`VITE_KAKAO_JS_KEY`)는
+ * 화면에 노출하지 않고 `console.warn`으로만 알린다 (QA L-2, 2026-08-25 배포 사고 재발 방지 —
+ * 실사용자 화면에 해당 문구가 노출됐던 사건).
  *
  * 마커 클릭 시 카카오맵으로 이동시키지 않고, 이 컴포넌트 내부 공통
  * **하단 바텀시트**(2026-08-06 모바일 퍼스트 리디자인 — 기존 중앙 모달 폐기)로
@@ -21,15 +24,16 @@
  * 삭제 — 영업시간·리뷰·사진은 카카오 API 미제공이라 서비스 내 표시 불가
  * 항목으로 남는다(크롤링은 약관 위반). 시트는 화면 하단에
  * 고정되고 지도 위쪽은 계속 보인다(전체 화면을 가리는 배경 없음, 얕은 스크림만).
- * 시트는 `createPortal`로 document.body에 렌더링된다(2026-08-07 — .pet-map의
- * z-index:0 격리 컨텍스트 안에 두면 페이지 오버레이가 시트를 가리는 버그 수정).
- * 덕분에 mini 모드(작은 컨테이너)에서도, 조상에 transform/filter가 있어도 항상
- * 뷰포트 기준 하단 바텀시트로 뜬다. 시트는 화면 폭과 무관하게 모바일 레이아웃
- * 하나만 쓴다 (2026-08-07 PC 대응 제외 확정).
- * 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4/N-5): 열릴 때 시트로
- * 포커스 이동 + Tab 트랩 + ESC로 닫기, 닫힐 때 이전 포커스로 복귀, 열려 있는
- * 동안 배경 스크롤 잠금. `places`가 교체되거나 카테고리 토글로 선택된 장소가
- * 가려지면 낡은(stale) 시트를 자동으로 닫는다.
+ * 시트는 공용 `components/BottomSheet`(`portal` prop)로 document.body에
+ * 렌더링된다(2026-08-07 — .pet-map의 z-index:0 격리 컨텍스트 안에 두면 페이지
+ * 오버레이가 시트를 가리는 버그 수정, 2026-08-26 BottomSheet 승격 후에도 이
+ * 방식 유지). 덕분에 mini 모드(작은 컨테이너)에서도, 조상에 transform/filter가
+ * 있어도 항상 뷰포트 기준 하단 바텀시트로 뜬다. 시트는 화면 폭과 무관하게
+ * 모바일 레이아웃 하나만 쓴다 (2026-08-07 PC 대응 제외 확정).
+ * 접근성(BottomSheet 내부 `useSheetA11y`가 담당 — QA N-2/N-4/N-5, 2026-08-26
+ * QA L-3 리팩토링으로 승격): 열릴 때 시트로 포커스 이동 + Tab 트랩 + ESC로
+ * 닫기, 닫힐 때 이전 포커스로 복귀, 열려 있는 동안 배경 스크롤 잠금. `places`가
+ * 교체되거나 카테고리 토글로 선택된 장소가 가려지면 낡은(stale) 시트를 자동으로 닫는다.
  *
  * 줌(+/−)·"내 위치로 이동" 버튼은 카카오 기본 컨트롤 대신 커스텀 UI로 제공하며
  * (2026-08-06 확정 — 기본 컨트롤 비활성화 방침 유지), 터치 타깃을 넉넉히 잡는다
@@ -160,14 +164,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import BottomSheet from './BottomSheet';
 import { loadKakaoMaps } from './kakaoMapLoader';
 import { CATEGORY_META } from './categoryMeta';
 import { distanceMeters, formatDistanceLabel } from '../common/geo';
 import { buildRegionLabel } from '../common/regionLabel';
 import { DEFAULT_CENTER } from '../common/mapDefaults';
-import './PetMap.css';
-
 const KAKAO_JS_KEY = import.meta.env.VITE_KAKAO_JS_KEY;
+import './PetMap.css';
 
 // 카테고리별 마커 색 — 루트 CLAUDE.md 118행 기준(병원=빨강/카페=파랑/호텔=초록).
 // design-agent의 디자인 토큰이 확정되면 이 상수를 토큰 참조로 교체한다.
@@ -222,8 +226,6 @@ function PetMap({
   const currentMarkerRef = useRef(null);
   const polylineRef = useRef(null); // 산책 경로(path prop) Polyline 인스턴스 — 2026-08-12 산책 Phase 신규
   const pendingPanRef = useRef(false);
-  const sheetPanelRef = useRef(null);
-  const previousFocusRef = useRef(null); // 시트 열기 전 포커스였던 요소 — 닫을 때 복귀시킨다
   // fitBoundsKey가 마지막으로 범위를 맞췄을 때의 값. fitBoundsKey 자체를 아예
   // 넘기지 않은 경우(undefined)는 아래 이펙트에서 이 값과 무관하게 항상 맞춘다.
   const lastFitKeyRef = useRef(undefined);
@@ -249,6 +251,17 @@ function PetMap({
   const idleHandlerRef = useRef(null);
 
   const [sdkStatus, setSdkStatus] = useState(KAKAO_JS_KEY ? 'loading' : 'missing-key');
+
+  // 키 미설정 원인은 개발자만 알면 된다 — 화면 문구에는 노출하지 않고 콘솔로만 안내한다
+  // (QA L-2, 2026-08-26: "UI에 개발 용어 노출 금지" 위반 — 배포 사고 때 실사용자 화면에
+  // `.env`·VITE_KAKAO_JS_KEY 문구가 그대로 노출됐다).
+  useEffect(() => {
+    if (!KAKAO_JS_KEY) {
+      console.warn(
+        '[PetMap] VITE_KAKAO_JS_KEY가 설정되지 않았습니다. pet_frontend/.env.example 참고.',
+      );
+    }
+  }, []);
   const [visibleCategories, setVisibleCategories] = useState({
     HOSPITAL: true,
     CAFE: true,
@@ -554,52 +567,9 @@ function PetMap({
     }
   }, [path, sdkStatus]);
 
-  // 장소 상세 시트 접근성(기존 중앙 모달에서 그대로 이식 — QA N-2/N-4): 열릴 때 패널로
-  // 포커스 이동 + Tab 트랩(패널 안에서만 순환) + ESC로 닫기 + 배경 스크롤 잠금,
-  // 닫힐 때 열기 전 포커스였던 요소로 복귀.
-  useEffect(() => {
-    if (!selectedPlace) return;
-
-    previousFocusRef.current = document.activeElement;
-    sheetPanelRef.current?.focus();
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        setSelectedPlace(null);
-        return;
-      }
-      if (event.key !== 'Tab') return;
-
-      const panel = sheetPanelRef.current;
-      if (!panel) return;
-      const focusable = panel.querySelectorAll(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) {
-        event.preventDefault();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-      previousFocusRef.current?.focus?.();
-    };
-  }, [selectedPlace]);
+  // 장소 상세 시트 접근성(포커스 이동/복귀·Tab 트랩·ESC 닫기·배경 스크롤 잠금)은
+  // BottomSheet가 내부적으로 useSheetA11y를 통해 담당한다(2026-08-26 QA L-3
+  // 우선순위 리팩토링 — 개별 useEffect 복붙을 승격). 아래 JSX의 <BottomSheet> 참고.
 
   // places가 교체되거나(새 조회/AI 검색 결과 전환) 카테고리 토글로 선택된 장소가
   // 화면에서 사라지면 시트가 낡은(stale) 장소를 계속 띄우고 있지 않도록 닫는다(QA N-5).
@@ -637,18 +607,14 @@ function PetMap({
     map.setLevel(Math.min(MAX_LEVEL, map.getLevel() + 1));
   };
 
-  const handleBackdropClick = (event) => {
-    // 배경(오버레이) 자체를 클릭했을 때만 닫는다 — 패널 내부 클릭은 이 핸들러까지 버블링되지
-    // 않도록 패널 쪽에서 stopPropagation한다.
-    if (event.target === event.currentTarget) setSelectedPlace(null);
-  };
-
   if (sdkStatus === 'missing-key') {
+    // 화면 문구는 일반 사용자용 자연어만 노출한다 — 원인(.env·VITE_KAKAO_JS_KEY)은
+    // 위 useEffect에서 console.warn으로만 안내한다 (QA L-2, 2026-08-26).
     return (
       <div className={`pet-map pet-map--${size} pet-map__notice`}>
-        <p>카카오맵 키가 설정되지 않았습니다.</p>
+        <p>지도를 불러올 수 없어요.</p>
         <p className="pet-map__notice-hint">
-          `.env`에 `VITE_KAKAO_JS_KEY`를 설정하세요 (pet_frontend/.env.example 참고).
+          잠시 후 다시 시도하거나 관리자에게 문의해 주세요.
         </p>
       </div>
     );
@@ -747,83 +713,79 @@ function PetMap({
         </svg>
       </button>
 
-      {/* 상세 시트는 document.body로 포털 (2026-08-07 버그 수정): .pet-map이
-          z-index:0 격리 스태킹 컨텍스트라, 시트를 이 안에 두면 z-index:1000이어도
-          형제 오버레이(예: MapPage의 "목록 보기" z-index:1)가 위에 그려져 시트를
-          가린다. body로 빼면 페이지 오버레이들과 같은 최상위 컨텍스트에서 비교되어
-          항상 위에 뜬다. position:fixed의 조상 containing block 이슈(transform 등)도
-          함께 사라진다. */}
-      {selectedPlace && createPortal(
-        <div className="pet-map__sheet-backdrop" onMouseDown={handleBackdropClick}>
-          <div
-            ref={sheetPanelRef}
-            className="pet-map__sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${selectedPlace.name} 상세 정보`}
-            tabIndex={-1}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <span className="pet-map__sheet-handle" aria-hidden="true" />
+      {/* 상세 시트는 document.body로 포털 (2026-08-07 버그 수정, BottomSheet의
+          portal prop으로 유지): .pet-map이 z-index:0 격리 스태킹 컨텍스트라,
+          시트를 이 안에 두면 z-index:1000이어도 형제 오버레이(예: MapPage의
+          "목록 보기" z-index:1)가 위에 그려져 시트를 가린다. body로 빼면 페이지
+          오버레이들과 같은 최상위 컨텍스트에서 비교되어 항상 위에 뜬다.
+          position:fixed의 조상 containing block 이슈(transform 등)도 함께 사라진다.
+          모션 없음(enterMs 미지정 — 기존과 동일하게 즉시 마운트/언마운트). */}
+      {selectedPlace && (
+        <BottomSheet
+          portal
+          onClose={() => setSelectedPlace(null)}
+          ariaLabel={`${selectedPlace.name} 상세 정보`}
+          backdropClassName="pet-map__sheet-backdrop"
+          panelClassName="pet-map__sheet"
+        >
+          <span className="pet-map__sheet-handle" aria-hidden="true" />
 
-            {/* 헤더 한 줄: 좌측 카테고리 배지 + 우측 닫기 (2026-08-07 사용자 결정 —
-                카테고리 상세(카카오 category_name) 텍스트는 시트에서 제거) */}
-            <div className="pet-map__sheet-header">
-              {selectedMeta && (
-                <span
-                  className="pet-map__sheet-badge"
-                  style={{ '--chip-color': selectedMeta.color }}
-                >
-                  {selectedMeta.label}
-                </span>
-              )}
-              <button
-                type="button"
-                className="pet-map__sheet-close"
-                onClick={() => setSelectedPlace(null)}
-                aria-label="닫기"
+          {/* 헤더 한 줄: 좌측 카테고리 배지 + 우측 닫기 (2026-08-07 사용자 결정 —
+              카테고리 상세(카카오 category_name) 텍스트는 시트에서 제거) */}
+          <div className="pet-map__sheet-header">
+            {selectedMeta && (
+              <span
+                className="pet-map__sheet-badge"
+                style={{ '--chip-color': selectedMeta.color }}
               >
-                ×
-              </button>
-            </div>
-
-            <h3 className="pet-map__sheet-title">{selectedPlace.name}</h3>
-
-            {selectedPlace.address && (
-              <p className="pet-map__sheet-address">{selectedPlace.address}</p>
+                {selectedMeta.label}
+              </span>
             )}
-
-            {(selectedPlace.phone || currentLocation) && (
-              <p className="pet-map__sheet-meta">
-                {[
-                  selectedPlace.phone,
-                  currentLocation
-                    ? `내 위치에서 약 ${formatDistanceLabel(
-                        distanceMeters(currentLocation, {
-                          lat: selectedPlace.lat,
-                          lng: selectedPlace.lng,
-                        }),
-                      )}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            )}
-
-            {selectedPlace.phone && (
-              <div className="pet-map__sheet-actions">
-                <a
-                  className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
-                  href={`tel:${selectedPlace.phone}`}
-                >
-                  전화 걸기
-                </a>
-              </div>
-            )}
+            <button
+              type="button"
+              className="pet-map__sheet-close"
+              onClick={() => setSelectedPlace(null)}
+              aria-label="닫기"
+            >
+              ×
+            </button>
           </div>
-        </div>,
-        document.body,
+
+          <h3 className="pet-map__sheet-title">{selectedPlace.name}</h3>
+
+          {selectedPlace.address && (
+            <p className="pet-map__sheet-address">{selectedPlace.address}</p>
+          )}
+
+          {(selectedPlace.phone || currentLocation) && (
+            <p className="pet-map__sheet-meta">
+              {[
+                selectedPlace.phone,
+                currentLocation
+                  ? `내 위치에서 약 ${formatDistanceLabel(
+                      distanceMeters(currentLocation, {
+                        lat: selectedPlace.lat,
+                        lng: selectedPlace.lng,
+                      }),
+                    )}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
+          )}
+
+          {selectedPlace.phone && (
+            <div className="pet-map__sheet-actions">
+              <a
+                className="pet-map__sheet-action-btn pet-map__sheet-action-btn--primary"
+                href={`tel:${selectedPlace.phone}`}
+              >
+                전화 걸기
+              </a>
+            </div>
+          )}
+        </BottomSheet>
       )}
     </div>
   );

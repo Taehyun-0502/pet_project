@@ -14,6 +14,7 @@ import com.anthropic.models.messages.ToolResultBlockParam;
 import com.anthropic.models.messages.ToolUseBlock;
 import com.anthropic.models.messages.ToolUseBlockParam;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pet.backend.common.BusinessException;
 import com.pet.backend.place.Place;
 import com.pet.backend.place.PlaceCategory;
 import com.pet.backend.place.PlaceService;
@@ -64,6 +65,11 @@ public class AiSearchService {
     private final PlaceService placeService;
     private final DiseasePredictionClient diseasePredictionClient;
     private final ObjectMapper objectMapper;
+    // application.properties의 anthropic.api-key는 ${ANTHROPIC_API_KEY:} 빈 기본값을 둔다 —
+    // 필수로 만들면 .env 없이 뜨는 모든 환경에서 전체 애플리케이션 컨텍스트가 기동조차 못 한다
+    // (place.KakaoClient와 동일한 이유). 대신 여기서 즉시 경고 로그를 남기고(QA L-9), 실제
+    // 호출 시점에는 SDK가 애매한 401을 던지기 전에 원인이 분명한 도메인 예외로 먼저 막는다.
+    private final boolean apiKeyConfigured;
 
     public AiSearchService(
             @Value("${anthropic.api-key}") String apiKey,
@@ -76,9 +82,20 @@ public class AiSearchService {
         this.placeService = placeService;
         this.diseasePredictionClient = diseasePredictionClient;
         this.objectMapper = objectMapper;
+        this.apiKeyConfigured = apiKey != null && !apiKey.isBlank();
+        if (!apiKeyConfigured) {
+            log.warn("anthropic.api-key(ANTHROPIC_API_KEY)가 설정되지 않았습니다. "
+                    + "AI 검색 API 호출 시 예외가 발생합니다 — .env의 ANTHROPIC_API_KEY를 확인하세요.");
+        }
     }
 
     public AiSearchResponse ask(AiSearchRequest request) {
+        if (!apiKeyConfigured) {
+            // Claude API에 요청조차 보내지 않고 여기서 즉시 실패시켜, SDK의 401을 일반 500으로
+            // 오인하지 않고 "키 미설정"임을 로그에서 바로 알 수 있게 한다(QA L-9).
+            throw new BusinessException(AiSearchErrorCode.API_KEY_NOT_CONFIGURED);
+        }
+
         List<MessageParam> messages = new ArrayList<>();
         messages.add(MessageParam.builder()
                 .role(MessageParam.Role.USER)

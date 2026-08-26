@@ -456,35 +456,23 @@
 }
 
 /* GPS 정보 안내 팝업(2026-08-12 사용자 요청) — MapPage.css .map-page__sheet-*와 같은
-   바텀시트 시각 언어를 재사용한다. */
+   바텀시트 시각 언어를 재사용한다. 구조(position/z-index/정렬/360px 컬럼 제한/
+   border-radius/background/box-shadow/overflow-y)와 진입 애니메이션(240ms —
+   WalkPage.jsx의 START_SHEET_ENTER_MS)은 components/BottomSheet.(jsx|css)가
+   담당한다(2026-08-26 QA L-3 리팩토링 — WalkPage.jsx가 <BottomSheet>로 감싼다).
+   여기 남은 건 이 시트만 다른 값(최대 높이·패딩·테두리)뿐이다. 이 시트는 닫힐 때
+   역재생 없이 즉시 언마운트한다(다른 시트와 달리 exitMs를 쓰지 않음 — 기존 동작
+   그대로). position/max-width/box-sizing/border-radius/애니메이션 관련 규칙을
+   다시 추가하지 말 것. */
 .walk-page__sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
   background: rgba(0, 0, 0, 0.2);
 }
 
 .walk-page__sheet {
-  position: relative;
-  width: 100%;
-  /* position:fixed 시트라 #root의 360px 컬럼 제약 밖 — MapPage/PetMap 시트와 동일하게
-     컬럼 폭으로 직접 제한한다(index.css #root max-width와 같은 값 유지 필수). */
-  max-width: 360px;
-  /* border-box 필수 — 없으면 패딩·테두리가 360px 밖으로 더해져 컬럼(#root)보다
-     넓어진다(과거 시트 폭 버그 2건 재발 방지 — MapPage.css·PetMap.jsx 주석 참고). */
-  box-sizing: border-box;
   max-height: 60vh;
-  overflow-y: auto;
   padding: 8px 20px 20px;
-  border-radius: 16px 16px 0 0;
-  background: var(--bg);
   border: 1px solid var(--border);
   border-bottom: none;
-  box-shadow: var(--shadow);
-  animation: walk-page-sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .walk-page__sheet-handle {
@@ -557,21 +545,9 @@
   outline-offset: 2px;
 }
 
-@keyframes walk-page-sheet-in {
-  from {
-    transform: translateY(105%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-/* 모션 최소화 설정 사용자는 애니메이션을 즉시 완료 상태로 */
+/* 시트 슬라이드 keyframe·reduced-motion 대응은 BottomSheet.css의
+   `.bottom-sheet__panel--animated`로 이전됨(2026-08-26) — 여기 다시 추가하지 말 것. */
 @media (prefers-reduced-motion: reduce) {
-  .walk-page__sheet {
-    animation-duration: 1ms;
-  }
-
   /* 지도 블러 게이트 해제(시작하기)·복귀(종료) 전환도 모션 최소화 대응 */
   .walk-page__map-surface {
     transition-duration: 1ms;

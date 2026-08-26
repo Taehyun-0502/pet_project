@@ -1,0 +1,109 @@
+/* BottomSheet — 하단 바텀시트 공용 크롬 (2026-08-26 QA L-3 우선순위 리팩토링).
+   구조/정렬은 5곳(PetMap·MapPage×2·NearbyPlaces·WalkPage)에서 실측 결과
+   이미 동일했던 값만 여기 공용으로 둔다 — 페이지별로 실제로 다른 값(패딩·
+   최대 높이·배경 불투명도·테두리)은 각 페이지 CSS의 panelClassName/
+   backdropClassName 쪽에 그대로 남겨 오버레이한다. */
+
+.bottom-sheet__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.bottom-sheet__panel {
+  position: relative;
+  width: 100%;
+  /* position:fixed 시트라 #root의 컬럼 폭 제약 밖 — 컬럼과 같은 값으로 직접
+     제한한다. index.css #root의 max-width(360px)와 반드시 같은 값을 유지할 것
+     (과거 이 값 불일치로 시트가 컬럼보다 넓어지는 버그 2건 발생 — 리터럴 값 +
+     동기화 주석 방식을 그대로 유지, CSS 토큰화는 이번 리팩토링 범위 밖). */
+  max-width: 360px;
+  /* border-box 필수 — 없으면 패딩·테두리가 360px 밖으로 더해져 컬럼(#root)보다
+     넓어진다(과거 실렌더 402px 확인 버그 재발 방지). */
+  box-sizing: border-box;
+  border-radius: 16px 16px 0 0;
+  /* 리팩토링 전 5곳 실측 결과 background/box-shadow/overflow-y까지 전부 동일한
+     값이었다 — 여기 공용으로 옮기고 각 페이지 CSS에서는 제거했다. 실제로 다른
+     값(패딩·최대 높이·테두리 유무·배경 불투명도)만 페이지별 클래스에 남아 있다. */
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+
+/* 진입 애니메이션 (BottomSheet의 enterMs prop이 0보다 클 때만 부여되는 클래스).
+   슬라이드업 + 감속 곡선 cubic-bezier(0.22,1,0.36,1) — 빠르게 올라와 부드럽게
+   멈추는 시트 느낌(2026-08-07 목업 승인 곡선, MapPage 장소 목록 시트에서 유래).
+   재생 시간은 인라인 style의 --bottom-sheet-enter-ms/--bottom-sheet-exit-ms로
+   호출부가 넘긴 값을 그대로 쓴다 — 5곳 모션 시간이 서로 다르므로(340ms/240ms)
+   고정값을 하드코딩하지 않는다. */
+@keyframes bottom-sheet-slide-in {
+  from {
+    transform: translateY(105%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes bottom-sheet-slide-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes bottom-sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bottom-sheet-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.bottom-sheet__panel--animated {
+  animation: bottom-sheet-slide-in var(--bottom-sheet-enter-ms, 340ms)
+    cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.bottom-sheet__panel--animated.bottom-sheet__panel--closing {
+  animation-name: bottom-sheet-slide-out;
+  animation-duration: var(--bottom-sheet-exit-ms, 340ms);
+}
+
+/* 백드롭 페이드는 backdropAnimated prop이 true인 시트에서만 쓰인다(MapPage
+   장소 목록 시트·NearbyPlaces 목록 시트) — WalkPage GPS 팝업처럼 패널만
+   슬라이드하고 배경은 정적인 경우 이 클래스 자체가 붙지 않는다. */
+.bottom-sheet__backdrop--animated {
+  animation: bottom-sheet-fade-in var(--bottom-sheet-enter-ms, 340ms) ease both;
+}
+
+.bottom-sheet__backdrop--animated.bottom-sheet__backdrop--closing {
+  animation-name: bottom-sheet-fade-out;
+  animation-duration: var(--bottom-sheet-exit-ms, 340ms);
+}
+
+/* 모션 최소화 설정 사용자는 애니메이션을 즉시 완료 상태로 (5곳 전부 기존에도
+   이 대응이 있었다 — 리팩토링 후에도 동일하게 유지) */
+@media (prefers-reduced-motion: reduce) {
+  .bottom-sheet__panel--animated,
+  .bottom-sheet__panel--animated.bottom-sheet__panel--closing,
+  .bottom-sheet__backdrop--animated,
+  .bottom-sheet__backdrop--animated.bottom-sheet__backdrop--closing {
+    animation-duration: 1ms;
+  }
+}

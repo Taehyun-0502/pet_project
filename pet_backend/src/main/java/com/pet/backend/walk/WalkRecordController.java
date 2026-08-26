@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+// 인증 필수 경로 — memberId는 JwtAuthenticationFilter가 토큰에서 꺼내 실어준 값 (QA H-1)
 @RestController
 @Validated
 @RequiredArgsConstructor
@@ -23,17 +25,19 @@ public class WalkRecordController {
     private final WalkRecordService walkRecordService;
 
     @PostMapping("/api/walk/records")
-    public ApiResponse<WalkRecordResponse> create(@RequestBody @Valid WalkRecordCreateRequest request) {
-        return ApiResponse.ok(walkRecordService.create(request));
+    public ApiResponse<WalkRecordResponse> create(@AuthenticationPrincipal Long memberId,
+                                                   @RequestBody @Valid WalkRecordCreateRequest request) {
+        return ApiResponse.ok(walkRecordService.create(memberId, request));
     }
 
     @GetMapping("/api/walk/records")
     public ApiResponse<WalkRecordListResponse> list(
+            @AuthenticationPrincipal Long memberId,
             @RequestParam(defaultValue = "" + DEFAULT_LIMIT)
             @Positive(message = "limit은 1 이상이어야 합니다.")
             @Max(value = MAX_LIMIT, message = "limit은 " + MAX_LIMIT + " 이하여야 합니다.")
             int limit
     ) {
-        return ApiResponse.ok(new WalkRecordListResponse(walkRecordService.list(limit)));
+        return ApiResponse.ok(new WalkRecordListResponse(walkRecordService.list(memberId, limit)));
     }
 }
