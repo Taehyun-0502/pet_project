@@ -140,9 +140,9 @@ export default function ChatRoomListPage() {
 
   return (
     <main className="warm chat-page">
+      {/* "← 홈으로" 링크는 제거 (2026-08-26) — 셸의 브랜드 헤더(댕댕댕)와 하단 앱바가 그 몫을 한다 */}
       <header className="w-top">
         <h1>오픈채팅</h1>
-        <Link to="/" className="w-link">← 홈으로</Link>
       </header>
 
       {/* 내 방 (F7) — 아래 검색·필터는 "전체" 목록에만 적용된다. 참여 중인 방을 찾으려고

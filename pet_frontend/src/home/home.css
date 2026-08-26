@@ -27,41 +27,7 @@
 .home *::after { box-sizing: border-box; }
 .home button { font: inherit; color: inherit; }
 
-/* 헤더 — 브랜드 + (앱 설치 · 회원명 · 로그아웃) */
-.home-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.home-brand {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--lg-accent);
-  letter-spacing: -0.3px;
-}
-.home-top-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
-
-/* 앱 설치 버튼(components/InstallAppButton — 타 슬라이스 파일이라 미수정)을 홈 무드에 맞춘다.
-   컴포넌트가 인라인 스타일(남색/연보라)이라 !important로 덮는다 (2026-08-26 사용자 요청:
-   배경과 편차 큰 색 대신 낮은 대비의 버튼 형식). 준비 상태(원클릭 앱 설치)도 같은 모양 —
-   상태 구분은 라벨 문구가 한다 */
-.home .home-top-actions > button[title] {
-  background: var(--lg-card) !important;
-  color: var(--lg-muted) !important;
-  border: 1px solid var(--lg-line) !important;
-  border-radius: 8px !important;
-  padding: 4px 8px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  box-shadow: none !important;
-}
-/* 컴포넌트의 아이콘·라벨 span을 숨기고 짧은 라벨로 교체 (2026-08-26 사용자 요청 —
-   원문 "앱으로 만들기/원클릭 앱 설치"는 title 툴팁에 남아 있다) */
-.home .home-top-actions > button[title] > span { display: none; }
-.home .home-top-actions > button[title]::after { content: '앱 설치'; }
-
+/* 브랜드 헤더·앱 설치 버튼은 appShell.css로 이관 (2026-08-26) — 모든 화면 공통 */
 /* 텍스트 액션 (코럴) */
 .home-link {
   border: 0;
@@ -103,45 +69,7 @@
 .home-muted { margin: 8px 2px; font-size: 12.5px; color: var(--lg-muted); }
 .home .submit-error { font-size: 13px; color: var(--lg-error); }
 
-/* 기능 메뉴 — GNB식 가로 스와이프 칩 스트립. 하단 앱바(appShell.css)에 없는 항목만 둔다:
-   홈·지도·산책은 아래 영역만 갈아 끼우는 뷰라 여기서 고른다 (2026-08-26). 좌우 풀블리드(-16px 마진)로 화면 가장자리 밑으로 스크롤되고,
-   내부 패딩 16px이 첫 칩을 본문 정렬선에 맞춘다. 스크롤바는 숨김 */
-.home-tiles {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  margin: 0 -16px;
-  padding: 2px 16px;
-  scrollbar-width: none; /* Firefox */
-  /* 스와이프 감: 놓으면 가까운 칩 시작점에 부드럽게 정렬(proximity — mandatory로 하면
-     드래그와 싸운다). 드래그 중 텍스트 선택 방지 + 잡는 커서 */
-  scroll-snap-type: x proximity;
-  user-select: none;
-  cursor: grab;
-}
-.home-tiles:active { cursor: grabbing; }
-.home-tiles::-webkit-scrollbar { display: none; } /* Chrome·Safari */
-.home-tiles .home-tile { scroll-snap-align: start; }
-.home-tile {
-  flex: 0 0 auto;
-  border: 1px solid var(--lg-line);
-  border-radius: 999px;
-  background: var(--lg-card);
-  padding: 8px 14px;
-  font-size: 12.5px;
-  font-weight: 800;
-  cursor: pointer;
-  white-space: nowrap;
-  box-shadow: 0 4px 10px -10px rgba(90, 60, 30, 0.3);
-}
-.home-tile:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
-.home-tile:active { background: #fdf2e6; }
-/* 지금 보고 있는 뷰(홈·지도·산책) — 코럴 반전 */
-.home-tile[aria-pressed='true'] {
-  background: var(--lg-accent);
-  border-color: var(--lg-accent);
-  color: #fff;
-}
+/* 기능 메뉴 스트립(지도·산책 칩)은 하단 앱바의 "댕맵"으로 이관 (2026-08-26) — daengMap.css 참조 */
 
 /* AI 질문 — 한 줄 필 (2026-08-26 압축: 추천 칩·안내 줄 제거, 카드 → 슬림 바) */
 .home-ask {
@@ -302,8 +230,7 @@
 
 /* 광고 배너 (ad/AdBanner — 타 슬라이스 파일이라 미수정, 홈 안에서의 모양만 덮어쓴다).
    AdBanner.css의 회색 8px 테두리·margin-top:20px를 웜톤 카드 문법으로 맞춘다 —
-   여백은 .home-view의 gap이 이미 주므로 margin은 지운다. 이미지 비율(1:1)은 광고
-   소재 규격이라 건드리지 않는다 */
+   여백은 .home의 gap이 이미 주므로 margin은 지운다 */
 .home .ad-banner {
   margin-top: 0;
   border: 1px solid var(--lg-line);
@@ -318,27 +245,4 @@
   aspect-ratio: 16 / 9;
 }
 
-/* ── 갈아 끼우는 뷰 영역 (HomeLayout의 <Outlet> 자리) ─────────────────
-   홈 본문은 카드들이 세로로 흐르고, 지도·산책은 남은 높이를 꽉 채워야 한다 */
-.home-view {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* 지도·산책은 타 슬라이스 화면이라 파일을 고치지 않고 여기서 홈 안에 맞춘다.
-   .map-page는 원래 height:100vh(단독 페이지 전제)라 그대로 두면 헤더·앱바만큼 넘친다 —
-   높이를 셸이 남긴 공간에 맡기고(flex), 좌우 패딩은 홈이 이미 줬으므로 뺀다 */
-.home-view .map-page {
-  height: auto;
-  min-height: 0;
-  flex: 1;
-  padding: 0;
-}
-
-/* 산책은 세로로 흐르는 화면이라 높이를 강제하지 않는다 (자체 지도 높이 62vh 유지) */
-.home-view .walk-page {
-  padding: 0;
-}
+/* 뷰 전환 영역(.home-view)·지도/산책 높이 보정은 daengMap.css로 이관 (2026-08-26) */

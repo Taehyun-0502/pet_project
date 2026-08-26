@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import '../common/forms.css'
 import '../common/warm.css'
 import './member.css'
@@ -30,9 +30,9 @@ export default function MyPage() {
 
   return (
     <main className="warm mypage">
+      {/* "← 홈으로" 링크는 제거 (2026-08-26) — 셸의 브랜드 헤더(댕댕댕)와 하단 앱바가 그 몫을 한다 */}
       <header className="w-top">
         <h1>마이페이지</h1>
-        <Link to="/" className="w-link">← 홈으로</Link>
       </header>
       <nav className="mypage-tabs">
         {/* NavLink의 자동 active 대신 직접 계산한다 (위 주석).

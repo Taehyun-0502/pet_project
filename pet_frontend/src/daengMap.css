@@ -1,0 +1,58 @@
+/* 댕맵 — 지도·산책 탭 레이아웃 (2026-08-26).
+   토큰(--lg-*)은 common/warm.css의 .warm 스코프에서 상속받는다. */
+
+.daengmap {
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+/* 탭 — 마이페이지와 같은 알약 칩. 활성 = 코럴 채움 (NavLink가 .active를 붙인다).
+   `.daengmap` 접두는 `.warm a`(코럴 링크)를 특이도로 이기기 위한 것 */
+.daengmap .daengmap-tabs {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.daengmap .daengmap-tabs a {
+  border: 1px solid var(--lg-line);
+  border-radius: 999px;
+  background: var(--lg-card);
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--lg-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.daengmap .daengmap-tabs a:hover {
+  border-color: var(--lg-accent);
+  color: var(--lg-accent);
+}
+.daengmap .daengmap-tabs a.active {
+  background: var(--lg-accent);
+  border-color: var(--lg-accent);
+  color: #fff;
+}
+
+/* 갈아 끼우는 영역 — 지도는 남은 높이를 꽉 채우고, 산책은 세로로 흐른다 */
+.daengmap-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 지도·산책은 타 슬라이스 화면이라 파일을 고치지 않고 여기서 이 레이아웃에 맞춘다.
+   .map-page는 원래 height:100vh(단독 페이지 전제)라 그대로 두면 헤더·탭·앱바만큼 넘친다 —
+   높이를 레이아웃이 남긴 공간에 맡기고(flex), 좌우 패딩은 이 화면이 이미 줬으므로 뺀다 */
+.daengmap-view .map-page {
+  height: auto;
+  min-height: 0;
+  flex: 1;
+  padding: 0;
+}
+
+/* 산책은 자체 지도 높이(62vh)를 쓰는 흐르는 화면이라 높이를 강제하지 않는다 */
+.daengmap-view .walk-page {
+  padding: 0;
+}

@@ -1,14 +1,60 @@
 /* 앱 셸 — 하단 앱바 + 건강검진 시트 (2026-08-26, 홈 전용에서 공통으로 승격).
    이 두 요소는 화면(.warm/.home) **바깥**에 그려지므로 웜톤 토큰을 상속받지 못한다.
    그래서 팔레트를 여기서 직접 정의한다 — 값은 common/warm.css와 동일하게 유지할 것. */
+.app-top,
 .appbar,
 .app-sheet-backdrop {
+  --lg-bg-top: #fdf6ec;
   --lg-card: #fffdfa;
   --lg-text: #4b4037;
   --lg-muted: #9a8d80;
   --lg-line: #f0e3d2;
   --lg-accent: #ef7d66;
   --lg-accent-deep: #e2664e;
+}
+
+/* 브랜드 헤더 — 모든 셸 화면 상단에 붙어 있고, 스크롤해도 따라온다.
+   #root의 safe-area 패딩(index.css) 바로 아래에 붙으므로 노치와 겹치지 않는다 */
+.app-top {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--lg-bg-top);
+  border-bottom: 1px solid var(--lg-line);
+}
+.app-brand {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--lg-accent);
+  text-decoration: none;
+}
+.app-brand:hover { color: var(--lg-accent-deep); }
+
+/* 앱 설치 버튼(components/InstallAppButton — 타 슬라이스라 미수정)을 헤더 톤에 맞춘다.
+   컴포넌트가 인라인 스타일(남색/연보라)이라 !important로 덮고, 라벨도 짧게 바꾼다 */
+.app-top > button[title] {
+  background: var(--lg-card) !important;
+  color: var(--lg-muted) !important;
+  border: 1px solid var(--lg-line) !important;
+  border-radius: 8px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+}
+.app-top > button[title] > span:first-child { display: none; } /* 📱 아이콘 숨김 */
+/* 라벨은 기기별로 다르다 — AppShell이 --install-label로 내려준다 (안드로이드 "앱 설치" /
+   iOS "홈 추가" / PC "즐겨찾기"). 원문 span은 숨기고 그 자리에 그린다 */
+.app-top > button[title] > span:last-child { font-size: 0; }
+.app-top > button[title] > span:last-child::after {
+  content: var(--install-label, '앱 설치');
+  font-size: 11px;
 }
 
 /* 앱바가 있는 화면은 마지막 콘텐츠가 바에 가리지 않도록 아래를 비운다.
@@ -126,4 +172,18 @@
   .app-sheet {
     max-width: none;
   }
+}
+
+/* ── 숏츠 피드 위의 앱바 (2026-08-26) ─────────────────────────────────
+   숏츠는 풀스크린 세로 영상이라 앱바가 자막(.sf-info)·좋아요 버튼(.sf-actions)·진행 바를
+   덮는다. 그 요소들을 하나씩 밀어 올리는 대신 **피드 자체를 앱바 높이만큼 줄여** 아래에
+   자리를 만든다 — 카드가 .sf-feed 높이의 100%라 비율(9:16)이 그대로 유지된다.
+   ShortsFeed.css는 타 슬라이스 파일이라 고치지 않고 여기서 덮어쓴다 */
+#root:has(.appbar) .sf-feed {
+  --sf-avail: calc(100dvh - 70px - env(safe-area-inset-bottom, 0px));
+  width: min(100vw, calc(var(--sf-avail) * 9 / 16));
+  height: min(var(--sf-avail), calc(100vw * 16 / 9));
+  /* 원본은 margin:auto(상하 가운데)라 남는 공간이 위아래로 갈린다 — 가로만 가운데로 두어
+     남는 공간을 전부 아래(앱바 자리)에 몰아준다 */
+  margin: 0 auto;
 }

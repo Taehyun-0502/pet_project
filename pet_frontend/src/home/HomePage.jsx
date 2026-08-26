@@ -11,11 +11,10 @@ import { getShortsFeed } from '../shorts/shortsApi'
 import AdBanner from '../ad/AdBanner'
 import './home.css'
 
-// 홈 본문 — AI 질문 · 내 반려동물 프로필 · 오픈채팅 3 · 숏츠 3.
+// 홈 — AI 질문 · 내 반려동물 프로필 · 오픈채팅 3 · 광고 · 숏츠 3.
 //
-// 헤더·기능 스트립은 HomeLayout이, 하단 앱바·건강검진 시트는 AppShell이 맡는다 (2026-08-26).
-// 이 파일은 홈 레이아웃의 <Outlet> 자리에 들어가는 "기본 뷰"라 자체 <main>을 갖지 않는다 —
-// 지도(/map)·산책(/walk)이 같은 자리를 대신 채운다.
+// 브랜드 헤더·하단 앱바·건강검진 시트는 AppShell이 맡는다 (2026-08-26).
+// 지도·산책은 홈 상단 스트립에서 하단 앱바의 "댕맵"(DaengMapLayout)으로 옮겼다.
 //
 // 전체 반려동물 목록은 마이페이지 펫 탭(/mypage/pets)이 담당하고(구 /pets 목록 라우트는
 // 2026-08-25 폐지), 여기서는 대표 1마리(칩으로 전환)만 보여준다.
@@ -73,7 +72,7 @@ export default function HomePage() {
   }
 
   return (
-    <>
+    <main className="home">
       {/* AI 질문 — 한 줄 필. 홈에서 바로 적고 /aisearch 로 넘긴다 */}
       <section className="home-ask">
         <span className="home-ask-badge" aria-hidden="true">AI</span>
@@ -147,15 +146,11 @@ export default function HomePage() {
                   .join(' · ')}
               </p>
             </Link>
-            <div className="home-pet-actions">
-              {/* 선택된 반려동물을 넘겨 진단 화면 입력이 이 아이 기준으로 채워지게 한다 */}
-              <button type="button" className="home-cta" onClick={() => openHealthSheet(pet)}>
-                건강관리
-              </button>
-              <button type="button" className="home-ghost" onClick={() => navigate('/walk')}>
-                산책
-              </button>
-            </div>
+            {/* 산책 버튼은 뺐다 (2026-08-26) — 산책은 하단 앱바의 댕맵 안 탭이 담당한다.
+                선택된 반려동물을 넘겨 진단 화면 입력이 이 아이 기준으로 채워지게 한다 */}
+            <button type="button" className="home-cta" onClick={() => openHealthSheet(pet)}>
+              건강관리
+            </button>
           </div>
         )}
       </section>
@@ -230,6 +225,6 @@ export default function HomePage() {
         ))}
         {shorts.length === 0 && <p className="home-muted">아직 새 영상이 없습니다.</p>}
       </section>
-    </>
+    </main>
   )
 }

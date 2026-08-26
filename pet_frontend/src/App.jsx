@@ -16,7 +16,7 @@ import SignupPage from './member/SignupPage'
 import WelcomePage from './member/WelcomePage'
 import NotFoundPage from './NotFoundPage'
 import AppShell from './AppShell'
-import HomeLayout from './home/HomeLayout'
+import DaengMapLayout from './DaengMapLayout'
 import HomePage from './home/HomePage'
 import PetCreatePage from './pet/PetCreatePage'
 import PetDetailPage from './pet/PetDetailPage'
@@ -44,14 +44,23 @@ function App() {
         {/* 카카오 인가 리다이렉트 수신 — 로그인 전 상태에서 진입한다 */}
         <Route path="/oauth/kakao" element={<KakaoCallbackPage />} />
         {/* 피드 조회는 공개(서버도 GET /api/shorts만 permitAll), 업로드는 아래 보호 구역.
-            비로그인의 좋아요·댓글은 ShortsFeed 내부에서 /login으로 보낸다 */}
-        <Route path="/shorts" element={<ShortsFeed />} />
-        {/* 강아지 피부병 12종 AI 진단 (URL 직접 접근 가능) */}
-        <Route path="/skin/diagnosis" element={<SkinDiagnosisPage />} />
+            비로그인의 좋아요·댓글은 ShortsFeed 내부에서 /login으로 보낸다.
+            하단 앱바를 함께 둔다 (2026-08-26) — 풀스크린 피드라 앱바가 영상을 덮지 않도록
+            appShell.css에서 피드 높이를 앱바만큼 줄인다 (ShortsFeed.css는 타 슬라이스라 미수정) */}
+        <Route element={<AppShell />}>
+          <Route path="/shorts" element={<ShortsFeed />} />
+        </Route>
+        {/* 건강검진 두 화면 — 브랜드 헤더만 얹는다 (2026-08-26). 하단 앱바는 두지 않는다:
+            진단은 사진 촬영·수치 입력처럼 한 흐름에 집중하는 화면이고, 타 슬라이스 파일이라
+            앱바 높이만큼의 안쪽 여백을 바깥에서 손대야 하기 때문 (AppShell의 bar 주석 참고) */}
+        <Route element={<AppShell bar={false} />}>
+          {/* 강아지 피부병 12종 AI 진단 (URL 직접 접근 가능) */}
+          <Route path="/skin/diagnosis" element={<SkinDiagnosisPage />} />
+          {/* 하이브리드 수치+자연어 AI 스마트 문진 진단 (URL 직접 진입 전용) */}
+          <Route path="/hybrid/diagnosis" element={<HybridDiagnosisPage />} />
+        </Route>
         <Route path="/skin" element={<Navigate to="/skin/diagnosis" replace />} />
         <Route path="/skin-diagnosis" element={<Navigate to="/skin/diagnosis" replace />} />
-        {/* 하이브리드 수치+자연어 AI 스마트 문진 진단 (URL 직접 진입 전용) */}
-        <Route path="/hybrid/diagnosis" element={<HybridDiagnosisPage />} />
         <Route path="/hybrid" element={<Navigate to="/hybrid/diagnosis" replace />} />
         <Route path="/hybrid-diagnosis" element={<Navigate to="/hybrid/diagnosis" replace />} />
 
@@ -61,12 +70,12 @@ function App() {
               화면이 바뀌어도 앱바가 남는다. 채팅방(자체 하단 입력 바)·숏츠(풀스크린)·
               진단·펫 폼은 밖에 둔다 — 하단 UI가 겹치거나 한 가지 일에 집중하는 화면이라 */}
           <Route element={<AppShell />}>
-            {/* 홈 레이아웃 — 헤더·기능 스트립은 고정하고 아래만 갈아 끼운다.
-                지도·산책이 별도 페이지가 아니라 홈의 하위 뷰가 된다 (URL은 그대로 유지) */}
-            <Route element={<HomeLayout />}>
-              <Route path="/" element={<HomePage />} />
-              {/* 주의: /map·/aisearch·/walk 라우트 계열은 병합에서 유실이 반복돼 왔다
-                  (QA F-4) — App.jsx 병합 해결 시 diff로 존재를 반드시 확인할 것 */}
+            <Route path="/" element={<HomePage />} />
+            {/* 댕맵 — 지도·산책을 탭으로 묶은 화면 (2026-08-26). 탭이 곧 URL이라
+                마이페이지와 같은 방식이고, 하단 앱바의 "댕맵"이 /map으로 진입한다.
+                주의: /map·/aisearch·/walk 라우트 계열은 병합에서 유실이 반복돼 왔다
+                (QA F-4) — App.jsx 병합 해결 시 diff로 존재를 반드시 확인할 것 */}
+            <Route element={<DaengMapLayout />}>
               <Route path="/map" element={<MapPage />} />
               <Route path="/walk" element={<WalkPage />} />
             </Route>

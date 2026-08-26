@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useState } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import InstallAppButton from './components/InstallAppButton'
 import { getMyPets } from './pet/petApi'
 import './appShell.css'
 
@@ -25,22 +26,51 @@ export function useHealthSheet() {
 }
 
 // 하단 앱바 = 주요 목적지 5개 (2026-08-26 사용자 결정).
-// 건강검진만 라우트 이동이 아니라 이 셸의 바텀시트를 연다 — 진단 2종 중 고르는 화면이라
-// 목적지가 하나로 정해지지 않기 때문이고, 셸에 있으니 어느 화면에서 눌러도 열린다.
+// 댕맵은 지도·산책을 묶은 화면이라 기본 진입은 /map이고, 그 안에서 탭으로 나뉜다.
+// 건강검진 탭은 제거했다 — 진단은 홈 프로필의 "건강관리" 버튼이 여는 시트로 들어간다
+// (시트 자체는 이 셸에 남아 useHealthSheet()로 어느 화면에서든 열 수 있다).
 // 숏츠는 풀스크린이라 이 레이아웃 밖 라우트다 — 탭을 누르면 앱바가 없는 화면으로 나간다
+/**
+ * 앱 설치 버튼의 문구 — 기기마다 "설치"의 뜻이 다르다 (2026-08-26 사용자 요청).
+ *  - 안드로이드: 크롬이 실제 설치 프롬프트를 띄운다 → "앱 설치"
+ *  - iOS: 사파리는 프롬프트가 없고 공유 → 홈 화면에 추가가 유일한 경로다 → "홈 추가"
+ *  - PC: 설치해도 앱이라기보다 바로가기에 가깝다 → "즐겨찾기"
+ *
+ * 버튼 자체는 타 슬라이스 컴포넌트(components/InstallAppButton)라 고치지 않는다.
+ * 대신 헤더에 CSS 변수로 문구를 내려보내고, appShell.css가 라벨을 그린다.
+ * (iPadOS는 UA가 맥으로 오므로 터치 지원 여부로 가려낸다)
+ */
+function installLabel() {
+  if (typeof navigator === 'undefined') return '앱 설치'
+  const ua = navigator.userAgent
+  const isIOS =
+    /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (isIOS) return '홈 추가'
+  if (/android/i.test(ua)) return '앱 설치'
+  return '즐겨찾기'
+}
+
 const TABS = [
-  { key: 'home', label: '홈', icon: '🏠', to: '/', match: (p) => p === '/' || p.startsWith('/map') || p.startsWith('/walk') },
+  { key: 'home', label: '홈', icon: '🏠', to: '/', match: (p) => p === '/' },
+  { key: 'map', label: '댕맵', icon: '🗺️', to: '/map', match: (p) => p.startsWith('/map') || p.startsWith('/walk') },
   { key: 'chat', label: '오픈채팅', icon: '💬', to: '/chat', match: (p) => p.startsWith('/chat') },
   { key: 'shorts', label: '숏츠', icon: '🎬', to: '/shorts', match: (p) => p.startsWith('/shorts') },
-  { key: 'health', label: '건강검진', icon: '🩺' }, // 이동이 아니라 시트를 연다
   { key: 'my', label: '마이페이지', icon: '👤', to: '/mypage', match: (p) => p.startsWith('/mypage') },
 ]
 
-export default function AppShell() {
+/**
+ * @param bar 하단 앱바를 함께 둘지. 건강검진(피부·문진) 화면처럼 한 흐름에 집중하는 곳은
+ *            `bar={false}`로 **브랜드 헤더만** 얹는다 (2026-08-26 — 그 화면들에도 "댕댕댕"이
+ *            있어야 홈으로 돌아갈 길이 생긴다는 사용자 요청). 진단 화면은 타 슬라이스라
+ *            루트가 클래스 없는 인라인 스타일 div인데, 앱바까지 두면 그 안쪽 여백을
+ *            바깥에서 손봐야 해서 헤더만 얹는 쪽이 침습이 적다
+ */
+export default function AppShell({ bar = true }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [sheetOpen, setSheetOpen] = useState(false)
   const [sheetPet, setSheetPet] = useState(null) // 진단 화면에 넘길 반려동물 (없으면 빈 폼)
+  const showBrand = !bar || pathname === '/'
 
   const openHealthSheet = useCallback((pet) => {
     setSheetPet(pet ?? null)
@@ -64,6 +94,16 @@ export default function AppShell() {
 
   return (
     <HealthSheetContext.Provider value={openHealthSheet}>
+      {/* 브랜드 헤더 — **홈에서만** 쓴다 (2026-08-26 사용자 결정, 전 화면 고정에서 되돌림).
+          다른 화면은 각자 제목 헤더(댕맵·오픈채팅·마이페이지)를 갖고 이동은 하단 앱바가 맡는다.
+          예외: 앱바가 없는 화면(진단, bar={false})은 홈으로 돌아갈 길이 이것뿐이라 유지한다 */}
+      {showBrand && (
+        <header className="app-top" style={{ '--install-label': `'${installLabel()}'` }}>
+          <Link className="app-brand" to="/">댕댕댕</Link>
+          <InstallAppButton />
+        </header>
+      )}
+
       <Outlet />
 
       {sheetOpen && (
@@ -104,6 +144,7 @@ export default function AppShell() {
         </div>
       )}
 
+      {bar && (
       <nav className="appbar" aria-label="주요 메뉴">
         {TABS.map((t) => {
           const active = t.match ? t.match(pathname) : false
@@ -121,6 +162,7 @@ export default function AppShell() {
           )
         })}
       </nav>
+      )}
     </HealthSheetContext.Provider>
   )
 }
