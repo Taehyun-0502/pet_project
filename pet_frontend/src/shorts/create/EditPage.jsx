@@ -253,9 +253,12 @@ export default function EditPage({ draft, patchDraft, goBack, goStep }) {
 
       {!sheet && (
         <div className="sc-panel">
+          {/* 두 문장을 각각 한 줄로 (2026-08-26 사용자 요청) — 좁은 폭에서 임의로 접히면
+              "글자는"과 개수가 갈라져 읽힌다. <br />로 끊는 자리를 고정한다 */}
           <p className="sc-note">
-            위 버튼으로 <strong>글자·음악·볼륨</strong>을 얹으세요. 글자는{' '}
-            {MAX_OVERLAY_TEXTS}개까지 넣을 수 있습니다.
+            위 버튼으로 <strong>글자·음악·볼륨</strong>을 얹으세요.
+            <br />
+            글자는 {MAX_OVERLAY_TEXTS}개까지 넣을 수 있습니다.
           </p>
         </div>
       )}

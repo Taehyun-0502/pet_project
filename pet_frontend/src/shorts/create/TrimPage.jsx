@@ -348,6 +348,30 @@ export default function TrimPage({ draft, patchDraft, goBack, goStep }) {
         </div>
       </div>
 
+      {/* 확대 슬라이더 — 영상 프레임과 아래 길이 선택 패널 **사이**의 한 줄
+          (2026-08-26 사용자 요청. 전에는 패널 안 필름스트립 아래에 있었다) */}
+      <div className="sc-zoom sc-trim-zoom">
+        <span aria-hidden="true">🔍</span>
+        <input
+          type="range"
+          min={MIN_SCALE}
+          max={MAX_SCALE}
+          step={0.01}
+          value={crop.scale}
+          disabled={!canZoom}
+          onChange={(e) => applyCrop({ ...crop, scale: Number(e.target.value) })}
+          aria-label="확대"
+        />
+        <button
+          type="button"
+          className="sc-reset"
+          onClick={() => setCrop(DEFAULT_CROP)}
+          disabled={!canZoom}
+        >
+          원래대로
+        </button>
+      </div>
+
       <div className="sc-panel sc-trim-panel">
         <div className="sc-trim-head">
           <strong>
@@ -407,28 +431,6 @@ export default function TrimPage({ draft, patchDraft, goBack, goStep }) {
             onPointerCancel={endHandleDrag}
             aria-label="끝 지점"
           />
-        </div>
-
-        <div className="sc-zoom">
-          <span aria-hidden="true">🔍</span>
-          <input
-            type="range"
-            min={MIN_SCALE}
-            max={MAX_SCALE}
-            step={0.01}
-            value={crop.scale}
-            disabled={!canZoom}
-            onChange={(e) => applyCrop({ ...crop, scale: Number(e.target.value) })}
-            aria-label="확대"
-          />
-          <button
-            type="button"
-            className="sc-reset"
-            onClick={() => setCrop(DEFAULT_CROP)}
-            disabled={!canZoom}
-          >
-            가운데로
-          </button>
         </div>
 
         <p className="sc-note">

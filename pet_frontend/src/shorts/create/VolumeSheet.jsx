@@ -69,13 +69,20 @@ export default function VolumeSheet({ draft, patchDraft, onClose }) {
           </p>
         )}
 
-        {!track && (
-          <p className="sc-note">
-            음악 볼륨은 곡을 고른 뒤에 조절할 수 있습니다. 위 <strong>♪ 사운드</strong>에서 고르세요.
-          </p>
-        )}
-
-        <p className="sc-note">미리보기에 바로 반영됩니다.</p>
+        {/* 세 문장을 각각 한 줄로, **줄 사이를 더 띄우지 않고** 붙여 쓴다
+            (2026-08-26 사용자 요청). 그래서 <p>를 둘로 나누지 않고 하나에 <br />로 담는다 —
+            나누면 이 컬럼의 gap(.sc-sheet-body)만큼 줄 사이가 벌어진다.
+            곡을 고르면 앞의 두 줄은 할 말이 없어져 빠지고 마지막 줄만 남는다 */}
+        <p className="sc-note">
+          {!track && (
+            <>
+              음악 볼륨은 곡을 고른 뒤에 조절할 수 있습니다.
+              <br />위 <strong>♪ 사운드</strong>에서 고르세요.
+              <br />
+            </>
+          )}
+          미리보기에 바로 반영됩니다.
+        </p>
       </div>
     </div>
   )

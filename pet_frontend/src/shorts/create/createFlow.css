@@ -1,12 +1,30 @@
 /* 숏츠 제작 플로우(4페이지) 스타일. 모바일 풀스크린 기준.
 
-   피드(ShortsFeed.css)와 같은 규칙으로 화면을 잡는다 — 여기서 보이는 모습이 그대로 피드에
-   올라가므로, 프레임이 다르면 미리보기가 거짓말을 한다. 그래서 #root 해제 방식과 9:16 박스
-   계산식을 피드와 똑같이 쓴다 (한쪽만 바꾸지 말 것). */
+   피드와 같은 규칙으로 화면을 잡는다 — 여기서 보이는 모습이 그대로 피드에 올라가므로,
+   프레임이 다르면 미리보기가 거짓말을 한다. #root 해제 방식과 9:16 계산식을 피드와 똑같이
+   쓴다 (한쪽만 바꾸지 말 것).
+
+   **짝이 되는 값의 위치** (2026-08-26): 피드의 프레임 폭은 ShortsFeed.css가 아니라
+   appShell.css에 있다 — 하단 앱바와 폭을 맞춰야 해서 그 파일이 덮어쓴다
+   (`#root:has(.appbar):has(.sf-feed)`의 --sf-col-w). 이 파일의 --sc-col-w를 그 값과
+   같게 유지할 것. 480px 미디어쿼리 분기도 양쪽에 다 있어야 한다. */
 
 /* index.css의 #root는 360px 컬럼 + 좌우 테두리 + 가운데 정렬.
-   제작 플로우도 피드처럼 그 제약을 풀고 높이를 100dvh로 고정해 바깥이 따로 스크롤되지 않게 한다 */
+   제작 플로우도 피드처럼 테두리·높이 제약은 풀고 높이를 100dvh로 고정해 바깥이 따로
+   스크롤되지 않게 한다. 폭 제한(360px)은 풀지 않는다 — 아래 --sc-col-w 참고 */
 #root:has(.sc-flow) {
+  /*
+   * 프레임 폭. 피드(appShell.css의 --sf-col-w)와 **같은 값이어야 한다** — 이 화면에서 맞춘
+   * 글자가 피드에서 같은 크기로 떠야 하기 때문이다. 오버레이 글자는 프레임 폭 기준
+   * (`calc(6cqw * var(--ov-size))`, .sc-cover-text·.sf-overlay-text)이라 폭이 다르면
+   * 미리보기와 실제 영상의 글자 크기가 그 비율만큼 어긋난다.
+   *
+   * 이 화면에는 하단 앱바가 없다(/shorts/create는 AppShell 밖 라우트) — 그래서 앱바를
+   * 참조하지 않고 컬럼 폭만 같게 맞춘다. 값은 index.css #root·appShell.css .appbar와 동일.
+   */
+  --sc-col-w: 360px;
+  --sc-w: min(100vw, var(--sc-col-w));
+
   width: 100%;
   max-width: none;
   border-inline: none;
@@ -17,12 +35,29 @@
   background: #000;
 }
 
-/* 9:16 세로 박스. 폭은 높이의 9/16, 높이는 폭의 16/9로 서로 제한해 어느 쪽에도 넘치지 않는다
-   (피드 .sf-feed와 같은 계산) */
+/* 실제 폰에서는 폭 제한을 푼다 — index.css #root·appShell.css의 숏츠 분기와 같은 480px여야
+   한다. 이 분기가 없으면 390px 폰에서 피드는 전폭인데 제작 화면만 360px로 남는다 */
+@media (max-width: 480px) {
+  #root:has(.sc-flow) {
+    --sc-col-w: 100vw;
+  }
+}
+
+/*
+ * 폭은 컬럼(--sc-w)에 고정, 높이는 화면 전체.
+ *
+ * 네 페이지가 **모두 같은 높이**여야 한다 (2026-08-26 사용자 요청) — 페이지마다 높이가
+ * 다르면 상단바(.sc-bar)의 뒤로가기 버튼이 단계를 넘길 때마다 위아래로 움직인다.
+ * 전에는 이 상자 자체를 9:16으로 잡았는데(높이 = 폭 × 16/9), ④ 제작 마무리는 폼이라
+ * 그 높이에 안 맞아 결국 페이지마다 높이가 갈렸다.
+ *
+ * 그래서 상자는 화면을 꽉 채우고, **9:16은 영상 프레임(.sc-frame)이 지킨다** —
+ * 비율을 지켜야 하는 것은 영상이고 이 상자가 아니다.
+ */
 .sc-flow {
-  width: min(100vw, calc(100dvh * 9 / 16));
-  height: min(100dvh, calc(100vw * 16 / 9));
-  margin: auto;                       /* #root가 flex라 가로·세로 모두 가운데 */
+  width: var(--sc-w);
+  height: 100dvh;
+  margin: 0 auto;                     /* 높이를 꽉 채우므로 세로 auto는 할 일이 없다 */
   flex: none;                         /* flex 컨테이너가 높이를 줄이지 못하게 */
   overflow: hidden;
   background: #000;
@@ -100,10 +135,23 @@
 /* ───── ② 길이/비율 — 9:16 크롭 프레임 ───── */
 /* 남는 공간을 다 쓰지 않고 **정확히 9:16**으로 둔다. 상단바·패널을 뺀 자리는 9:16보다 넓어서,
    그대로 채우면 여기서 맞춘 위치가 피드와 어긋난다 */
-.sc-viewport-frame { display: flex; align-items: center; justify-content: center; }
+/* 배경을 .sc-viewport의 #111이 아니라 검정으로 되돌린다. 프레임이 9:16으로 고정되고
+   상자는 화면 높이를 쓰게 되면서(.sc-flow 주석) 프레임 위아래로 빈 자리가 크게 남는데,
+   그 자리가 #111이면 상단바·패널의 검정과 갈려 회색 띠 두 줄처럼 보인다 */
+.sc-viewport-frame { display: flex; align-items: center; justify-content: center; background: #000; }
 .sc-frame {
   position: relative;
   height: 100%;
+  /*
+   * 폭이 컬럼(--sc-w)을 넘게 되는 높이에서 멈춘다. **비율 유지에 필수다** (2026-08-26).
+   *
+   * 이 프레임은 높이가 폭을 정하는 구조다(height:100% → aspect-ratio로 폭 계산).
+   * .sc-flow가 화면 높이 전체를 쓰게 되면서 뷰포트가 640px보다 커졌는데, 그러면 계산된
+   * 폭이 360px을 넘어 max-width에 걸리고 — 그때 높이는 그대로 남아 9:16이 깨진다
+   * (360 × 뷰포트높이). 영상은 object-fit:cover라 그만큼 좌우가 잘려나간다.
+   * 높이를 먼저 막아 두면 폭이 언제나 컬럼 안에서 비율대로 계산된다.
+   */
+  max-height: calc(var(--sc-w) * 16 / 9);
   max-width: 100%;
   aspect-ratio: 9 / 16;
   overflow: hidden;
@@ -214,6 +262,19 @@
 }
 
 .sc-zoom { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+
+/* ②의 확대 슬라이더가 놓이는 한 줄. 영상 프레임과 길이 선택 패널 **사이**에 둔다
+   (2026-08-26 사용자 요청 — 전에는 패널 안 필름스트립 아래였다).
+   flex:none — .sc-page가 flex column이라 없으면 남는 높이 배분에 눌린다.
+   좌우 16px은 .sc-panel과 같은 값이다 — 위의 프레임·아래 패널과 좌우 끝이 맞아야 한다.
+   폭을 따로 정하지 않는다: .sc-flow가 이미 앱바와 같은 컬럼 폭(--sc-w)이라
+   그 안에서 늘어나는 것이 곧 "숏츠 폭에 맞춘" 것이다 */
+.sc-trim-zoom {
+  flex: none;
+  padding: 10px 16px;
+  background: #000;
+}
+
 .sc-zoom input {
   flex: 1;
   min-width: 0;
@@ -241,8 +302,15 @@
 /* 핀치 확대를 브라우저의 페이지 확대·스크롤이 가로채지 않게 한다 (.sc-frame-grab과 같은 이유) */
 .sc-camera .sc-viewport { touch-action: none; }
 
-/* 확대 조절. 미리보기 아래쪽에 얹는다 — 녹화 버튼과 겹치지 않고 엄지로 닿는 자리다 */
-.sc-zoom {
+/* 확대 조절. 미리보기 아래쪽에 얹는다 — 녹화 버튼과 겹치지 않고 엄지로 닿는 자리다.
+ *
+ * `.sc-camera` 한정이 **필수다** (2026-08-26). ②길이·비율(TrimPage)도 같은 .sc-zoom
+ * 클래스를 쓰는데(위 243행의 평범한 한 줄), 이 규칙이 파일 뒤에 있어 그쪽까지 덮었다.
+ * 거기서는 position:absolute의 기준이 될 조상이 없어(.sc-panel·.sc-page·.sc-flow 모두
+ * static) 초기 컨테이닝 블록 = **뷰포트**가 기준이 되고, left/right:16px이 화면 좌우
+ * 끝까지 늘어나 슬라이더가 화면 전체 폭을 차지했다. 카메라에서는 .sc-frame이
+ * position:relative라 의도대로 동작했기 때문에 드러나지 않았다. */
+.sc-camera .sc-zoom {
   position: absolute;
   left: 16px;
   right: 16px;
@@ -255,7 +323,7 @@
   background: rgba(0, 0, 0, .42);
   backdrop-filter: blur(6px);
 }
-.sc-zoom button {
+.sc-camera .sc-zoom button {
   flex: none;
   width: 26px;
   height: 26px;
@@ -267,8 +335,8 @@
   line-height: 1;
   cursor: pointer;
 }
-.sc-zoom button:disabled { opacity: .35; cursor: default; }
-.sc-zoom input[type='range'] { flex: 1; min-width: 0; accent-color: #fff; }
+.sc-camera .sc-zoom button:disabled { opacity: .35; cursor: default; }
+.sc-camera .sc-zoom input[type='range'] { flex: 1; min-width: 0; accent-color: #fff; }
 .sc-cam-size {
   position: absolute;
   top: 12px;
@@ -281,7 +349,8 @@
   color: rgba(255, 255, 255, .8);
 }
 
-.sc-zoom em {
+/* 배율 표시(×1.0). 카메라 한정 — TrimPage의 .sc-zoom에는 em이 없다 (위 .sc-camera 주석) */
+.sc-camera .sc-zoom em {
   flex: none;
   width: 34px;
   font-style: normal;
@@ -732,8 +801,23 @@
 .sc-text-add .sc-next { flex: none; }
 
 /* ───── 볼륨 ───── */
+/*
+ * grid다 — flex가 아니다. **슬라이더 길이가 곡 제목 길이에 흔들리지 않게 하는 것이 요점**
+ * (2026-08-26 사용자 요청).
+ *
+ * 전에는 flex에 `flex: 0 0 92px`으로 제목 칸을 묶었는데 그것으로는 막히지 않는다.
+ * flex-basis는 **자동 최소 크기(min-width:auto → min-content)를 이기지 못한다** —
+ * 제목 칸이 세로 flex라 그 min-content는 안쪽에서 가장 넓은 줄이고, 긴 곡 제목이 들어오면
+ * 92px을 넘겨 칸이 벌어지고 그만큼 슬라이더가 짧아졌다. em의 ellipsis도 그때는 발동하지
+ * 않는다(줄일 필요가 없으니 자르지도 않는다).
+ *
+ * grid의 고정 트랙은 내용과 무관하게 정확히 그 값이다. 가운데는 minmax(0, 1fr) —
+ * 그냥 1fr이면 최소가 auto(=min-content)라 같은 문제가 남는다.
+ * 결과: 슬라이더 길이 = 행 폭 − 92 − 30 − gap 20. 제목이 무엇이든, 두 행 모두 같다.
+ */
 .sc-vol {
-  display: flex;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 30px;
   align-items: center;
   gap: 10px;
   padding: 9px 11px;
@@ -741,7 +825,8 @@
   border-radius: 8px;
   font-size: 13px;
 }
-.sc-vol > span { flex: 0 0 92px; display: flex; flex-direction: column; gap: 2px; }
+/* min-width:0 — 고정 트랙(92px)보다 내용이 넓어도 트랙 밖으로 밀지 않고 안에서 잘리게 한다 */
+.sc-vol > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sc-vol em {
   font-style: normal;
   font-size: 10px;
@@ -750,10 +835,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sc-vol input { flex: 1; min-width: 0; margin: 0; accent-color: var(--accent); }
+.sc-vol input { min-width: 0; margin: 0; accent-color: var(--accent); }
 .sc-vol input:disabled { opacity: .4; }
-/* 숫자가 계속 바뀌므로 고정폭 + 고정 자리 — 아니면 슬라이더 폭이 흔들린다 */
-.sc-vol strong { flex: 0 0 30px; text-align: right; font-variant-numeric: tabular-nums; }
+/* 숫자가 계속 바뀌어도 자리가 흔들리지 않게 오른쪽 정렬 + 고정폭 숫자 (트랙 폭은 위 grid가 30px으로 고정) */
+.sc-vol strong { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ───── 미리보기 아래 설명 패널 ───── */
 .sc-panel {
@@ -791,13 +876,31 @@
   line-height: 1.5;
 }
 
-/* ───── ④ 발행 ───── */
-/* 이 페이지만 내용이 길어 세로로 스크롤된다 (앞 세 페이지는 한 화면에 고정) */
-.sc-publish-body {
-  flex: 1;
-  min-height: 0;
+/* ───── ④ 제작 마무리 ───── */
+/*
+ * 높이는 다른 세 페이지와 똑같이 .sc-flow가 정한다(화면 전체) — 여기만 다르게 두면
+ * 뒤로가기 버튼 위치가 어긋난다. 이 페이지가 앞 세 개와 다른 점은 9:16 영상 프레임이
+ * 없다는 것뿐이다(커버는 68px짜리 .sc-thumb로 들어간다).
+ *
+ * overflow-y:auto는 **안전장치**다. 내용이 화면에 다 들어가면 스크롤바가 생기지 않고,
+ * 아주 낮은 창에서만 나온다 — hidden으로 두면 그런 창에서 올리기 버튼까지 잘려 눌 수 없다.
+ */
+.sc-flow:has(.sc-publish) {
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/*
+ * 스크롤을 안쪽에서 만들지 않는다 — 내용 높이 그대로 두고, 넘치면 위 .sc-flow가 받는다.
+ *
+ * `flex: 1 0 auto`의 세 값이 각각 필요하다:
+ *   grow 1  — 남는 높이를 먹어 아래 올리기 버튼(.sc-publish-foot)을 화면 밑에 붙인다.
+ *             0이면 버튼이 폼 바로 아래에 떠서 그 밑이 검게 빈다.
+ *   shrink 0 — 자리가 부족할 때 **줄어들지 않는다.** 줄어들면 내용이 잘려 안 보인다.
+ *   basis auto — 기준은 내용 높이.
+ */
+.sc-publish-body {
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -833,8 +936,20 @@
 }
 
 /* ───── ④ 커버 정하기 시트 ───── */
-/* 큰 미리보기가 들어가야 해서 다른 시트보다 높이를 더 준다 */
-.sc-sheet-tall { max-height: 78%; }
+/*
+ * 이 시트도 스크롤 없이 다 보이게 한다 (2026-08-26 사용자 요청).
+ * 위 .sc-flow:has(.sc-publish)가 100dvh가 되면서 자리가 생겼고, PublishPage는 이 시트가
+ * 열려 있는 동안 폼(.sc-publish-body)을 감춰 그 자리를 넘겨준다.
+ *
+ * flex:none — .sc-sheet의 `flex: 0 1 auto`(줄어들 수 있게)를 되돌린다. 그 주석이 걱정한
+ * "아래 발행 버튼이 화면 밖으로 밀려난다"는 이제 .sc-flow의 스크롤이 받으므로 잘리지 않는다.
+ * max-height:none — 78%로 묶으면 그 안에서 다시 .sc-sheet-body가 스크롤된다
+ */
+.sc-sheet-tall {
+  flex: none;
+  max-height: none;
+}
+.sc-sheet-tall .sc-sheet-body { overflow: visible; }
 
 /* 여기 보이는 그대로가 구워진다. 글자 크기를 cqw로 두는 것이 핵심 —
    px로 고정하면 미리보기 크기에 따라 결과가 달라져, 여기서 맞춘 글자가 커버에서 어긋난다.
