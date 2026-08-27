@@ -351,7 +351,7 @@
   font-weight: 800;
   color: var(--lg-muted);
 }
-/* 상위 2마리 = 홈 노출 — 순번을 코럴로 */
+/* 1위 = 홈 접힌 상태 노출 — 순번을 코럴로 (2026-08-27 홈 표시 1마리로 축소) */
 .mypage .mypage-pet-order-rank.top { color: var(--lg-accent); }
 .mypage .mypage-pet-order-main { flex: 1; min-width: 0; }
 .mypage .mypage-pet-order-main b { font-size: 14px; }

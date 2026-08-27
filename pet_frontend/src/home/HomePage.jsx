@@ -108,9 +108,9 @@ export default function HomePage() {
           </p>
         )}
 
-        {/* 기본은 2마리까지 (2026-08-27) — 3마리 이상이면 아래 펼치기로 페이지 이동 없이
-            홈 안에서 전부 보여준다 (마이페이지 펫 탭으로 보내던 더보기에서 변경) */}
-        {(pets ?? []).slice(0, petsExpanded ? undefined : 2).map((p) => {
+        {/* 기본은 1마리만 (2026-08-27 축소) — 2마리 이상이면 아래 펼치기로 페이지 이동 없이
+            홈 안에서 전부 보여준다 */}
+        {(pets ?? []).slice(0, petsExpanded ? undefined : 1).map((p) => {
           const age = ageFromBirth(p.birthDate)
           return (
             <div key={p.id} className="home-pet-lrow">
@@ -129,11 +129,11 @@ export default function HomePage() {
           )
         })}
 
-        {/* 리스트 아래 액션 줄 (2026-08-27 사용자 결정) — 3마리 이상이면 펼치기/접기와
-            등록이 한 줄, 미만이면 등록만. 불러오는 중에는 안 띄운다 */}
+        {/* 리스트 아래 액션 줄 (2026-08-27 사용자 결정) — 접힌 표시(1마리)보다 많으면
+            펼치기/접기와 등록이 한 줄, 아니면 등록만. 불러오는 중에는 안 띄운다 */}
         {pets && (
           <div className="home-pet-actions">
-            {pets.length >= 3 && (
+            {pets.length >= 2 && (
               <button
                 type="button"
                 className="home-link"

@@ -32,7 +32,7 @@ export default function MyPagePets() {
   const [deletingId, setDeletingId] = useState(null)
 
   // ── 노출 순서 정렬 모드 ("설정" — api-spec.md 2절 PUT /api/pets/order, 2026-08-27) ──
-  // 드래그로 순서를 바꾸고 저장하면 홈이 상위 2마리를 우선 노출한다.
+  // 드래그로 순서를 바꾸고 저장하면 홈(접힌 상태)이 맨 위 1마리를 우선 노출한다.
   const [ordering, setOrdering] = useState(false)
   const [draft, setDraft] = useState([]) // 저장 전까지의 임시 순서 (취소하면 버린다)
   const [savingOrder, setSavingOrder] = useState(false)
@@ -179,7 +179,7 @@ export default function MyPagePets() {
                 닫기
               </button>
             </div>
-            <p className="muted-note">행을 끌어 순서를 바꾸세요 — 위 2마리가 홈 화면에 먼저 보입니다.</p>
+            <p className="muted-note">행을 끌어 순서를 바꾸세요 — 맨 위의 아이가 홈 화면에 먼저 보입니다.</p>
             {/* 저장 실패(다른 기기와 어긋남 등) 안내 — 시트가 화면을 덮고 있어 여기 띄운다 */}
             {error && <p className="submit-error" role="alert">{error}</p>}
             <ul className="mypage-pet-list mypage-pet-order" ref={listRef}>
@@ -196,9 +196,10 @@ export default function MyPagePets() {
                 onPointerCancel={onDragEnd}
                 onKeyDown={(e) => onOrderKeyDown(e, i)}
               >
-                {/* 상위 2마리가 홈에 노출됨을 순번 색으로 알린다 (안내 문구와 2중) */}
+                {/* 1위 = 홈 접힌 상태에 노출됨을 순번 색으로 알린다 (안내 문구와 2중,
+                    2026-08-27 홈 표시 2→1마리 축소에 맞춤) */}
                 <span
-                  className={i < 2 ? 'mypage-pet-order-rank top' : 'mypage-pet-order-rank'}
+                  className={i < 1 ? 'mypage-pet-order-rank top' : 'mypage-pet-order-rank'}
                   aria-hidden="true"
                 >
                   {i + 1}
