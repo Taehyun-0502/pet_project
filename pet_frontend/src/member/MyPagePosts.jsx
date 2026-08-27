@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import DeleteConfirm from '../common/DeleteConfirm'
 import { deleteShorts, getMemberShorts } from '../shorts/shortsApi'
 import { useAuth } from './AuthContext'
 import './member.css'
@@ -129,6 +130,7 @@ export default function MyPagePosts() {
   const [hasNext, setHasNext] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
+  const [confirmId, setConfirmId] = useState(null) // 삭제 2단 확인이 떠 있는 타일
   const [deletingId, setDeletingId] = useState(null)
 
   /*
@@ -200,14 +202,16 @@ export default function MyPagePosts() {
     }
   }
 
+  // 확인은 window.confirm이 아니라 타일 위 DeleteConfirm이 담당한다 (2026-08-27 —
+  // 대화상자 억제 환경에서 confirm이 조용히 false를 반환해 삭제가 무반응이던 결함)
   const onDelete = async (short) => {
-    if (!window.confirm('이 숏츠를 삭제할까요? 피드에서도 사라집니다.')) return
     setError('')
     setDeletingId(short.id)
     try {
       await deleteShorts(short.id)
       // 서버 재조회가 아니라 화면에서만 뺀다 (파일 상단 세 번째 판단 참고)
       setItems((prev) => prev.filter((item) => item.id !== short.id))
+      setConfirmId(null)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -290,11 +294,21 @@ export default function MyPagePosts() {
                 type="button"
                 className="mypage-post-delete"
                 aria-label={`${short.caption ?? '이 숏츠'} 삭제`}
-                onClick={() => onDelete(short)}
-                disabled={deletingId === short.id}
+                onClick={() => setConfirmId(confirmId === short.id ? null : short.id)}
               >
-                {deletingId === short.id ? '…' : '✕'}
+                ✕
               </button>
+              {confirmId === short.id && (
+                /* 좁은 타일이라 문구는 짧게 — "피드에서도 사라집니다"는 aria-label(✕ 버튼)과
+                   confirm 시절 문구에서 내려놓고, 겹칠 자리가 없어 하단 띠로 얹는다 */
+                <DeleteConfirm
+                  className="mypage-post-confirm"
+                  message="삭제할까요?"
+                  busy={deletingId === short.id}
+                  onConfirm={() => onDelete(short)}
+                  onCancel={() => setConfirmId(null)}
+                />
+              )}
             </li>
           ))}
         </ul>

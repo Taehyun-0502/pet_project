@@ -106,51 +106,51 @@
 .home-ask input::placeholder { color: var(--lg-muted); }
 .home-ask input:focus { outline: none; }
 .home-ask .home-link { padding-right: 6px; }
-.home-chip {
-  border: 1px solid var(--lg-line);
-  border-radius: 999px;
-  background: none;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--lg-text);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.home-chip:hover { border-color: var(--lg-accent); color: var(--lg-accent); }
-.home-chip[aria-pressed='true'] {
-  background: var(--lg-accent);
-  border-color: var(--lg-accent);
-  color: #fff;
-}
-
-/* 반려동물 프로필 카드 */
-.home-pet-chips {
+/* 반려동물 카드 — 이름 리스트 행 (2026-08-27 사진·칩 선택 제거).
+   .home-lrow와 같은 구분선 문법이지만 행 전체가 버튼이 아니라서(이름 링크 + 건강관리
+   버튼 두 목적지) 별도 클래스로 둔다 */
+.home-pet-lrow {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 2px;
+  border-top: 1px solid var(--lg-line);
 }
-.home-pet-row { display: flex; align-items: center; gap: 14px; }
-.home-pet-photo {
-  width: 88px;
-  height: 88px;
+.home-card-head + .home-pet-lrow { border-top: 0; }
+.home-pet-name {
   flex-shrink: 0;
-  object-fit: cover;
-  border-radius: 18px;
-  border: 1px solid var(--lg-line);
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 800;
+  color: inherit;
+  text-decoration: none;
 }
-.home-pet-photo-empty {
-  display: grid;
-  place-items: center;
-  font-size: 34px;
-  background: #f8edde;
+.home-pet-name:hover { color: var(--lg-accent); }
+/* 품종 · 나이 — 이름 바로 옆에 붙이고(왼쪽 정렬, 2026-08-27 사용자 요청) 길면 말줄임 */
+.home-pet-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--lg-muted);
 }
-.home-pet-info { flex: 1; min-width: 0; color: inherit; text-decoration: none; }
-.home-pet-info:hover .home-pet-name { text-decoration: underline; }
-.home-pet-name { font-size: 22px; font-weight: 800; line-height: 1.15; }
-.home-pet-meta { margin: 5px 0 0; font-size: 12px; color: var(--lg-muted); }
+/* 리스트 행 안에서는 카드 단독 CTA보다 낮게 */
+.home-pet-lrow .home-cta { padding: 8px 12px; font-size: 12px; }
+/* 리스트 아래 액션 줄 — 텍스트 링크만 가운데로 (2026-08-27 사용자 요청: 큰 버튼 대신
+   자리 덜 차지하는 텍스트 형식). 더보기는 3마리 이상일 때만 앞에 붙는다 */
+.home-pet-actions {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--lg-line);
+}
 
 /* 주 액션 버튼 (건강관리·등록하기) — 코럴 라운드 */
 .home-cta {

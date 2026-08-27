@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import DeleteConfirm from '../common/DeleteConfirm'
 import { IMAGE_ACCEPT, prepareImage } from '../common/imageUpload'
 import { deletePet, getPet, uploadPetImage } from './petApi'
 import '../common/forms.css' // .submit-error 등 공용 안내 스타일 — 전역 우연 의존 대신 명시 import (백로그 54번)
@@ -15,6 +16,7 @@ export default function PetDetailPage() {
   const [loadError, setLoadError] = useState(null) // 조회 실패 (ApiError)
   // 등록 화면에서 "정보는 등록됐지만 사진만 실패"로 넘어온 경우 그 안내를 이어받는다 (PetCreatePage)
   const [actionError, setActionError] = useState(location.state?.photoError ?? '')
+  const [confirmingDelete, setConfirmingDelete] = useState(false) // 삭제 2단 확인 표시 중
   const [deleting, setDeleting] = useState(false)
   const [uploading, setUploading] = useState(false)
 
@@ -49,8 +51,9 @@ export default function PetDetailPage() {
     return () => { cancelled = true }
   }, [petId])
 
+  // 확인은 window.confirm이 아니라 버튼 자리의 DeleteConfirm이 담당한다 (2026-08-27 —
+  // 대화상자 억제 환경에서 confirm이 조용히 false를 반환해 삭제가 무반응이던 결함)
   const onDelete = async () => {
-    if (!window.confirm(`${pet.name}을(를) 삭제할까요? 목록에서 사라집니다.`)) return
     setActionError('')
     setDeleting(true)
     try {
@@ -101,7 +104,7 @@ export default function PetDetailPage() {
           {pet.profileImageUrl ? (
             <img src={pet.profileImageUrl} alt={`${pet.name} 사진`} />
           ) : (
-            // 사진 없음 — 크림 배경 + 🐶 (홈 .home-pet-photo-empty와 같은 문법, 컬러 유지)
+            // 사진 없음 — 크림 배경 + 🐶 자리표시
             <div className="pet-photo-placeholder" aria-hidden="true">🐶</div>
           )}
           {/* label이 file input을 연다. 키보드 접근은 input을 pet.css에서 visually-hidden으로만
@@ -138,9 +141,18 @@ export default function PetDetailPage() {
         <div className="pet-actions">
           {/* 수정은 코럴 채움(.w-cta) — a 요소 밑줄·색 보정은 pet.css의 .warm a.w-cta */}
           <Link className="w-cta block" to={`/pets/${petId}/edit`}>수정</Link>
-          <button type="button" className="w-ghost danger block" onClick={onDelete} disabled={deleting}>
-            {deleting ? '삭제 중…' : '삭제'}
-          </button>
+          {confirmingDelete ? (
+            <DeleteConfirm
+              message={`${pet.name}을(를) 삭제할까요? 목록에서 사라집니다.`}
+              busy={deleting}
+              onConfirm={onDelete}
+              onCancel={() => setConfirmingDelete(false)}
+            />
+          ) : (
+            <button type="button" className="w-ghost danger block" onClick={() => setConfirmingDelete(true)}>
+              삭제
+            </button>
+          )}
         </div>
       </div>
     </main>

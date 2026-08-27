@@ -443,6 +443,24 @@
   cursor: default;
 }
 
+/* 타일 위 삭제 확인 (common/DeleteConfirm 재사용) — 영상 위 가독성을 위해 삭제 버튼과
+   같은 반투명 검정 문법의 하단 띠. 색은 warm.css 기본값을 흰 계열로 덮는다 */
+.mypage .mypage-post-confirm {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.65);
+}
+.mypage .mypage-post-confirm .confirm-inline-msg { color: #fff; }
+.mypage .mypage-post-confirm .confirm-inline-no { color: rgba(255, 255, 255, 0.75); }
+.mypage .mypage-post-confirm .confirm-inline-yes { color: #ff9d8c; }
+
 .mypage .mypage-posts-more {
   margin-top: 14px;
 }

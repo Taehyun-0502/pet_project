@@ -32,7 +32,7 @@
   border-radius: 18px;
 }
 
-/* 사진 없음 — 크림 배경 + 🐶 (홈 .home-pet-photo-empty와 같은 문법) */
+/* 사진 없음 — 크림 배경 + 🐶 자리표시 (홈 카드의 사진은 2026-08-27 제거돼 여기가 유일) */
 .warm .pet-photo .pet-photo-placeholder {
   display: grid;
   place-items: center;

@@ -16,12 +16,14 @@ import './home.css'
 // 브랜드 헤더·하단 앱바·건강검진 시트는 AppShell이 맡는다 (2026-08-26).
 // 지도·산책은 홈 상단 스트립에서 하단 앱바의 "댕맵"(DaengMapLayout)으로 옮겼다.
 //
-// 전체 반려동물 목록은 마이페이지 펫 탭(/mypage/pets)이 담당하고(구 /pets 목록 라우트는
-// 2026-08-25 폐지), 여기서는 대표 1마리(칩으로 전환)만 보여준다.
+// 전체 반려동물 목록·편집은 마이페이지 펫 탭(/mypage/pets)이 담당하고(구 /pets 목록 라우트는
+// 2026-08-25 폐지), 여기서는 이름 리스트만 보여준다 (2026-08-27 — 사진·칩 선택 제거,
+// 행마다 건강관리 버튼). 상세 진입은 이름을 눌러서.
 //
 // 실연동 완료 (2026-08-25): 오픈채팅 3개(getMyRooms — 참여 방, 서버가 고정·최근 대화순 정렬),
 // 숏츠 3개(getShortsFeed limit 3 — 품질점수순 공개 피드).
 
+// 생년월일을 그대로 보여주지 않고 만 나이만 계산해 보여준다 (2026-08-27 사용자 결정)
 function ageFromBirth(birthDate) {
   if (!birthDate) return null
   const b = new Date(birthDate)
@@ -40,7 +42,6 @@ export default function HomePage() {
   const openHealthSheet = useHealthSheet() // 셸이 들고 있는 건강검진 시트 (앱바 탭과 같은 시트)
 
   const [pets, setPets] = useState(null) // null = 불러오는 중
-  const [petIdx, setPetIdx] = useState(0)
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
   const [rooms, setRooms] = useState([]) // 참여 중인 방 — 고정 먼저, 최근 대화순 (서버 정렬)
@@ -61,8 +62,8 @@ export default function HomePage() {
     return () => { cancelled = true }
   }, [])
 
-  const pet = pets && pets.length > 0 ? pets[Math.min(petIdx, pets.length - 1)] : null
-  const age = pet ? ageFromBirth(pet.birthDate) : null
+  // AI 질문 placeholder에만 쓴다 — 선택 개념이 없어져 첫 번째 아이로 대표한다
+  const firstPet = pets && pets.length > 0 ? pets[0] : null
 
   const onAsk = () => {
     const query = q.trim()
@@ -82,7 +83,7 @@ export default function HomePage() {
           onKeyDown={(e) => {
             if (e.key === 'Enter') onAsk()
           }}
-          placeholder={pet ? `${pet.name}에 대해 무엇이든 물어보세요` : 'AI에게 무엇이든 물어보세요'}
+          placeholder={firstPet ? `${firstPet.name}에 대해 무엇이든 물어보세요` : 'AI에게 무엇이든 물어보세요'}
           aria-label="AI에게 질문"
         />
         <button type="button" className="home-link" onClick={onAsk}>
@@ -90,66 +91,54 @@ export default function HomePage() {
         </button>
       </section>
 
-      {/* 내 반려동물 프로필 — 사진 + 이름·메타 + 건강관리/산책 */}
+      {/* 내 반려동물 — 이름 리스트, 행마다 건강관리 (2026-08-27 사진·칩 선택 제거).
+          오픈채팅·숏츠 카드와 같은 헤드 문법. 이름이 상세(/pets/:id) 진입 링크다 */}
       <section className="home-card home-pet">
-        <div className="home-pet-chips">
-          {(pets ?? []).map((p, i) => (
-            <button
-              key={p.id}
-              type="button"
-              className="home-chip"
-              aria-pressed={i === petIdx}
-              onClick={() => setPetIdx(i)}
-            >
-              {p.name}
-            </button>
-          ))}
-          <span style={{ flex: 1 }} />
-          <button type="button" className="home-link" onClick={() => navigate('/pets/new')}>
-            + 등록
-          </button>
+        <div className="home-card-head">
+          <h2><span aria-hidden="true">🐶</span> 내 반려동물</h2>
         </div>
 
         {error && <p className="submit-error">{error}</p>}
         {pets === null && !error && <p className="home-muted">불러오는 중…</p>}
 
         {pets && pets.length === 0 && (
-          <div className="home-pet-row">
-            <div className="home-pet-photo home-pet-photo-empty" aria-hidden="true">🐶</div>
-            <div className="home-pet-info">
-              <div className="home-pet-name">첫 반려동물 등록</div>
-              <p className="home-pet-meta">등록하면 산책·건강검진 기록이 이 자리에 모입니다.</p>
-            </div>
-            <button type="button" className="home-cta" onClick={() => navigate('/pets/new')}>
-              등록하기
-            </button>
-          </div>
+          <p className="home-muted">
+            아직 등록한 반려동물이 없습니다. 등록하면 건강검진 기록이 이 자리에 모입니다.
+          </p>
         )}
 
-        {pet && (
-          <div className="home-pet-row">
-            {pet.profileImageUrl ? (
-              <img className="home-pet-photo" src={pet.profileImageUrl} alt="" />
-            ) : (
-              <div className="home-pet-photo home-pet-photo-empty" aria-hidden="true">🐶</div>
+        {/* 홈에는 2마리까지만 (2026-08-27) — 나머지는 아래 더보기(마이페이지 펫 탭)로.
+            더보기 노출 기준(3마리 이상)은 그대로라, 3마리째부터는 목록엔 안 보여도 더보기가 뜬다 */}
+        {(pets ?? []).slice(0, 2).map((p) => {
+          const age = ageFromBirth(p.birthDate)
+          return (
+            <div key={p.id} className="home-pet-lrow">
+              <Link className="home-pet-name" to={`/pets/${p.id}`} aria-label={`${p.name} 상세 정보`}>
+                {p.name}
+              </Link>
+              {/* 품종 · 나이 — 생년월일 원문 대신 만 나이만 (2026-08-27 사용자 결정) */}
+              <span className="home-pet-meta">
+                {[p.breed, age !== null ? `${age}살` : null].filter(Boolean).join(' · ')}
+              </span>
+              {/* 그 행의 반려동물을 넘겨 진단 화면 입력이 이 아이 기준으로 채워지게 한다 */}
+              <button type="button" className="home-cta" onClick={() => openHealthSheet(p)}>
+                건강관리
+              </button>
+            </div>
+          )
+        })}
+
+        {/* 리스트 아래 액션 줄 (2026-08-27 사용자 결정) — 3마리 이상이면 더보기(전체 목록은
+            마이페이지 펫 탭 담당)와 등록이 한 줄, 미만이면 등록만. 불러오는 중에는 안 띄운다 */}
+        {pets && (
+          <div className="home-pet-actions">
+            {pets.length >= 3 && (
+              <button type="button" className="home-link" onClick={() => navigate('/mypage/pets')}>
+                더보기
+              </button>
             )}
-            {/* 이름·정보 블록이 상세(/pets/:id) 진입 링크 — /pets 목록 행에서 이관 (2026-08-25) */}
-            <Link
-              className="home-pet-info"
-              to={`/pets/${pet.id}`}
-              aria-label={`${pet.name} 상세 정보`}
-            >
-              <div className="home-pet-name">{pet.name}</div>
-              <p className="home-pet-meta">
-                {[pet.breed ?? '품종 미입력', age !== null ? `${age}살` : null, pet.birthDate]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
-            </Link>
-            {/* 산책 버튼은 뺐다 (2026-08-26) — 산책은 하단 앱바의 댕맵 안 탭이 담당한다.
-                선택된 반려동물을 넘겨 진단 화면 입력이 이 아이 기준으로 채워지게 한다 */}
-            <button type="button" className="home-cta" onClick={() => openHealthSheet(pet)}>
-              건강관리
+            <button type="button" className="home-link" onClick={() => navigate('/pets/new')}>
+              + 등록
             </button>
           </div>
         )}

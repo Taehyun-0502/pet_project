@@ -185,6 +185,37 @@
 .w-input:focus { outline: none; border-color: var(--lg-accent); box-shadow: 0 0 0 3px rgba(239, 125, 102, 0.15); }
 .w-input[aria-invalid='true'] { border-color: var(--lg-error); }
 
+/* 삭제 2단 확인 (common/DeleteConfirm — window.confirm 대체, 2026-08-27).
+   확인은 딥 레드 텍스트, 취소는 회색 — 레드 채움 금지 규칙 준수 */
+.warm .confirm-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.warm .confirm-inline-msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--lg-muted);
+}
+.warm .confirm-inline button {
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.warm .confirm-inline-yes { color: var(--lg-error); }
+.warm .confirm-inline-no { color: var(--lg-muted); }
+.warm .confirm-inline button:hover { color: var(--lg-accent-deep); }
+.warm .confirm-inline button:disabled { color: var(--lg-muted); cursor: default; }
+
 /* 안내·오류 */
 .w-muted { margin: 8px 2px; font-size: 12.5px; color: var(--lg-muted); }
 .warm .submit-error { font-size: 13px; color: var(--lg-error); }

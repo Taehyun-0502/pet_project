@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import DeleteConfirm from '../common/DeleteConfirm'
 import { deletePet, getMyPets } from '../pet/petApi'
 // pet.css를 빌려 쓰지 않는다 (2026-08-25 스킨 전환 때 결정, 웜톤 전환 후에도 동일) —
 // pet 화면은 다른 작업자와 동시 작업 중이라, 이 탭의 행·액션 스타일은 warm.css 공용 클래스
@@ -27,6 +28,7 @@ export default function MyPagePets() {
   const [pets, setPets] = useState(null) // null = 아직 불러오는 중
   const [error, setError] = useState('')
   const [openId, setOpenId] = useState(null) // 펼쳐진 항목 (하나만)
+  const [confirmId, setConfirmId] = useState(null) // 삭제 2단 확인이 떠 있는 항목
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
@@ -37,9 +39,9 @@ export default function MyPagePets() {
     return () => { cancelled = true }
   }, [])
 
+  // 확인은 window.confirm이 아니라 행 안의 DeleteConfirm이 담당한다 (2026-08-27 —
+  // 대화상자 억제 환경에서 confirm이 조용히 false를 반환해 삭제가 무반응이던 결함)
   const onDelete = async (pet) => {
-    // 상세 화면과 같은 문구 — 같은 동작에 다른 경고가 뜨면 어느 쪽이 진짜인지 헷갈린다
-    if (!window.confirm(`${pet.name}을(를) 삭제할까요? 목록에서 사라집니다.`)) return
     setError('')
     setDeletingId(pet.id)
     try {
@@ -48,8 +50,9 @@ export default function MyPagePets() {
       // (보안 탭의 기기 원격 로그아웃과 같은 방식)
       setPets(await getMyPets())
       setOpenId(null)
+      setConfirmId(null)
     } catch (err) {
-      setError(err.message)
+      setError(err.message) // 확인 UI는 열어 둔다 — 문구를 보고 재시도하거나 취소할 수 있게
     } finally {
       setDeletingId(null)
     }
@@ -80,7 +83,8 @@ export default function MyPagePets() {
                   type="button"
                   className="w-row"
                   aria-expanded={open}
-                  onClick={() => setOpenId(open ? null : pet.id)}
+                  // 접었다 펴면 삭제 확인도 초기화 — 접힌 채 남은 확인이 다음 펼침에서 튀어나오지 않게
+                  onClick={() => { setOpenId(open ? null : pet.id); setConfirmId(null) }}
                 >
                   {pet.profileImageUrl ? (
                     <img className="mypage-pet-thumb" src={pet.profileImageUrl} alt="" />
@@ -96,26 +100,38 @@ export default function MyPagePets() {
                 </button>
                 {open && (
                   <div className="mypage-pet-actions">
-                    {/* 상세 진입 — /pets 목록 행에서 흡수 (2026-08-25) */}
-                    <Link className="w-link" to={`/pets/${pet.id}`}>
-                      상세
-                    </Link>
-                    <Link
-                      className="w-link"
-                      to={`/pets/${pet.id}/edit`}
-                      state={{ from: RETURN_TO }}
-                    >
-                      수정
-                    </Link>
-                    {/* 삭제는 위험 액션 — 딥 레드 텍스트 (레드 채움 금지 규칙) */}
-                    <button
-                      type="button"
-                      className="danger-link"
-                      onClick={() => onDelete(pet)}
-                      disabled={deletingId === pet.id}
-                    >
-                      {deletingId === pet.id ? '삭제 중…' : '삭제'}
-                    </button>
+                    {confirmId === pet.id ? (
+                      /* 삭제 확인이 액션 줄을 통째로 대신한다 — 확인 중에 수정으로 이동하는
+                         어긋난 조작을 막고, 좁은 줄에서 문구 자리도 확보된다 */
+                      <DeleteConfirm
+                        message={`${pet.name}을(를) 삭제할까요?`}
+                        busy={deletingId === pet.id}
+                        onConfirm={() => onDelete(pet)}
+                        onCancel={() => setConfirmId(null)}
+                      />
+                    ) : (
+                      <>
+                        {/* 상세 진입 — /pets 목록 행에서 흡수 (2026-08-25) */}
+                        <Link className="w-link" to={`/pets/${pet.id}`}>
+                          상세
+                        </Link>
+                        <Link
+                          className="w-link"
+                          to={`/pets/${pet.id}/edit`}
+                          state={{ from: RETURN_TO }}
+                        >
+                          수정
+                        </Link>
+                        {/* 삭제는 위험 액션 — 딥 레드 텍스트 (레드 채움 금지 규칙) */}
+                        <button
+                          type="button"
+                          className="danger-link"
+                          onClick={() => setConfirmId(pet.id)}
+                        >
+                          삭제
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </li>
