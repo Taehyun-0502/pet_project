@@ -134,6 +134,17 @@ export default function MyPagePosts() {
   const [deletingId, setDeletingId] = useState(null)
 
   /*
+   * 진행 중인 "더 보기" 응답을 무효화하는 세대 번호 (백로그 116번).
+   *
+   * 더 보기 요청이 날아간 사이 정렬을 바꾸면 첫 페이지 effect가 목록을 null로 비우는데,
+   * 뒤늦게 도착한 응답이 `[...prev, ...]`를 실행하면 null 스프레드로 화면 전체가 죽었다
+   * (새 첫 페이지가 먼저 온 경우에는 이전 정렬의 항목이 새 목록 뒤에 섞였다).
+   * 첫 페이지를 다시 읽을 때마다 번호를 올리고, 더 보기는 요청 시점 번호와 응답 시점
+   * 번호가 다르면 결과를 버린다 — 첫 페이지 effect의 cancelled와 같은 규율의 짝이다.
+   */
+  const loadSeqRef = useRef(0)
+
+  /*
    * 저장된 값을 지운다 — "한 번만" 되살리기 위한 것이다 (RESTORE_KEY 주석).
    * 위에서 이미 ref로 읽어 뒀으므로 지워도 이번 복원에는 영향이 없다.
    */
@@ -145,6 +156,7 @@ export default function MyPagePosts() {
   useEffect(() => {
     if (!memberId) return undefined
     let cancelled = false
+    loadSeqRef.current += 1 // 진행 중이던 "더 보기" 응답을 무효화한다 (loadSeqRef 주석)
 
     /*
      * 돌아온 첫 조회에서만 **예전에 불러와 있던 개수만큼 한 번에** 받는다.
@@ -187,12 +199,22 @@ export default function MyPagePosts() {
   }, [items])
 
   const onLoadMore = async () => {
+    const seq = loadSeqRef.current // 요청 시점의 세대 — 정렬이 바뀌면 이 응답은 버린다
     setLoadingMore(true)
     setError('')
     try {
       // nextCursor를 해석하지 않고 그대로 돌려보낸다 (서버만 아는 불투명 값)
       const data = await getMemberShorts(memberId, { sort, cursor })
-      setItems((prev) => [...prev, ...data.items])
+      if (seq !== loadSeqRef.current) return // 그 사이 첫 페이지가 다시 시작됐다 (백로그 116번)
+      setItems((prev) => {
+        /*
+         * id 중복 제거 (백로그 117번) — 인기순 커서는 좋아요 수 기반이라, 페이지 사이에
+         * 좋아요가 변하면 앞 페이지에 있던 영상이 다음 페이지에 또 내려올 수 있다.
+         * 그대로 붙이면 React key 충돌 + 같은 타일이 두 개 보인다.
+         */
+        const seen = new Set(prev.map((item) => item.id))
+        return [...prev, ...data.items.filter((item) => !seen.has(item.id))]
+      })
       setCursor(data.nextCursor)
       setHasNext(data.hasNext)
     } catch (err) {

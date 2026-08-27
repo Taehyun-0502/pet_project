@@ -142,19 +142,29 @@ public interface ChatRoomMemberRepository extends JpaRepository<ChatRoomMember, 
                            @Param("reason") ChatLeftReason reason);
 
     /**
-     * 내가 참여 중인 모든 방의 안 읽은 메시지 수를 쿼리 한 번으로 집계 (ix_chat_message_room 사용).
+     * 내가 참여 중인 모든 방의 안 읽은 메시지 수를 쿼리 한 번으로 집계.
      * 내가 보낸 메시지는 세지 않는다 — 보낸 직후 읽음 보고가 도착하기 전에도 배지가 뜨지 않게.
-     * left join이라 안 읽은 메시지가 없는 방도 0으로 돌아온다.
+     * 스칼라 서브쿼리라 안 읽은 메시지가 없는 방도 0으로 돌아온다.
+     *
+     * **방당 100건에서 세기를 멈춘다** (리뷰 백로그 81번, 2026-08-27). UI는 어차피 99를 넘으면
+     * "99+"로 표시하므로, 오래 안 들어간 방의 수천 행을 끝까지 세는 것은 순수 낭비였다 —
+     * limit 100이면 집계값 100 = 화면 "99+"로 정확히 이어진다.
+     * native인 이유: JPQL은 이 "상한 있는 카운트"(파생 테이블 + limit)를 표현할 수 없다.
+     * 서브쿼리는 ix_chat_message_room_sender(room_id, message_id) INCLUDE (sender_id)로
+     * 힙 접근 없이(index-only) 돈다 — sender_id가 인덱스에 없던 동안은 후보 행마다 힙 페치였다.
      */
-    @Query("""
-            select crm.roomId as roomId, count(msg.id) as unreadCount
-            from ChatRoomMember crm
-            left join ChatMessage msg
-                on msg.roomId = crm.roomId
-                and msg.id > coalesce(crm.lastReadMessageId, 0)
-                and msg.senderId <> crm.memberId
-            where crm.memberId = :memberId and crm.leftAt is null
-            group by crm.roomId
-            """)
+    @Query(value = """
+            select crm.room_id as roomId,
+                   (select count(*)
+                      from (select 1
+                              from chat_message m
+                             where m.room_id = crm.room_id
+                               and m.message_id > coalesce(crm.last_read_message_id, 0)
+                               and m.sender_id <> crm.member_id
+                             limit 100) capped) as unreadCount
+              from chat_room_member crm
+             where crm.member_id = :memberId
+               and crm.left_at is null
+            """, nativeQuery = true)
     List<RoomUnreadCount> countUnreadByMember(@Param("memberId") Long memberId);
 }
