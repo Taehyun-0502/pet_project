@@ -42,6 +42,7 @@ export default function HomePage() {
   const openHealthSheet = useHealthSheet() // 셸이 들고 있는 건강검진 시트 (앱바 탭과 같은 시트)
 
   const [pets, setPets] = useState(null) // null = 불러오는 중
+  const [petsExpanded, setPetsExpanded] = useState(false) // 3마리 이상일 때 전체 펼침 여부
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
   const [rooms, setRooms] = useState([]) // 참여 중인 방 — 고정 먼저, 최근 대화순 (서버 정렬)
@@ -107,9 +108,9 @@ export default function HomePage() {
           </p>
         )}
 
-        {/* 홈에는 2마리까지만 (2026-08-27) — 나머지는 아래 더보기(마이페이지 펫 탭)로.
-            더보기 노출 기준(3마리 이상)은 그대로라, 3마리째부터는 목록엔 안 보여도 더보기가 뜬다 */}
-        {(pets ?? []).slice(0, 2).map((p) => {
+        {/* 기본은 2마리까지 (2026-08-27) — 3마리 이상이면 아래 펼치기로 페이지 이동 없이
+            홈 안에서 전부 보여준다 (마이페이지 펫 탭으로 보내던 더보기에서 변경) */}
+        {(pets ?? []).slice(0, petsExpanded ? undefined : 2).map((p) => {
           const age = ageFromBirth(p.birthDate)
           return (
             <div key={p.id} className="home-pet-lrow">
@@ -128,13 +129,18 @@ export default function HomePage() {
           )
         })}
 
-        {/* 리스트 아래 액션 줄 (2026-08-27 사용자 결정) — 3마리 이상이면 더보기(전체 목록은
-            마이페이지 펫 탭 담당)와 등록이 한 줄, 미만이면 등록만. 불러오는 중에는 안 띄운다 */}
+        {/* 리스트 아래 액션 줄 (2026-08-27 사용자 결정) — 3마리 이상이면 펼치기/접기와
+            등록이 한 줄, 미만이면 등록만. 불러오는 중에는 안 띄운다 */}
         {pets && (
           <div className="home-pet-actions">
             {pets.length >= 3 && (
-              <button type="button" className="home-link" onClick={() => navigate('/mypage/pets')}>
-                더보기
+              <button
+                type="button"
+                className="home-link"
+                aria-expanded={petsExpanded}
+                onClick={() => setPetsExpanded((v) => !v)}
+              >
+                {petsExpanded ? '접기' : '펼치기'}
               </button>
             )}
             <button type="button" className="home-link" onClick={() => navigate('/pets/new')}>

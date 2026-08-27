@@ -316,6 +316,64 @@
   font-size: 20px;
 }
 
+/* ── 노출 순서 정렬 모드 (설정 — 드래그, 2026-08-27) ── */
+
+/* 저장·취소, 등록·설정이 나란히 서는 액션 줄 */
+.mypage .mypage-pets-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mypage .mypage-pet-order-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  margin-top: 6px;
+  border: 1px solid var(--lg-line);
+  border-radius: 12px;
+  background: var(--lg-card);
+  touch-action: none; /* 드래그가 화면 세로 스크롤과 경합하지 않게 */
+  user-select: none;
+  cursor: grab;
+}
+.mypage .mypage-pet-order-row.dragging {
+  border-color: var(--lg-accent);
+  box-shadow: 0 8px 16px -10px rgba(90, 60, 30, 0.45);
+  cursor: grabbing;
+}
+.mypage .mypage-pet-order-rank {
+  flex-shrink: 0;
+  min-width: 22px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--lg-muted);
+}
+/* 상위 2마리 = 홈 노출 — 순번을 코럴로 */
+.mypage .mypage-pet-order-rank.top { color: var(--lg-accent); }
+.mypage .mypage-pet-order-main { flex: 1; min-width: 0; }
+.mypage .mypage-pet-order-main b { font-size: 14px; }
+.mypage .mypage-pet-order-main .sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--lg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mypage .mypage-pet-order-handle { flex-shrink: 0; font-size: 15px; color: var(--lg-muted); }
+/* 시트 안 목록 — 마릿수가 많아도 시트가 화면을 넘지 않게 목록만 스크롤 */
+.w-sheet .mypage-pet-order {
+  max-height: 48vh;
+  overflow-y: auto;
+  margin: 10px 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
 /* 펼친 항목의 상세·수정·삭제 — 텍스트 액션 나란히 */
 .mypage .mypage-pet-actions {
   display: flex;

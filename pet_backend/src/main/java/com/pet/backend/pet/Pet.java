@@ -54,6 +54,11 @@ public class Pet {
     @Column(name = "profile_image_url", length = 500)
     private String profileImageUrl;
 
+    // 노출 순서 (api-spec.md 2절 PUT /api/pets/order). NULL = 순서 미지정 — 정렬에서 맨 뒤로 가므로
+    // 순서를 저장한 적 없는 계정은 기존 최근 등록순 그대로다 (백필 불필요)
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -103,6 +108,11 @@ public class Pet {
     // 사진 없이 정보만 수정해도 사진이 지워진다 — 사진은 전용 업로드 경로로만 바뀐다
     public void changeProfileImage(String profileImageUrl) {
         this.profileImageUrl = profileImageUrl;
+    }
+
+    // update()에 넣지 않는 이유는 사진과 같다 — 순서는 정렬 저장 경로로만 바뀐다
+    public void changeSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     public boolean isDeleted() {

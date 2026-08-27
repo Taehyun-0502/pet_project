@@ -7,7 +7,10 @@ import com.pet.backend.member.MemberErrorCode;
 import com.pet.backend.member.MemberRepository;
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,9 +41,43 @@ public class PetService {
     @Transactional(readOnly = true)
     public List<PetResponse> getMyPets(Long memberId) {
         requireActiveMember(memberId);
-        return petRepository.findByMemberIdAndDeletedAtIsNullOrderByCreatedAtDesc(memberId)
+        return petRepository.findMyActiveOrdered(memberId)
                 .stream()
                 .map(PetResponse::from)
+                .toList();
+    }
+
+    /**
+     * 노출 순서 저장 (api-spec.md 2절, 2026-08-27) — 배열 인덱스를 sort_order에 기록한다.
+     *
+     * 요청은 내 활성 반려동물 **전체**의 id가 정확히 한 번씩이어야 한다. 부분 정렬을 받지 않는
+     * 이유: 화면이 항상 전체 목록을 들고 있고, "정렬 안 된 나머지"의 위치 규칙을 따로 정의하지
+     * 않아도 되게 계약을 좁혀 둔다. 화면 로드와 저장 사이에 다른 기기의 등록·삭제가 끼어든
+     * 경우도 이 검증에 걸린다 — 프론트는 400이면 목록을 다시 읽어 다시 정렬하게 안내한다.
+     */
+    @Transactional
+    public List<PetResponse> updateOrder(Long memberId, PetOrderRequest request) {
+        requireActiveMember(memberId);
+        List<Pet> pets = petRepository.findMyActiveOrdered(memberId);
+        List<Long> requestedIds = request.petIds();
+
+        Map<Long, Pet> myPetsById = pets.stream()
+                .collect(Collectors.toMap(Pet::getId, pet -> pet));
+        // 크기 + 전부 내 것 = 집합 일치 (요청에 중복이 있으면 크기가 같아도 어느 id가 빠져 걸린다)
+        boolean sameSet = requestedIds.size() == pets.size()
+                && new HashSet<>(requestedIds).size() == requestedIds.size()
+                && myPetsById.keySet().containsAll(requestedIds);
+        if (!sameSet) {
+            throw new BusinessException(CommonErrorCode.VALIDATION_ERROR,
+                    "보유한 반려동물 전체의 id가 정확히 한 번씩 와야 합니다. 목록을 새로고침한 뒤 다시 시도해 주세요.");
+        }
+
+        for (int i = 0; i < requestedIds.size(); i++) {
+            myPetsById.get(requestedIds.get(i)).changeSortOrder(i);
+        }
+        // 갱신된 순서 그대로 응답 — 화면이 재조회 없이 목록을 교체한다 (api-spec.md 2절)
+        return requestedIds.stream()
+                .map(id -> PetResponse.from(myPetsById.get(id)))
                 .toList();
     }
 

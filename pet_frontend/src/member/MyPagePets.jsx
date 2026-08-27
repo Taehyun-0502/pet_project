@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import DeleteConfirm from '../common/DeleteConfirm'
-import { deletePet, getMyPets } from '../pet/petApi'
+import { deletePet, getMyPets, updatePetOrder } from '../pet/petApi'
 // pet.css를 빌려 쓰지 않는다 (2026-08-25 스킨 전환 때 결정, 웜톤 전환 후에도 동일) —
 // pet 화면은 다른 작업자와 동시 작업 중이라, 이 탭의 행·액션 스타일은 warm.css 공용 클래스
 // (w-row·w-link)와 member.css 자체 정의(.mypage-pet-* 계열)로 만든다
@@ -31,6 +31,15 @@ export default function MyPagePets() {
   const [confirmId, setConfirmId] = useState(null) // 삭제 2단 확인이 떠 있는 항목
   const [deletingId, setDeletingId] = useState(null)
 
+  // ── 노출 순서 정렬 모드 ("설정" — api-spec.md 2절 PUT /api/pets/order, 2026-08-27) ──
+  // 드래그로 순서를 바꾸고 저장하면 홈이 상위 2마리를 우선 노출한다.
+  const [ordering, setOrdering] = useState(false)
+  const [draft, setDraft] = useState([]) // 저장 전까지의 임시 순서 (취소하면 버린다)
+  const [savingOrder, setSavingOrder] = useState(false)
+  const listRef = useRef(null)
+  const dragRef = useRef({ idx: null }) // 이동 계산용 (리렌더 불필요한 값)
+  const [dragIdx, setDragIdx] = useState(null) // 잡고 있는 행 표시용
+
   useEffect(() => {
     let cancelled = false
     getMyPets()
@@ -58,11 +67,89 @@ export default function MyPagePets() {
     }
   }
 
+  const startOrdering = () => {
+    setDraft(pets)
+    setOrdering(true)
+    setOpenId(null)
+    setConfirmId(null)
+    setError('')
+  }
+
+  const onSaveOrder = async () => {
+    setError('')
+    setSavingOrder(true)
+    try {
+      // 성공 응답이 갱신된 목록이라 재조회가 필요 없다 (petApi.updatePetOrder 주석)
+      setPets(await updatePetOrder(draft.map((p) => p.id)))
+      setOrdering(false)
+    } catch (err) {
+      setError(err.message)
+      // 다른 기기의 등록·삭제와 어긋난 400 — 최신 목록으로 다시 정렬할 수 있게 재조회
+      try {
+        const fresh = await getMyPets()
+        setPets(fresh)
+        setDraft(fresh)
+      } catch { /* 재조회 실패면 첫 오류 문구를 유지한다 */ }
+    } finally {
+      setSavingOrder(false)
+    }
+  }
+
+  const moveDraft = (from, to) => {
+    if (to < 0 || to >= draft.length || from === to) return
+    setDraft((prev) => {
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }
+
+  // 드래그: 잡은 행이 다른 행의 세로 구간에 들어가면 그 자리로 옮긴다 (행 높이 균일 전제).
+  // 터치는 CSS touch-action: none이 화면 스크롤과의 경합을 막는다
+  const onDragStart = (e, idx) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    // 캡처 실패(이미 끝난 포인터 등)해도 드래그 자체는 이어간다 — move가 리스트 요소 기준이라 동작한다
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* 무해 */ }
+    dragRef.current.idx = idx
+    setDragIdx(idx)
+  }
+  const onDragMove = (e) => {
+    const d = dragRef.current
+    if (d.idx === null) return
+    const rows = [...listRef.current.querySelectorAll('li')]
+    const over = rows.findIndex((el) => {
+      const r = el.getBoundingClientRect()
+      return e.clientY >= r.top && e.clientY <= r.bottom
+    })
+    if (over === -1 || over === d.idx) return
+    moveDraft(d.idx, over)
+    d.idx = over
+    setDragIdx(over)
+  }
+  const onDragEnd = () => {
+    dragRef.current.idx = null
+    setDragIdx(null)
+  }
+
+  // 드래그는 키보드로 못 하므로 행 포커스 + ↑/↓로도 옮길 수 있게 한다
+  const onOrderKeyDown = (e, idx) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+    e.preventDefault()
+    moveDraft(idx, e.key === 'ArrowUp' ? idx - 1 : idx + 1)
+  }
+
   return (
     <section>
       <h2>펫 정보</h2>
       <nav className="mypage-pets-nav">
         <Link className="w-link" to="/pets/new">+ 반려동물 등록</Link>
+        {/* 순서 바꾸기는 2마리부터 의미가 있다. 정렬 UI는 페이지 전환 없이 바텀시트로 (2026-08-27) */}
+        {pets && pets.length >= 2 && (
+          <button type="button" className="w-link" onClick={startOrdering}>
+            설정
+          </button>
+        )}
       </nav>
       <p className="muted-note">항목을 누르면 상세·수정·삭제할 수 있습니다.</p>
 
@@ -71,7 +158,73 @@ export default function MyPagePets() {
       {pets && pets.length === 0 && (
         <p className="muted-note">등록된 반려동물이 없습니다. 위 버튼으로 등록해 보세요.</p>
       )}
-      {pets && pets.length > 0 && (
+      {/* 노출 순서 설정 — 바텀시트 (warm.css .w-sheet). 백드롭 클릭·닫기 = 취소 */}
+      {ordering && (
+        <div
+          className="w-sheet-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="노출 순서 설정"
+          onClick={() => { if (!savingOrder) setOrdering(false) }}
+        >
+          <div className="w-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="w-sheet-head">
+              <div className="w-sheet-title">노출 순서 설정</div>
+              <button
+                type="button"
+                className="w-link"
+                onClick={() => setOrdering(false)}
+                disabled={savingOrder}
+              >
+                닫기
+              </button>
+            </div>
+            <p className="muted-note">행을 끌어 순서를 바꾸세요 — 위 2마리가 홈 화면에 먼저 보입니다.</p>
+            {/* 저장 실패(다른 기기와 어긋남 등) 안내 — 시트가 화면을 덮고 있어 여기 띄운다 */}
+            {error && <p className="submit-error" role="alert">{error}</p>}
+            <ul className="mypage-pet-list mypage-pet-order" ref={listRef}>
+              {draft.map((pet, i) => (
+            <li key={pet.id}>
+              <div
+                className={dragIdx === i ? 'mypage-pet-order-row dragging' : 'mypage-pet-order-row'}
+                role="button"
+                tabIndex={0}
+                aria-label={`${pet.name} — 현재 ${i + 1}번째. 끌거나 화살표 키로 순서 변경`}
+                onPointerDown={(e) => onDragStart(e, i)}
+                onPointerMove={onDragMove}
+                onPointerUp={onDragEnd}
+                onPointerCancel={onDragEnd}
+                onKeyDown={(e) => onOrderKeyDown(e, i)}
+              >
+                {/* 상위 2마리가 홈에 노출됨을 순번 색으로 알린다 (안내 문구와 2중) */}
+                <span
+                  className={i < 2 ? 'mypage-pet-order-rank top' : 'mypage-pet-order-rank'}
+                  aria-hidden="true"
+                >
+                  {i + 1}
+                </span>
+                <span className="mypage-pet-order-main">
+                  <b>{pet.name}</b>
+                  <span className="sub">{pet.breed ?? '품종 미입력'}</span>
+                </span>
+                <span className="mypage-pet-order-handle" aria-hidden="true">⠿</span>
+              </div>
+            </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              className="w-cta block"
+              onClick={onSaveOrder}
+              disabled={savingOrder}
+            >
+              {savingOrder ? '저장 중…' : '저장'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {pets && pets.length > 0 && !ordering && (
         <ul className="mypage-pet-list">
           {pets.map((pet) => {
             const open = openId === pet.id

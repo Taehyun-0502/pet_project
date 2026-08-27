@@ -43,6 +43,16 @@ public class PetController {
         return ApiResponse.ok(petService.getPet(memberId, petId));
     }
 
+    /**
+     * 노출 순서 저장 (api-spec.md 2절, 2026-08-27) — 배열 순서가 곧 노출 순서.
+     * 리터럴 경로가 아래 {petId} 패턴보다 우선 매칭되므로 "order"가 petId로 흘러가지 않는다.
+     */
+    @PutMapping("/api/pets/order")
+    public ApiResponse<List<PetResponse>> updateOrder(@AuthenticationPrincipal Long memberId,
+                                                      @Valid @RequestBody PetOrderRequest request) {
+        return ApiResponse.ok(petService.updateOrder(memberId, request));
+    }
+
     // 전체 교체 (PUT) — 생략된 선택 항목은 지워진다
     @PutMapping("/api/pets/{petId}")
     public ApiResponse<PetResponse> update(@AuthenticationPrincipal Long memberId,
