@@ -55,7 +55,7 @@ async def run_inference(file: UploadFile, target_model: nn.Module, class_list: L
         
         with torch.no_grad():
             outputs = target_model(input_tensor)
-            scaled_outputs = outputs / TEMPERATURE
+            scaled_outputs = outputs / 0.1
             probabilities = F.softmax(scaled_outputs, dim=1)[0]
             
         top_k_count = min(len(class_list), outputs.shape[1])
@@ -97,11 +97,11 @@ async def predict_binary_ensemble(file: UploadFile, binary_model: nn.Module, mul
         with torch.no_grad():
             # 1) 이진 분류 AI 모델 추론
             binary_outputs = binary_model(input_tensor)
-            binary_probs = F.softmax(binary_outputs / TEMPERATURE, dim=1)[0]
+            binary_probs = F.softmax(binary_outputs / 0.1, dim=1)[0]
             
             # 2) 12종 다중 진단 AI 모델 추론
             multi_outputs = multi_model(input_tensor)
-            multi_probs = F.softmax(multi_outputs / TEMPERATURE, dim=1)[0]
+            multi_probs = F.softmax(multi_outputs / 0.1, dim=1)[0]
 
         # 이진 모델 확률 계산 (Index 0: 피부 질환 가능성/유증상, Index 1: 정상/무증상)
         p_bin_dis = binary_probs[0].item() if binary_probs.shape[0] > 0 else 0.5
