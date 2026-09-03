@@ -511,7 +511,7 @@ export default function SkinDiagnosisPage() {
       if (totalProb > 0) {
         list = list.map((item) => ({
           ...item,
-          confidence: Math.round((((item.confidence || item.probability || 0)) / totalProb) * 10000) / 100,
+          confidence: Math.round(((item.confidence || item.probability || 0) / totalProb) * 100),
         }))
       }
     }
